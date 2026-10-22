@@ -15,13 +15,6 @@ def sh(cwd, *cmd):
     return subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True).stdout
 
 
-@pytest.fixture(autouse=True)
-def no_github_runner_env(monkeypatch):
-    """Keep the CI runner's own event and token out of the tests; tests that need a PR set their own."""
-    for k in ("GITHUB_EVENT_PATH", "GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_API_URL"):
-        monkeypatch.delenv(k, raising=False)
-
-
 @pytest.fixture(scope="session")
 def node_modules(tmp_path_factory) -> Path:
     """Install the sample project's dependencies once; every checkout symlinks to them."""
