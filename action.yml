@@ -57,7 +57,7 @@ runs:
           *) echo "::error::mode must be 'tests' or 'check'"; exit 2 ;;
         esac
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
 
@@ -91,7 +91,7 @@ runs:
 
     - name: Upload run results
       if: inputs.mode == 'tests'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rewardguard-run
         path: ${{ runner.temp }}/rewardguard-run.json
@@ -105,7 +105,7 @@ runs:
 
     - name: Download run results
       if: inputs.mode == 'check'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: rewardguard-run
         path: ${{ runner.temp }}/rewardguard-run
