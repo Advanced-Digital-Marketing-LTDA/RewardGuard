@@ -84,7 +84,7 @@ def _expanded_path(value: str, cwd: Path) -> Path:
         return path
 
 
-def _git_subcommand(words: list[str], cwd: Path) -> tuple[Path, str, list[str]] | None:
+def _git_subcommand(words: list[str], cwd: Path) -> tuple[Path, str, list[str], bool] | None:
     i = 0
     while i < len(words):
         word = words[i]
@@ -97,6 +97,7 @@ def _git_subcommand(words: list[str], cwd: Path) -> tuple[Path, str, list[str]] 
 
     i += 1
     git_cwd = cwd
+    explicit_repository_override = False
     while i < len(words):
         word = words[i]
         if word.startswith("-") and word not in _GIT_VALUE_OPTIONS and not any(
@@ -110,12 +111,16 @@ def _git_subcommand(words: list[str], cwd: Path) -> tuple[Path, str, list[str]] 
             value = words[i + 1]
             if word == "-C":
                 git_cwd = _expanded_path(value, git_cwd)
+            elif word in {"--git-dir", "--work-tree"}:
+                explicit_repository_override = True
             i += 2
             continue
         if word.startswith(("--git-dir=", "--work-tree=", "--namespace=", "--exec-path=")):
+            if word.startswith(("--git-dir=", "--work-tree=")):
+                explicit_repository_override = True
             i += 1
             continue
-        return git_cwd, word, words[i + 1 :]
+        return git_cwd, word, words[i + 1 :], explicit_repository_override
     return None
 
 
@@ -140,17 +145,17 @@ def _commit_content_reason(args: list[str]) -> str | None:
         if word.startswith("--"):
             i += 1
             continue
-        if word.startswith("-") and len(word) > 1:
+        if word.startswith("-") and not word.startswith("--") and len(word) > 1:
             short_options = word[1:]
-            for option in short_options:
+            for position, option in enumerate(short_options):
                 if option in "aiop":
                     return "git commit options such as -a, --only, --include, or --patch select content outside the checked index"
                 if option in "mFcC":
+                    # Consume a separate value only when the option is last in the bundle.
+                    i += 1 if position < len(short_options) - 1 else 2
                     break
-            if any(word.startswith(option) and len(word) > len(option) for option in ("-m", "-F", "-c", "-C")):
+            else:
                 i += 1
-                continue
-            i += 1
             continue
         return "git commit pathspecs select working-tree content outside the checked index"
     return None
@@ -187,7 +192,7 @@ def commit_context(command: str, cwd: str) -> tuple[str, str | None] | None:
         invocation = _git_subcommand(words, current)
         if invocation is None:
             continue
-        git_cwd, subcommand, args = invocation
+        git_cwd, subcommand, args, explicit_repository_override = invocation
         if subcommand == "add":
             stage_mutation_seen = True
             continue
@@ -200,7 +205,10 @@ def commit_context(command: str, cwd: str) -> tuple[str, str | None] | None:
         elif repo != first_repo and blocked_reason is None:
             blocked_reason = "multiple repositories are committed in one Bash call; commit in separate calls so each repository is checked"
 
-        reason = _commit_content_reason(args)
+        if explicit_repository_override:
+            reason = "git --git-dir or --work-tree selects an alternate repository that RewardGuard cannot safely validate"
+        else:
+            reason = _commit_content_reason(args)
         if reason is None and stage_mutation_seen:
             reason = "this Bash call runs git add before git commit; stage in a separate call, then commit in another call"
         if reason is not None and blocked_reason is None:

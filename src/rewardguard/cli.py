@@ -191,6 +191,12 @@ def codex_precommit() -> int:
         )
         return 2
 
+    try:
+        repo = gitops.git(repo, "rev-parse", "--show-toplevel").stdout.strip()
+    except RewardGuardError as e:
+        print(f"rewardguard: could not find repository root for commit check: {e}", file=sys.stderr)
+        return 2
+
     print(f"rewardguard: checking staged changes before commit in {repo}", file=sys.stderr)
     args = argparse.Namespace(
         base="HEAD", head="HEAD", repo=str(repo), description=None, description_file=None,
