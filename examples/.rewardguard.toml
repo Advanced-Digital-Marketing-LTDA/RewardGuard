@@ -1,0 +1,44 @@
+# Commit this to your BASE branch (e.g. main). rewardguard always reads it from the
+# base commit, so a branch can't loosen its own check.
+
+# Run once in each clean checkout before the suites.
+install = "npm ci"
+
+# Each suite must write a Jest/Vitest/Playwright JSON report.
+# {report} is replaced with the report path. Playwright also gets
+# PLAYWRIGHT_JSON_OUTPUT_NAME set to the same path.
+[[suites]]
+name = "unit"
+command = "npx vitest run --reporter=json --outputFile={report}"
+# Jest:       "npx jest --json --outputFile={report}"
+
+# [[suites]]
+# name = "e2e"
+# command = "npx playwright test --reporter=json"
+
+[thresholds]
+fail = 0.8   # Jev probability at or above this fails the check
+warn = 0.5   # at or above this warns
+
+[judge]
+model = "jev-1.13.0"   # pin a version; jev-latest is rejected
+# max_state_chars = 90000
+# context_lines = 20
+# concurrency = 4
+
+# Jev only answers yes/no. Every chunk it flags goes to Claude Haiku (via the `claude` CLI,
+# billed to the subscription behind CLAUDE_CODE_OAUTH_TOKEN), which names the lines and
+# the problem. Haiku never clears a finding.
+[explainer]
+model = "claude-haiku-5-5"
+effort = "low"
+# timeout_seconds = 300
+
+# [paths]
+# test_globs = ["**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "**/__tests__/**", "**/{test,tests,e2e}/**"]
+# exclude = ["**/node_modules/**", "**/dist/**"]
+
+# Per-rule severity: "fail", "warn" or "off".
+[rules]
+# ORIGINAL_TESTS_FAIL = "fail"
+# SNAPSHOT_CHANGED = "fail"

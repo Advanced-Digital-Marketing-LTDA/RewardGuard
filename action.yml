@@ -1,0 +1,89 @@
+name: rewardguard
+description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs the Jev decision model, and Claude Haiku to explain what Jev flags.
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  typesafe-api-key:
+    description: TypeSafe API key for Jev.
+    required: true
+  claude-code-oauth-token:
+    description: Claude subscription token from `claude setup-token`, used by the Claude Haiku explainer.
+    required: true
+  base:
+    description: Base ref to compare against. Defaults to the PR's base branch.
+    required: false
+    default: ""
+  comment:
+    description: Post or update the report as a PR comment ("true"/"false").
+    required: false
+    default: "true"
+  github-token:
+    description: Token used to post the PR comment.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  result:
+    description: '"passed" or "failed"'
+    value: ${{ steps.check.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install rewardguard
+      shell: bash
+      run: python -m pip install --quiet "${{ github.action_path }}"
+
+    - name: Install Claude Code CLI
+      shell: bash
+      run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
+
+    - name: Run rewardguard
+      id: check
+      shell: bash
+      env:
+        TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+        BASE_INPUT: ${{ inputs.base }}
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        base="${BASE_INPUT:-$BASE_REF}"
+        if [ -z "$base" ]; then
+          echo "::error::No base ref. Run on pull_request events or set the 'base' input."
+          exit 2
+        fi
+        git fetch --no-tags --quiet origin "$base"
+        set +e
+        rewardguard check --base "origin/$base" --head HEAD \
+          --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
+        code=$?
+        set -e
+        cat "$RUNNER_TEMP/rewardguard.md" >> "$GITHUB_STEP_SUMMARY"
+        if [ $code -eq 0 ]; then echo "result=passed" >> "$GITHUB_OUTPUT"; else echo "result=failed" >> "$GITHUB_OUTPUT"; fi
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Post PR comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+          --jq '.[] | select(.body | startswith("<!-- rewardguard-report -->")) | .id' | tail -n 1)
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$RUNNER_TEMP/rewardguard.md" > /dev/null
+        else
+          gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@"$RUNNER_TEMP/rewardguard.md" > /dev/null
+        fi
+
+    - name: Set result
+      shell: bash
+      run: exit ${{ steps.check.outputs.exit_code }}
