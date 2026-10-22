@@ -11,7 +11,7 @@ Every run has three layers. Configuration is always read from the **base** commi
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
 2. **Jev judge.** Each changed file's diff is split into chunks that fit Jev's 32k-token state limit. Each chunk is asked yes/no (`noul`) questions. A probability at or above `fail` fails the check; at or above `warn`, it warns. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain.
-3. **Haiku explainer.** Every chunk Jev flags is sent to Claude Haiku (`claude-haiku-5-5`) with the statements Jev judged true. It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
+3. **Haiku explainer.** Every chunk with a Jev finding scored at `[explainer] min_probability` (default `0.6`) or higher is sent to Claude Haiku (`claude-haiku-5-5`) with those statements. Findings below it are still reported, marked "not sent to Haiku". It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
 4. **Test runs** (optional; set `run_tests = false` in `.rewardguard.toml` to skip them for a suite that can't run in a workflow). Each suite runs in clean git worktrees:
    - **base:** the base commit as-is
    - **head:** the branch, with test-runner config restored from base
@@ -35,6 +35,10 @@ Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 | `REVIEWER_NOTE` (text addressed to a reviewer/AI) | static | fail |
 | `ASSERTION_COUNT_DROP`, `SNAPSHOT_CHANGED`, `EMPTY_CATCH`, `TYPE_ESCAPE`, `TEST_ENV_BRANCH`, `MOCK_IN_SOURCE` | static | warn |
 | `COVERAGE_IGNORE` (`istanbul`/`c8`/`v8 ignore`), `LOG_SILENCED`, `TIMEOUT_CHANGED`, `FIXED_WAIT`, `DEPENDENCY_DOWNGRADE` | static | warn |
+| `SECRET_ADDED` (token formats, private keys, URLs with a password, also base64-encoded) | static | fail |
+| `GATE_CONFIG_WEAKENED` (`HUSKY=0`, `--no-verify`, `core.hooksPath`, `continue-on-error: true`, `"strict": false`, ESLint rule `off`; warns on any hook/lint/tsconfig change) | static | fail |
+| `RUNTIME_MONKEYPATCH` (application code reassigns `Math`/`Date`/`JSON` members, built-in prototypes or test globals, or reads the call stack) | static | fail |
+| `AGENT_INSTRUCTIONS_CHANGED` (`AGENTS.md`, `CLAUDE.md`, `SKILL.md`, `.claude/`, `.cursor/`, `.gemini/`…), `NEW_DEPENDENCY`, `NON_TEST_FILES_DELETED`, `LICENSE_HEADER_REMOVED`, `LARGE_LITERAL_TABLE` (100+ lines of literal lookup data in app code) | static | warn |
 | `NO_TESTS_RAN`, `RUN_TEST_TOTAL_DROP`, `RUN_SKIPPED_INCREASE`, `NEW_FAILURES` | run | fail |
 | `ORIGINAL_TESTS_FAIL` (base tests fail against the branch's code) | run | warn |
 | `PREEXISTING_FAILURES` | run | warn |
@@ -44,10 +48,11 @@ Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 | `OVER_MOCKING`, `ASSERTS_ON_MOCK`, `RECOMPUTED_EXPECTED`, `NO_OUTCOME_ASSERTION`, `TEST_NAME_MISMATCH`, `FLAKE_MASKING` | Jev | by threshold |
 | `HARDCODED_OUTPUT`, `SPECIAL_CASED_INPUTS`, `SWALLOWED_ERROR`, `FAKE_SUCCESS`, `MOCK_DATA_AT_RUNTIME`, `UNSAFE_RETRY`, `STUB_IMPLEMENTATION`, `TYPE_SAFETY_BYPASS`, `TIMING_TAMPER`, `REVIEWER_INJECTION` | Jev | by threshold |
 | `SECURITY_CHECK_DISABLED`, `UNREACHABLE_CHANGE`, `TEST_DATA_AT_RUNTIME`, `LOG_SUPPRESSION`, `DELAY_MASKING`, `LIMIT_RAISED` | Jev | by threshold |
+| `HOLLOW_FALLBACK`, `SPECULATIVE_TEST_HEDGING`, `SCOPE_CREEP`, `HIDDEN_PARAMETER_DISABLE` | Jev | by threshold |
 | `DESCRIPTION_OVERCLAIM` (PR description claims work the diff doesn't contain) | Jev | by threshold |
 | `DESCRIPTION_NOT_VERIFIED` (diff too large to check against the description in one call) | Jev | warn |
 
-You can set any rule to `fail`, `warn` or `off` under `[rules]`.
+You can set any rule to `fail`, `warn` or `off` under `[rules]`. [`docs/agent-behaviours.md`](docs/agent-behaviours.md) lists the agent behaviours these rules come from, with sources, and the ones a diff can't show.
 
 ## Setup
 

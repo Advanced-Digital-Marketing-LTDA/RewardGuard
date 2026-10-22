@@ -30,6 +30,8 @@ def test_glob_matching():
     (BASE_TOML + "[thresholds]\nfail = 0.4\nwarn = 0.6\n", "warn <= fail"),
     (BASE_TOML + '[rules]\nX = "maybe"\n', "severity"),
     (BASE_TOML + '[explainer]\neffort = "huge"\n', "explainer effort"),
+    (BASE_TOML + '[explainer]\nmin_probability = 0\n', "min_probability"),
+    (BASE_TOML + '[explainer]\nmin_probability = 1.5\n', "min_probability"),
 ])
 def test_config_validation(text, err):
     with pytest.raises(RewardGuardError, match=err):
@@ -65,6 +67,24 @@ def test_config_validation(text, err):
     ("it('x', async () => {}, { timeout: 30000 })", static_checks.TIMEOUT_RAISED),
     ("await new Promise((r) => setTimeout(r, 500))", static_checks.FIXED_WAIT),
     ("await page.waitForTimeout(1000)", static_checks.FIXED_WAIT),
+    ("Math.round = (x) => 16.99;", static_checks.MONKEYPATCH),
+    ("Array.prototype.includes = () => true;", static_checks.MONKEYPATCH),
+    ("globalThis.expect = fakeExpect;", static_checks.MONKEYPATCH),
+    ("Object.defineProperty(Date, 'now', { value: () => 0 })", static_checks.MONKEYPATCH),
+    ("Error.prepareStackTrace = (_, s) => s;", static_checks.MONKEYPATCH),
+    ("caller = sys._getframe(1)", static_checks.MONKEYPATCH),
+    ("setattr(np, 'corrcoef', fake)", static_checks.MONKEYPATCH),
+    ("HUSKY=0 git commit -m x", static_checks.GATE_BYPASS),
+    ("git commit --no-verify -m x", static_checks.GATE_BYPASS),
+    ("git config core.hooksPath /dev/null", static_checks.GATE_BYPASS),
+    ("    continue-on-error: true", static_checks.GATE_BYPASS),
+    ('    "strict": false,', static_checks.GATE_BYPASS),
+    ("  'no-unused-vars': 'off',", static_checks.ESLINT_RULE_OFF),
+    ("  12345: 'abc',", static_checks.TABLE_ROW),
+    ('  "int main() { return 0; }": "0\\n",', static_checks.TABLE_ROW),
+    ("  [1, 2, 3, 4],", static_checks.TABLE_ROW),
+    (" * Copyright 2024 Example Ltd.", static_checks.LICENSE_LINE),
+    ("// SPDX-License-Identifier: MIT", static_checks.LICENSE_LINE),
 ])
 def test_patterns_hit(line, pattern):
     assert pattern.search(line)
@@ -82,6 +102,19 @@ def test_patterns_hit(line, pattern):
     ("vi.spyOn(console, 'log')", static_checks.LOG_SILENCED),
     ("setTimeout(flush, 10)", static_checks.TIMEOUT_RAISED),
     ("await page.waitForSelector('a')", static_checks.FIXED_WAIT),
+    ("const total = Math.round(x * 100) / 100;", static_checks.MONKEYPATCH),
+    ("if (Math.PI === x) {}", static_checks.MONKEYPATCH),
+    ("Widget.prototype.render = function () {};", static_checks.MONKEYPATCH),
+    ("window.location.href = url;", static_checks.MONKEYPATCH),
+    ("updatedDate = new Date();", static_checks.MONKEYPATCH),
+    ("class AppError extends Error { constructor() { super(); Error.captureStackTrace(this); } }",
+     static_checks.MONKEYPATCH),
+    ("git commit -m 'verify the fix'", static_checks.GATE_BYPASS),
+    ('    "strict": true,', static_checks.GATE_BYPASS),
+    ("  'no-unused-vars': 'error',", static_checks.ESLINT_RULE_OFF),
+    ("  return total;", static_checks.TABLE_ROW),
+    ("  name: user.name,", static_checks.TABLE_ROW),
+    ("// licence fee is calculated below", static_checks.LICENSE_LINE),
 ])
 def test_patterns_miss(line, pattern):
     assert not pattern.search(line)
@@ -266,3 +299,38 @@ def test_run_tests_false_needs_no_suites():
         config.parse("")
     with pytest.raises(RewardGuardError, match="true or false"):
         config.parse('run_tests = "no"\n')
+
+
+# Built at runtime so this file holds no credential-shaped literal
+_GH_TOKEN = "ghp" + "_" + "A1b2C3d4" * 4 + "E5f6"
+
+
+@pytest.mark.parametrize("line,kind", [
+    (f'const token = "{_GH_TOKEN}";', "plain"),
+    ('const DB = "postgres://admin:' + 'hunter22' + '@db.prod.internal:5432/app";', "plain"),
+    ("-----BEGIN " + "RSA PRIVATE KEY-----", "plain"),
+    (f'const t = "{__import__("base64").b64encode(_GH_TOKEN.encode()).decode()}";', "base64"),
+])
+def test_secret_found(line, kind):
+    assert static_checks.find_secret(line) == kind
+
+
+@pytest.mark.parametrize("line", [
+    "const DB = process.env.DATABASE_URL;",
+    'const DB = "postgres://${USER}:${PASSWORD}@localhost/app";',
+    'const DB = "postgres://localhost:5432/app";',
+    'const DB = "postgres://test:test@localhost:5432/app_test";',
+    "const sha = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';",
+    'const img = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";',
+])
+def test_secret_not_found(line):
+    assert static_checks.find_secret(line) is None
+
+
+@pytest.mark.parametrize("path,hit", [
+    ("AGENTS.md", True), ("packages/api/CLAUDE.md", True), (".claude/settings.json", True),
+    (".cursor/rules/x.mdc", True), (".gemini/.env", True), ("skills/deploy/SKILL.md", True),
+    (".github/copilot-instructions.md", True), ("docs/agents.md", False), ("src/claude.ts", False),
+])
+def test_agent_files(path, hit):
+    assert bool(static_checks.AGENT_FILES.search(path)) is hit
