@@ -1,0 +1,30 @@
+# Copy to .github/workflows/rewardguard.yml in the project you want to protect,
+# then make "rewardguard" a required status check on your default branch.
+name: rewardguard
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  rewardguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Only if a suite runs Playwright:
+      # - run: npx playwright install --with-deps
+
+      - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
+        with:
+          typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
