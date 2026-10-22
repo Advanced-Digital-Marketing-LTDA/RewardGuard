@@ -17,39 +17,74 @@ _COMMIT_VALUE_OPTIONS = {
 
 
 def _split_unquoted_newlines(command: str) -> str:
-    """Turn shell command newlines into separators without splitting quoted strings."""
+    """Normalize shell line continuations, comments, and unquoted command newlines."""
     parts: list[str] = []
     quote: str | None = None
     escaped = False
-    for char in command:
+    at_word_start = True
+    i = 0
+    while i < len(command):
+        char = command[i]
         if escaped:
             parts.append(char)
             escaped = False
+            at_word_start = False
+            i += 1
             continue
-        if char == "\\" and quote != "'":
+        if char == "\\\\" and quote != "'":
+            if i + 1 < len(command) and command[i + 1] == "\\n":
+                i += 2
+                continue
             parts.append(char)
             escaped = True
+            at_word_start = False
+            i += 1
             continue
         if quote == "'":
             if char == "'":
                 quote = None
             parts.append(char)
+            at_word_start = False
+            i += 1
             continue
         if quote == '"':
             if char == '"':
                 quote = None
             parts.append(char)
+            at_word_start = False
+            i += 1
+            continue
+        if char == "#" and at_word_start:
+            while i < len(command):
+                if command[i] == "\\\\" and i + 1 < len(command) and command[i + 1] == "\\n":
+                    i += 2
+                    continue
+                if command[i] == "\\n":
+                    break
+                i += 1
+            if i < len(command):
+                parts.append(";")
+                at_word_start = True
+                i += 1
             continue
         if char == "'":
             quote = "'"
+            at_word_start = False
         elif char == '"':
             quote = '"'
-        elif char == "\n":
+            at_word_start = False
+        elif char == "\\n":
             parts.append(";")
+            at_word_start = True
+            i += 1
             continue
+        elif char.isspace() or char in ";&|<>":
+            at_word_start = True
+        else:
+            at_word_start = False
         parts.append(char)
+        i += 1
     return "".join(parts)
-
 
 def _segments(command: str) -> list[list[str]]:
     lexer = shlex.shlex(_split_unquoted_newlines(command), posix=True, punctuation_chars=";&|<>")
