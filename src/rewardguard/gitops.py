@@ -8,7 +8,8 @@ from .models import RewardGuardError
 
 
 def git(repo: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-    proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    # errors="replace": binary or non-UTF-8 files (images, fixtures) must not crash the check
+    proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, errors="replace")
     if check and proc.returncode != 0:
         raise RewardGuardError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc
@@ -29,6 +30,14 @@ def is_dirty(repo: str) -> bool:
 def show_file(repo: str, commit: str, path: str) -> str | None:
     proc = git(repo, "show", f"{commit}:{path}", check=False)
     return proc.stdout if proc.returncode == 0 else None
+
+
+def show_bytes(repo: str, commit: str, path: str) -> bytes:
+    """Exact file contents, for copying files into a worktree."""
+    proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
+    if proc.returncode != 0:
+        raise RewardGuardError(f"git show {commit[:12]}:{path} failed: {proc.stderr.decode(errors='replace').strip()}")
+    return proc.stdout
 
 
 def list_files(repo: str, commit: str) -> list[str]:

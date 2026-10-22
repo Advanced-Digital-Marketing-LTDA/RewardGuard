@@ -126,10 +126,9 @@ def _overlay_base_config(repo: str, base: str, head: str, head_dir: Path, cfg: C
     base_files = set(gitops.list_files(repo, base))
     for path in base_files:
         if classify(path, cfg) in (CONFIG, CHECKER):
-            content = gitops.show_file(repo, base, path)
             dest = head_dir / path
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(content or "")
+            dest.write_bytes(gitops.show_bytes(repo, base, path))
     # remove config files the branch added
     for rel in gitops.list_files(repo, head):
         if rel not in base_files and classify(rel, cfg) == CONFIG:
@@ -172,8 +171,7 @@ def _overlay_base_tests(repo: str, base: str, head: str, head_dir: Path, cfg: Co
         if classify(path, cfg) in (TEST, SNAPSHOT):
             dest = head_dir / path
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(subprocess.run(["git", "-C", repo, "show", f"{base}:{path}"],
-                                            capture_output=True, check=True).stdout)
+            dest.write_bytes(gitops.show_bytes(repo, base, path))
 
 
 def _overlay_head_tests(repo: str, base: str, head: str, base_dir: Path, cfg: Config) -> None:
@@ -182,8 +180,7 @@ def _overlay_head_tests(repo: str, base: str, head: str, base_dir: Path, cfg: Co
         if cf.status != "D" and classify(cf.path, cfg) == TEST:
             dest = base_dir / cf.path
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(subprocess.run(["git", "-C", repo, "show", f"{head}:{cf.path}"],
-                                            capture_output=True, check=True).stdout)
+            dest.write_bytes(gitops.show_bytes(repo, head, cf.path))
 
 
 def run(repo: str, base: str, head: str, cfg: Config, log=print) -> list[Finding]:

@@ -186,3 +186,19 @@ def test_snapshot_edited_to_match_bug_is_caught(sample_repo, fake_jev, node_modu
     assert rep["errors"] == [], rep["errors"]
     found = rules(rep)
     assert "ORIGINAL_TESTS_FAIL" in found and "SNAPSHOT_CHANGED" in found, rep["findings"]
+
+
+def test_binary_test_fixture_does_not_crash(sample_repo, fake_jev, tmp_path):
+    fake_jev()
+    png = sample_repo.path / "tests/fixtures/image.png"
+    png.parent.mkdir(parents=True)
+    png.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\x00\x80binary")
+    from conftest import sh
+    sh(sample_repo.path, "git", "add", "-A")
+    sh(sample_repo.path, "git", "commit", "-qm", "add fixture")
+    sh(sample_repo.path, "git", "checkout", "-q", "-b", "binary")
+    png.write_bytes(b"\x89PNG\r\n\x1a\n\xfe\xff\x81changed")
+    sh(sample_repo.path, "git", "commit", "-qam", "change fixture")
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    assert code == 0, rep["findings"]
