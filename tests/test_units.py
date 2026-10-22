@@ -219,6 +219,31 @@ def test_version_parsing():
     assert static_checks._version("workspace:*") == ()
 
 
+def test_deleted_source_file_is_judged(sample_repo):
+    from rewardguard import gitops
+    sample_repo.branch("drop", {"src/price.js": None})
+    repo = str(sample_repo.path)
+    base, head = gitops.rev_parse(repo, "main"), gitops.rev_parse(repo, "drop")
+    changed = gitops.changed_files(repo, base, head)
+    chunks = judge.build_chunks(repo, base, head, config.parse(BASE_TOML), changed, {"src/price.js": "source"}, "")
+    assert len(chunks) == 1
+    assert "Change type: deleted file" in chunks[0].text
+    assert "-export function applyDiscount" in chunks[0].text
+
+
+@pytest.mark.parametrize("rules,p,expected", [
+    ("", 0.6, "warn"),                                  # thresholds decide
+    ('WEAKENED_ASSERTION = "fail"\n', 0.6, "fail"),     # explicit fail wins below the fail threshold
+    ('WEAKENED_ASSERTION = "warn"\n', 0.95, "warn"),
+    ('WEAKENED_ASSERTION = "off"\n', 0.95, None),
+])
+def test_rule_severity_overrides_thresholds(rules, p, expected):
+    cfg = config.parse(BASE_TOML + "[rules]\n" + rules)
+    sev = judge.FAIL if p >= cfg.fail_threshold else judge.WARN
+    f = judge._finding(cfg, "WEAKENED_ASSERTION", sev, "m")
+    assert (f.severity if f else None) == expected
+
+
 def test_large_hunks_are_chunked(sample_repo):
     big = "\n".join(f"export const v{i} = {i};" for i in range(6000))
     sample_repo.branch("big", {"src/big.js": big})

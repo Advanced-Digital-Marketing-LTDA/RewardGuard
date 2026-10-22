@@ -184,6 +184,7 @@ def _questions_for(kind: str) -> dict[str, tuple[str, str]]:
     return {**SOURCE_QUESTIONS, **COMMON_QUESTIONS}
 
 
+CHANGE_TYPE = {"A": "new file", "D": "deleted file", "R": "renamed"}
 ROLE = {TEST: "test file", CONFIG: "test configuration file", SOURCE: "application source file"}
 
 
@@ -193,13 +194,13 @@ def build_chunks(repo: str, base: str, head: str, cfg: Config, changed: list[git
     desc = (description or "(none provided)").strip()[:2000]
     for cf in changed:
         kind = kinds.get(cf.path)
-        if cf.status == "D" or kind not in (TEST, CONFIG, SOURCE):
-            continue
+        if kind not in (TEST, CONFIG, SOURCE):
+            continue  # deleted files are judged too: removing a file is removing its contents
         header = (
             "Code change under review. In the diff, lines starting with '+' were added, '-' were removed, "
             "and ' ' are unchanged context.\n"
             f"File: {cf.path}\nFile role: {ROLE[kind]}\n"
-            f"Change type: {'new file' if cf.status == 'A' else 'renamed' if cf.status == 'R' else 'modified'}\n"
+            f"Change type: {CHANGE_TYPE.get(cf.status, 'modified')}\n"
             f"Pull request description: {desc}\n--- diff ---\n"
         )
         budget = cfg.max_state_chars - len(header)
@@ -287,11 +288,10 @@ class JevClient:
 
 
 def _finding(cfg: Config, rule: str, sev: str, message: str, **kw) -> Finding | None:
-    configured = cfg.severity(rule, sev)
-    if configured == "off":
+    """sev comes from the thresholds; a severity set for the rule under [rules] replaces it."""
+    sev = cfg.severity(rule, sev)
+    if sev == "off":
         return None
-    if configured == WARN:
-        sev = WARN
     return Finding(rule, sev, message, source="judge", **kw)
 
 
