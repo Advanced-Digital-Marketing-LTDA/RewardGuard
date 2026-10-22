@@ -45,6 +45,7 @@ class Suite:
 class Config:
     install: str | None
     suites: list[Suite]
+    run_tests: bool = True  # false: skip the test-run layer (static checks, Jev and Haiku only)
     test_globs: list[str] = field(default_factory=lambda: list(DEFAULT_TEST_GLOBS))
     config_globs: list[str] = field(default_factory=lambda: list(DEFAULT_CONFIG_GLOBS))
     snapshot_globs: list[str] = field(default_factory=lambda: list(DEFAULT_SNAPSHOT_GLOBS))
@@ -81,9 +82,12 @@ def parse(text: str) -> Config:
     except tomllib.TOMLDecodeError as e:
         raise RewardGuardError(f"{CONFIG_FILE} is not valid TOML: {e}") from e
 
-    suites_raw = data.get("suites")
-    if not suites_raw or not isinstance(suites_raw, list):
-        raise RewardGuardError(f"{CONFIG_FILE} must define at least one [[suites]] entry")
+    run_tests = data.get("run_tests", True)
+    if not isinstance(run_tests, bool):
+        raise RewardGuardError(f"{CONFIG_FILE}: run_tests must be true or false")
+    suites_raw = data.get("suites", [])
+    if not isinstance(suites_raw, list) or (run_tests and not suites_raw):
+        raise RewardGuardError(f"{CONFIG_FILE} must define at least one [[suites]] entry, or set run_tests = false")
     suites = []
     for s in suites_raw:
         if not isinstance(s, dict) or not s.get("name") or not s.get("command"):
@@ -102,6 +106,7 @@ def parse(text: str) -> Config:
     cfg = Config(
         install=data.get("install"),
         suites=suites,
+        run_tests=run_tests,
         test_globs=_list(paths, "test_globs", DEFAULT_TEST_GLOBS),
         config_globs=_list(paths, "config_globs", DEFAULT_CONFIG_GLOBS),
         snapshot_globs=_list(paths, "snapshot_globs", DEFAULT_SNAPSHOT_GLOBS),

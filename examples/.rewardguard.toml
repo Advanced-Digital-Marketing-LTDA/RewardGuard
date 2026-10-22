@@ -1,6 +1,11 @@
 # Commit this to your BASE branch (e.g. main). rewardguard always reads it from the
 # base commit, so a branch can't loosen its own check.
 
+# If your test suite can't run in a workflow (too large, needs services), set this to
+# false and drop install/[[suites]]: rewardguard then runs static checks, Jev and Haiku
+# only. Use examples/rewardguard-no-tests.yml as the workflow.
+# run_tests = false
+
 # Run once in each clean checkout before the suites.
 install = "npm ci"
 

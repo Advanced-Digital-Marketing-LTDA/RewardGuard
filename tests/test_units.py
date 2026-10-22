@@ -257,3 +257,12 @@ def test_large_hunks_are_chunked(sample_repo):
     assert all(len(c.text) <= 20000 for c in chunks)
     joined = "".join(chunks[i].text for i in range(len(chunks)))
     assert "v0 = 0;" in joined and "v5999 = 5999;" in joined
+
+
+def test_run_tests_false_needs_no_suites():
+    cfg = config.parse("run_tests = false\n")
+    assert cfg.run_tests is False and cfg.suites == []
+    with pytest.raises(RewardGuardError, match="run_tests = false"):
+        config.parse("")
+    with pytest.raises(RewardGuardError, match="true or false"):
+        config.parse('run_tests = "no"\n')
