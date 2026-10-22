@@ -31,8 +31,8 @@ def _split_unquoted_newlines(command: str) -> str:
             at_word_start = False
             i += 1
             continue
-        if char == "\\\\" and quote != "'":
-            if i + 1 < len(command) and command[i + 1] == "\\n":
+        if char == "\\" and quote != "'":
+            if i + 1 < len(command) and command[i + 1] == "\n":
                 i += 2
                 continue
             parts.append(char)
@@ -56,10 +56,10 @@ def _split_unquoted_newlines(command: str) -> str:
             continue
         if char == "#" and at_word_start:
             while i < len(command):
-                if command[i] == "\\\\" and i + 1 < len(command) and command[i + 1] == "\\n":
+                if command[i] == "\\" and i + 1 < len(command) and command[i + 1] == "\n":
                     i += 2
                     continue
-                if command[i] == "\\n":
+                if command[i] == "\n":
                     break
                 i += 1
             if i < len(command):
@@ -73,7 +73,7 @@ def _split_unquoted_newlines(command: str) -> str:
         elif char == '"':
             quote = '"'
             at_word_start = False
-        elif char == "\\n":
+        elif char == "\n":
             parts.append(";")
             at_word_start = True
             i += 1
