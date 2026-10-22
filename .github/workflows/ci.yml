@@ -1,7 +1,12 @@
 name: ci
 on:
   push:
+    branches: [main]   # PR branches are covered by the pull_request run
   pull_request:
+concurrency:
+  # one run per PR (or per main commit); a newer push cancels the older run
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
