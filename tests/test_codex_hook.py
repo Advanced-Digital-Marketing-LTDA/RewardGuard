@@ -80,6 +80,7 @@ def test_missing_project_config_uses_global_precommit_defaults(sample_repo):
     ("git status\ngit commit -m change", "."),
     ("git \\\n commit -m x", "."),
     ("git status # comment\ngit commit -m x", "."),
+    ("git status # note \\\n git commit -m change", "."),
     ("echo 'first line\ngit commit'", None),
     ("git status", None),
     ("echo 'git commit'", None),
