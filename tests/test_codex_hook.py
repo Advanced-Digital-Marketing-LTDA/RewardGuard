@@ -162,9 +162,9 @@ def test_staged_check_uses_staged_version_without_project_config(tmp_path, fake_
     ("git add -- file.js\ngit commit -m x", "git add"),
     ("git commit -am x", "-a"),
     ("git commit --all -m x", "-a"),
-    ("git commit --only file.js", "pathspec"),
-    ("git commit -- file.js", "pathspec"),
-    ("git commit file.js", "pathspec"),
+    ("git commit --only file.js", "outside the checked index"),
+    ("git commit -- file.js", "outside the checked index"),
+    ("git commit file.js", "outside the checked index"),
 ])
 def test_codex_hook_blocks_commands_that_change_commit_content(command, reason_text, tmp_path):
     context = codex_hook.commit_context(command, str(tmp_path))
