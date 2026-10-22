@@ -240,3 +240,29 @@ def test_check_rejects_bad_run_results(sample_repo, fake_jev, tmp_path, tamper, 
     code, rep = run_check(sample_repo, tmp_path, "--run-results", str(results))
     assert code == 2
     assert any(msg in e for e in rep["errors"]), rep["errors"]
+
+
+def _set_base_config(repo, text):
+    from conftest import sh
+    (repo.path / ".rewardguard.toml").write_text(text)
+    sh(repo.path, "git", "commit", "-qam", "config")
+
+
+def test_run_tests_false_skips_test_runs(sample_repo, fake_jev, monkeypatch, tmp_path):
+    _set_base_config(sample_repo, "run_tests = false\n")
+    fake_jev()
+    monkeypatch.setattr("rewardguard.runner.run", lambda *a, **k: pytest.fail("tests must not run"))
+    sample_repo.branch("skip-no-tests", {TEST: sample_repo.read(TEST).replace('it("splits evenly"', 'it.skip("splits evenly"')})
+    code, rep = run_check(sample_repo, tmp_path, "--no-local-tests")
+    assert rep["errors"] == [], rep["errors"]
+    assert code == 1 and "SKIP_ADDED" in rules(rep)          # static layer still catches it
+    assert any("Test runs are off" in n for n in rep["notes"])
+
+
+def test_no_local_tests_fails_when_config_needs_tests(sample_repo, fake_jev, monkeypatch, tmp_path):
+    fake_jev()
+    monkeypatch.setattr("rewardguard.runner.run", lambda *a, **k: pytest.fail("tests must not run"))
+    sample_repo.branch("any", {SRC: sample_repo.read(SRC) + "\n// tweak\n"})
+    code, rep = run_check(sample_repo, tmp_path, "--no-local-tests")
+    assert code == 2
+    assert any("--no-local-tests" in e for e in rep["errors"]), rep["errors"]

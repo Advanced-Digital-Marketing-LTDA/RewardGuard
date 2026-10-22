@@ -7,11 +7,17 @@ branding:
 # Use in two jobs (see examples/rewardguard.yml):
 #   mode: tests  - runs the branch's test suites. Give it NO secrets: it executes branch code.
 #   mode: check  - static checks, Jev and Haiku, plus the tests job's results. Never runs branch code.
+# Or skip test runs (run_tests = false in .rewardguard.toml) and use one job with
+# mode: check and tests: "false" (see examples/rewardguard-no-tests.yml).
 
 inputs:
   mode:
     description: '"tests" (run branch tests, no secrets) or "check" (judge and report, needs secrets).'
     required: true
+  tests:
+    description: Check mode only. "true" reads the results uploaded by a mode-tests job; "false" when .rewardguard.toml sets run_tests = false and there is no tests job.
+    required: false
+    default: "true"
   typesafe-api-key:
     description: TypeSafe API key for Jev. Check mode only.
     required: false
@@ -104,7 +110,7 @@ runs:
       run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
 
     - name: Download run results
-      if: inputs.mode == 'check'
+      if: inputs.mode == 'check' && inputs.tests == 'true'
       uses: actions/download-artifact@v8
       with:
         name: rewardguard-run
@@ -118,10 +124,15 @@ runs:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
+        TESTS: ${{ inputs.tests }}
       run: |
+        # --no-local-tests: this job holds the secrets, so it never runs branch code
+        results=()
+        if [ "$TESTS" = "true" ]; then
+          results=(--run-results "$RUNNER_TEMP/rewardguard-run/rewardguard-run.json")
+        fi
         set +e
-        rewardguard check --base "$BASE" --head HEAD \
-          --run-results "$RUNNER_TEMP/rewardguard-run/rewardguard-run.json" \
+        rewardguard check --base "$BASE" --head HEAD --no-local-tests "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e

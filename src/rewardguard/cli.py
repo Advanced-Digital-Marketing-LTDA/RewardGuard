@@ -66,7 +66,7 @@ def run_tests(args) -> int:
         print(f"ERROR  {e}", file=sys.stderr)
         return 2
     findings, errors = [], []
-    if gitops.changed_files(repo, base, head):
+    if cfg.run_tests and gitops.changed_files(repo, base, head):
         log("rewardguard: test runs")
         try:
             findings = runner.run(repo, base, head, cfg, log)
@@ -110,7 +110,9 @@ def check(args) -> int:
     except RewardGuardError as e:
         rep.errors.append(f"Judge: {e}")
 
-    if args.run_results:
+    if not cfg.run_tests:
+        rep.notes.append("Test runs are off (run_tests = false in .rewardguard.toml): static checks, Jev and Haiku only")
+    elif args.run_results:
         log(f"rewardguard: test results from {args.run_results}")
         try:
             run_findings, run_errors = _load_run_results(args.run_results, base, head)
@@ -118,6 +120,10 @@ def check(args) -> int:
             rep.errors.extend(run_errors)
         except RewardGuardError as e:
             rep.errors.append(str(e))
+    elif args.no_local_tests:
+        # CI's secrets job: branch code must never run here
+        rep.errors.append("The base config has run_tests = true, but this run may not execute tests "
+                          "(--no-local-tests). Run them in a separate job and pass --run-results.")
     else:
         log("rewardguard: test runs")
         try:
@@ -155,6 +161,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="Run even with uncommitted changes (they are NOT checked)")
     c.add_argument("--run-results",
                    help="Use test results written by `rewardguard run-tests` instead of running the tests here")
+    c.add_argument("--no-local-tests", action="store_true",
+                   help="Never run tests in this process; fail if the base config needs test runs and "
+                        "--run-results is not given")
     c.add_argument("--quiet", action="store_true")
     t = sub.add_parser("run-tests", help="Run only the test suites and write the results to a file")
     t.add_argument("--base", default="main", help="Base branch or commit (default: main)")

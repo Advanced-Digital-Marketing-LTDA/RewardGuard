@@ -12,7 +12,7 @@ Every run has three layers. Configuration is always read from the **base** commi
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
 2. **Jev judge.** Each changed file's diff is split into chunks that fit Jev's 32k-token state limit. Each chunk is asked yes/no (`noul`) questions. A probability at or above `fail` fails the check; at or above `warn`, it warns. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain.
 3. **Haiku explainer.** Every chunk Jev flags is sent to Claude Haiku (`claude-haiku-5-5`) with the statements Jev judged true. It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
-4. **Test runs.** Each suite runs in clean git worktrees:
+4. **Test runs** (optional; set `run_tests = false` in `.rewardguard.toml` to skip them for a suite that can't run in a workflow). Each suite runs in clean git worktrees:
    - **base:** the base commit as-is
    - **head:** the branch, with test-runner config restored from base
    - **original:** the branch's code against the base branch's test files
@@ -81,6 +81,8 @@ Locally, `rewardguard check` runs the tests in the same process as the keys. Tha
 
    The split matters because branch code running as the same user can read secrets from other processes (for example through `/proc/<pid>/environ`). Removing them from the test command's environment is not enough. Never pass secrets to `mode: tests`; the Action refuses if you do. If the tests job fails or uploads nothing, the `rewardguard` job fails.
 3. In branch protection, make the `rewardguard` check **required** (the second job).
+
+   **No test runs:** if your suite is too large or needs services a workflow doesn't have, set `run_tests = false` in `.rewardguard.toml` and use [`examples/rewardguard-no-tests.yml`](examples/rewardguard-no-tests.yml) instead. It's one job (static checks, Jev, Haiku) that never runs branch code. You lose the run-layer rules (`NO_TESTS_RAN`, `NEW_FAILURES`, `ORIGINAL_TESTS_FAIL`, and so on), but every static and Jev rule still applies. The check job always passes `--no-local-tests`, so if the base config still says `run_tests = true` it fails instead of running tests next to the secrets.
 4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. `CHECKER_CONFIG_CHANGED` also fails any PR that touches these files.
 
 The Action writes the report to the job summary and posts or updates one PR comment.
