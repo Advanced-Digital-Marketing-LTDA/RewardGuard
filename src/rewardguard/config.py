@@ -1,4 +1,9 @@
-"""Configuration, always read from the base commit so a branch cannot loosen its own check."""
+"""Configuration, read from the commit being checked (the PR head).
+
+A branch can therefore change its own config, but it can't do so quietly: any change to
+.rewardguard.toml or .github/ always fails CHECKER_CONFIG_CHANGED (the config can't lower or exclude
+that rule), and judge.api_url may only change on the base branch, so a branch can't redirect the
+Jev key to another server."""
 from __future__ import annotations
 
 import tomllib
@@ -35,6 +40,10 @@ DEFAULT_EXCLUDE = [
 ]
 
 
+DEFAULT_API_URL = "https://api.typesafe.ai/v1/systemone"
+UNLOWERABLE_RULES = ("CHECKER_CONFIG_CHANGED",)
+
+
 @dataclass
 class Suite:
     name: str
@@ -54,7 +63,7 @@ class Config:
     fail_threshold: float = 0.8
     warn_threshold: float = 0.5
     model: str = "jev-1.13.0"
-    api_url: str = "https://api.typesafe.ai/v1/systemone"
+    api_url: str = DEFAULT_API_URL
     max_state_chars: int = 90_000  # ~22k tokens; Jev allows 32k for state + longest question
     context_lines: int = 20
     concurrency: int = 4
@@ -102,6 +111,8 @@ def parse(text: str) -> Config:
     for rule, sev in rules.items():
         if sev not in (FAIL, WARN, "off"):
             raise RewardGuardError(f"{CONFIG_FILE}: rule {rule} severity must be fail, warn or off")
+        if rule in UNLOWERABLE_RULES and sev != FAIL:
+            raise RewardGuardError(f"{CONFIG_FILE}: rule {rule} always fails and can't be set to {sev}")
 
     cfg = Config(
         install=data.get("install"),
@@ -115,7 +126,7 @@ def parse(text: str) -> Config:
         fail_threshold=float(th.get("fail", 0.8)),
         warn_threshold=float(th.get("warn", 0.5)),
         model=str(judge.get("model", "jev-1.13.0")),
-        api_url=str(judge.get("api_url", "https://api.typesafe.ai/v1/systemone")),
+        api_url=str(judge.get("api_url", DEFAULT_API_URL)),
         max_state_chars=int(judge.get("max_state_chars", 90_000)),
         context_lines=int(judge.get("context_lines", 20)),
         concurrency=int(judge.get("concurrency", 4)),
@@ -138,8 +149,19 @@ def parse(text: str) -> Config:
 def load_from_commit(repo: str, commit: str) -> Config:
     text = gitops.show_file(repo, commit, CONFIG_FILE)
     if text is None:
-        raise RewardGuardError(
-            f"{CONFIG_FILE} not found on the base commit {commit[:12]}. "
-            "Commit it to the base branch first; it is never read from the branch being checked."
-        )
+        raise RewardGuardError(f"{CONFIG_FILE} not found on commit {commit[:12]}.")
     return parse(text)
+
+
+def load_for_check(repo: str, base: str, head: str) -> Config:
+    """The head's config, refused if it moves judge.api_url away from the base's (or the default when
+    the base has no config yet): the Jev key is sent there, so only the base branch may change it."""
+    cfg = load_from_commit(repo, head)
+    base_text = gitops.show_file(repo, base, CONFIG_FILE)
+    allowed = parse(base_text).api_url if base_text is not None else DEFAULT_API_URL
+    if cfg.api_url != allowed:
+        raise RewardGuardError(
+            f"{CONFIG_FILE}: judge.api_url can only change on the base branch "
+            f"(base uses {allowed}, this branch sets {cfg.api_url})."
+        )
+    return cfg
