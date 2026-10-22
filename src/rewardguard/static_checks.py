@@ -104,8 +104,9 @@ GATE_FILES = re.compile(
 )
 GATE_BYPASS = re.compile(
     r"\bHUSKY\s*=\s*['\"]?0\b|--no-verify\b|\bcore\.hooksPath\b|\bcontinue-on-error\s*:\s*true\b"
-    r"|['\"]?(?:strict|noImplicitAny|strictNullChecks|noEmitOnError)['\"]?\s*:\s*false\b"
 )
+# Only meaningful in GATE_FILES: application code has its own options called `strict`
+STRICT_OFF = re.compile(r"['\"]?(?:strict|noImplicitAny|strictNullChecks|noEmitOnError)['\"]?\s*:\s*false\b")
 DOC_FILE = re.compile(r"\.(?:md|mdx|txt|rst)$", re.I)
 ESLINT_RULE_OFF = re.compile(r"['\"][\w@/-]+['\"]\s*:\s*(?:['\"]off['\"]|0)\s*(?:,|$)")
 
@@ -115,8 +116,10 @@ MONKEYPATCH = re.compile(
     r"|(?<![\w.$])(?:Array|Object|String|Number|Function|Promise|Date|Map|Set|RegExp|Error)\.prototype\.\w+\s*=(?!=)"
     r"|(?<![\w.$])(?:globalThis|global|window)\.(?:Math|JSON|Date|expect|describe|it|test|vi|jest|assert)\s*=(?!=)"
     r"|(?<![\w.$])(?:Date|Math|JSON)\s*=(?!=)"
-    r"|Object\.defineProperty\(\s*(?:Math|JSON|Date|globalThis|global"
-    r"|(?:Array|Object|String|Number|Function|Promise|Date|Map|Set|RegExp|Error)\.prototype)\b"
+    r"|Object\.defineProperty\(\s*(?:Math|JSON|Date"
+    r"|(?:Array|Object|String|Number|Function|Promise|Date|Map|Set|RegExp|Error)\.prototype)\s*,"
+    r"|Object\.defineProperty\(\s*(?:globalThis|global|window)\s*,\s*['\"]"
+    r"(?:Math|JSON|Date|expect|describe|it|test|vi|jest|assert)['\"]"
     r"|\bError\.prepareStackTrace\s*=(?!=)"
     r"|\binspect\.stack\(|\bsys\._getframe\(|\bsetattr\(\s*(?:np|numpy|math|builtins|torch|sklearn)\b"
 )
@@ -287,14 +290,14 @@ def run(ctx: StaticContext, changed: list[gitops.ChangedFile]) -> tuple[list[Fin
         for hunk in gitops.file_hunks(ctx.repo, ctx.base, ctx.head, cf.path, 0, cf.old_path):
             for lineno, raw in hunk.added:
                 code = strip_comments(raw)
-                loc = dict(file=cf.path, line=lineno, evidence=raw)
                 secret = find_secret(raw)
+                # the report must not repeat a credential, whichever rule matches its line
+                loc = dict(file=cf.path, line=lineno, evidence=None if secret else raw)
                 if secret:
-                    # no evidence: the report must not repeat the credential
-                    add(_f(ctx, "SECRET_ADDED", FAIL, f"Credential added to the repository ({secret})",
-                           file=cf.path, line=lineno))
-                if (GATE_BYPASS.search(code) and not DOC_FILE.search(cf.path)) or (
-                        GATE_FILES.search(cf.path) and "eslint" in cf.path and ESLINT_RULE_OFF.search(code)):
+                    add(_f(ctx, "SECRET_ADDED", FAIL, f"Credential added to the repository ({secret})", **loc))
+                gate_file = GATE_FILES.search(cf.path)
+                if (GATE_BYPASS.search(code) and not DOC_FILE.search(cf.path)) or (gate_file and (
+                        STRICT_OFF.search(code) or ("eslint" in cf.path and ESLINT_RULE_OFF.search(code)))):
                     add(_f(ctx, "GATE_CONFIG_WEAKENED", FAIL,
                            "Commit hook, CI step, lint rule or type-check strictness turned off", **loc))
                 if kind == SOURCE and MONKEYPATCH.search(code):
@@ -343,7 +346,7 @@ def run(ctx: StaticContext, changed: list[gitops.ChangedFile]) -> tuple[list[Fin
             for gone in hunk.removed:
                 if LICENSE_LINE.search(gone) and gone.strip() not in added_text:
                     add(_f(ctx, "LICENSE_HEADER_REMOVED", WARN, "Copyright or licence notice removed",
-                           file=cf.path, evidence=gone))
+                           file=cf.path, evidence=None if find_secret(gone) else gone))
                     break
         if table_rows >= LITERAL_TABLE_MIN_ROWS:
             add(_f(ctx, "LARGE_LITERAL_TABLE", WARN,
