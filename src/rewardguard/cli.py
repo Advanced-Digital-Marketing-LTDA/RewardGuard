@@ -29,7 +29,7 @@ def _resolve(repo: str, args):
                                "rewardguard checks committed history only.")
     head = gitops.rev_parse(repo, args.head)
     base = gitops.merge_base(repo, gitops.rev_parse(repo, args.base), head)
-    return base, head, config.load_from_commit(repo, base)
+    return base, head, config.load_for_check(repo, base, head)
 
 
 def _load_run_results(path: str, base: str, head: str) -> tuple[list[Finding], list[str]]:
@@ -90,7 +90,7 @@ def check(args) -> int:
         rep.errors.append(str(e))
         return _finish(rep, args)
 
-    rep.notes.append(f"base {base[:12]} (merge-base with {args.base}), head {head[:12]}; config read from base")
+    rep.notes.append(f"base {base[:12]} (merge-base with {args.base}), head {head[:12]}; config read from head")
     changed = gitops.changed_files(repo, base, head)
     if not changed:
         rep.notes.append("No changes between base and head.")
@@ -122,7 +122,7 @@ def check(args) -> int:
             rep.errors.append(str(e))
     elif args.no_local_tests:
         # CI's secrets job: branch code must never run here
-        rep.errors.append("The base config has run_tests = true, but this run may not execute tests "
+        rep.errors.append("The config has run_tests = true, but this run may not execute tests "
                           "(--no-local-tests). Run them in a separate job and pass --run-results.")
     else:
         log("rewardguard: test runs")
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--run-results",
                    help="Use test results written by `rewardguard run-tests` instead of running the tests here")
     c.add_argument("--no-local-tests", action="store_true",
-                   help="Never run tests in this process; fail if the base config needs test runs and "
+                   help="Never run tests in this process; fail if the config needs test runs and "
                         "--run-results is not given")
     c.add_argument("--quiet", action="store_true")
     t = sub.add_parser("run-tests", help="Run only the test suites and write the results to a file")
