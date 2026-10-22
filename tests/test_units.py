@@ -47,6 +47,8 @@ def test_config_validation(text, err):
     ('fit("x", () => {})', static_checks.ONLY),
     ("expect(true).toBe(true)", static_checks.TAUTOLOGY),
     ("expect(1).toEqual(1)", static_checks.TAUTOLOGY),
+    ("expect(true).toBeTruthy()", static_checks.TAUTOLOGY),
+    ("expect('a').not.toBe('b')", static_checks.TAUTOLOGY),
     ("expect(res.body).toEqual(res.body)", static_checks.TAUTOLOGY),
     ("assert.equal(x, x)", static_checks.TAUTOLOGY),
     ("} catch (err) {}", static_checks.EMPTY_CATCH),
@@ -72,6 +74,8 @@ def test_patterns_hit(line, pattern):
     ('it("skips empty rows", () => {})', static_checks.SKIP),
     ('describe("only admins", () => {})', static_checks.ONLY),
     ("expect(result).toBe(expected)", static_checks.TAUTOLOGY),
+    ("expect(4).toBe(double(2))", static_checks.TAUTOLOGY),
+    ("expect(true).toEqual(isValid(input))", static_checks.TAUTOLOGY),
     ("} catch (err) { throw err; }", static_checks.EMPTY_CATCH),
     ("// reviewed by Ana", static_checks.REVIEWER_NOTE),
     ("if (console.error === original) {}", static_checks.LOG_SILENCED),
@@ -98,6 +102,14 @@ def test_parse_playwright_report():
     assert r.total == 3 and r.skipped == 1
     assert r.passed == {"login.spec.ts::login > works [chromium]"}
     assert r.failed == {"login.spec.ts::login > fails [chromium]"}
+
+
+def test_suite_failure_kept_when_tests_pass():
+    data = {"testResults": [{"name": "/r/a.test.js", "status": "failed", "assertionResults": [
+        {"fullName": "a works", "status": "passed"}]}]}
+    r = runner.parse_report(data, Path("/r"))
+    assert r.passed == {"a.test.js::a works"}
+    assert r.failed == {"a.test.js::<suite failed to run>"}
 
 
 def test_parse_unknown_report_fails():
@@ -147,43 +159,59 @@ def test_jev_rate_limit_retried_then_fails(monkeypatch):
 
 
 def _explainer(monkeypatch, fh):
-    monkeypatch.setattr("rewardguard.explainer.anthropic.Anthropic", fh)
-    return explainer.HaikuExplainer(config.parse(BASE_TOML), api_key="k")
+    monkeypatch.setattr("rewardguard.explainer._run", fh)
+    monkeypatch.setattr("rewardguard.explainer._which", lambda name: "/usr/bin/claude")
+    return explainer.HaikuExplainer(config.parse(BASE_TOML), token="tok")
 
 
-def test_haiku_request_shape(monkeypatch):
+def test_haiku_cli_call(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "api-key")
     fh = FakeHaiku()
     out = _explainer(monkeypatch, fh).explain("the diff", {"HARDCODED_OUTPUT": "Returns a literal."})
     call = fh.calls[0]
-    assert call["model"] == "claude-haiku-5-5"
-    assert call["output_config"]["effort"] == "low"
-    assert call["output_config"]["format"]["type"] == "json_schema"
-    assert "- HARDCODED_OUTPUT: Returns a literal." in call["messages"][0]["content"]
-    assert "the diff" in call["messages"][0]["content"]
+    cmd = call["cmd"]
+    assert cmd[:2] == ["/usr/bin/claude", "-p"]
+    assert cmd[cmd.index("--model") + 1] == "claude-haiku-5-5"
+    assert cmd[cmd.index("--effort") + 1] == "low"
+    assert cmd[cmd.index("--output-format") + 1] == "json"
+    assert cmd[cmd.index("--tools") + 1] == ""
+    assert "--safe-mode" in cmd and "--json-schema" in cmd and "--bare" not in cmd
+    assert "- HARDCODED_OUTPUT: Returns a literal." in call["input"] and "the diff" in call["input"]
+    # bills the subscription: OAuth token set, API key removed
+    assert call["env"]["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
+    assert "ANTHROPIC_API_KEY" not in call["env"]
     assert out == {"HARDCODED_OUTPUT": [{"line": 3, "code": "x", "problem": "HARDCODED_OUTPUT problem", "fix": "fix it"}]}
 
 
 def test_haiku_ignores_rules_it_was_not_asked_about(monkeypatch):
-    text = '{"issues": [{"rule": "OTHER", "line": 1, "code": "x", "problem": "p", "fix": "f"}]}'
-    out = _explainer(monkeypatch, FakeHaiku(text=text)).explain("d", {"SWALLOWED_ERROR": "s"})
+    payload = {"is_error": False, "structured_output": {"issues": [
+        {"rule": "OTHER", "line": 1, "code": "x", "problem": "p", "fix": "f"}]}}
+    out = _explainer(monkeypatch, FakeHaiku(payload=payload)).explain("d", {"SWALLOWED_ERROR": "s"})
     assert out == {"SWALLOWED_ERROR": []}
 
 
 @pytest.mark.parametrize("kwargs,msg", [
-    ({"stop_reason": "refusal"}, "refused"),
-    ({"stop_reason": "max_tokens"}, "cut off"),
-    ({"text": "not json"}, "malformed"),
-    ({"text": '{"nope": []}'}, "malformed"),
+    ({"returncode": 1}, "exited 1"),
+    ({"stdout": "not json"}, "invalid JSON"),
+    ({"payload": {"is_error": True, "result": "rate limited"}}, "returned an error"),
+    ({"payload": {"is_error": False, "result": "I can't"}}, "no structured answer"),
+    ({"payload": {"is_error": False, "structured_output": {"nope": []}}}, "no structured answer"),
 ])
 def test_haiku_bad_answers_fail(monkeypatch, kwargs, msg):
     with pytest.raises(RewardGuardError, match=msg):
         _explainer(monkeypatch, FakeHaiku(**kwargs)).explain("d", {"X": "s"})
 
 
-def test_haiku_missing_key_fails(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(RewardGuardError, match="ANTHROPIC_API_KEY"):
+def test_haiku_missing_token_fails(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    with pytest.raises(RewardGuardError, match="CLAUDE_CODE_OAUTH_TOKEN"):
         explainer.HaikuExplainer(config.parse(BASE_TOML))
+
+
+def test_haiku_missing_cli_fails(monkeypatch):
+    monkeypatch.setattr("rewardguard.explainer._which", lambda name: None)
+    with pytest.raises(RewardGuardError, match="CLI is not installed"):
+        explainer.HaikuExplainer(config.parse(BASE_TOML), token="tok")
 
 
 def test_version_parsing():

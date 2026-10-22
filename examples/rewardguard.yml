@@ -28,4 +28,4 @@ jobs:
       - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
         with:
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

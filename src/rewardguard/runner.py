@@ -7,7 +7,7 @@
 4. new-vs-base - the base code, run against the branch's test files, to find new tests that already pass
    before the change and so don't test it
 
-Test commands never see the Jev or Anthropic keys or GitHub tokens.
+Test commands never see the Jev key, the Claude token or GitHub tokens.
 """
 from __future__ import annotations
 
@@ -23,9 +23,10 @@ from pathlib import Path
 from . import gitops
 from .config import Config, Suite
 from .models import FAIL, WARN, Finding, RewardGuardError
-from .static_checks import CHECKER, CONFIG, SOURCE, TEST, classify
+from .static_checks import CHECKER, CONFIG, SNAPSHOT, SOURCE, TEST, classify
 
-SECRET_ENV = ("TYPESAFE_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN",
+SECRET_ENV = ("TYPESAFE_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY",
+              "GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN",
               "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")
 
 
@@ -63,7 +64,8 @@ def parse_report(data: dict, root: Path) -> Results:
         for suite in data["testResults"]:
             fname = _rel(suite.get("name", "?"), root)
             assertions = suite.get("assertionResults") or []
-            if not assertions and suite.get("status") == "failed":
+            # A suite can fail outside any test (import error, afterAll hook) while its tests pass.
+            if suite.get("status") == "failed" and not any(a.get("status") == "failed" for a in assertions):
                 r.failed.add(f"{fname}::<suite failed to run>")
             for a in assertions:
                 tid = f"{fname}::{a.get('fullName') or a.get('title')}"
@@ -161,12 +163,13 @@ def _is_test_key(k: str) -> bool:
 
 
 def _overlay_base_tests(repo: str, base: str, head: str, head_dir: Path, cfg: Config) -> None:
+    """Restores the base branch's test files and snapshots, so the original expectations are used."""
     base_files = set(gitops.list_files(repo, base))
     for rel in gitops.list_files(repo, head):
-        if rel not in base_files and classify(rel, cfg) == TEST:
+        if rel not in base_files and classify(rel, cfg) in (TEST, SNAPSHOT):
             (head_dir / rel).unlink(missing_ok=True)
     for path in base_files:
-        if classify(path, cfg) == TEST:
+        if classify(path, cfg) in (TEST, SNAPSHOT):
             dest = head_dir / path
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(subprocess.run(["git", "-C", repo, "show", f"{base}:{path}"],

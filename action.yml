@@ -8,8 +8,8 @@ inputs:
   typesafe-api-key:
     description: TypeSafe API key for Jev.
     required: true
-  anthropic-api-key:
-    description: Anthropic API key for the Claude Haiku explainer.
+  claude-code-oauth-token:
+    description: Claude subscription token from `claude setup-token`, used by the Claude Haiku explainer.
     required: true
   base:
     description: Base ref to compare against. Defaults to the PR's base branch.
@@ -40,12 +40,16 @@ runs:
       shell: bash
       run: python -m pip install --quiet "${{ github.action_path }}"
 
+    - name: Install Claude Code CLI
+      shell: bash
+      run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
+
     - name: Run rewardguard
       id: check
       shell: bash
       env:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE_INPUT: ${{ inputs.base }}
         BASE_REF: ${{ github.base_ref }}
       run: |

@@ -116,13 +116,13 @@ def test_new_test_that_passes_on_base_is_flagged(sample_repo, fake_jev, tmp_path
     assert rules(rep).get("NEW_TESTS_PASS_ON_BASE") == "warn", rep["findings"]
 
 
-def test_missing_anthropic_key_fails_closed(sample_repo, fake_jev, monkeypatch, tmp_path):
+def test_missing_claude_token_fails_closed(sample_repo, fake_jev, monkeypatch, tmp_path):
     fake_jev()
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     sample_repo.branch("any", {SRC: sample_repo.read(SRC) + "\n// tweak\n"})
     code, rep = run_check(sample_repo, tmp_path)
     assert code == 2
-    assert any("ANTHROPIC_API_KEY" in e for e in rep["errors"])
+    assert any("CLAUDE_CODE_OAUTH_TOKEN" in e for e in rep["errors"])
 
 
 def test_branch_cannot_change_its_own_config(sample_repo, fake_jev, tmp_path):
@@ -158,3 +158,31 @@ def test_secrets_not_passed_to_test_commands(sample_repo, fake_jev, tmp_path):
     sample_repo.branch("leak", {"src/env.test.js": leak_test})
     code, rep = run_check(sample_repo, tmp_path)
     assert "NEW_FAILURES" not in rules(rep), rep["findings"]
+
+
+def test_snapshot_edited_to_match_bug_is_caught(sample_repo, fake_jev, node_modules, tmp_path):
+    from conftest import sh
+
+    fake_jev()
+    p = sample_repo.path
+    (p / "src/fmt.js").write_text("export const fmt = (cents) => `$${(cents / 100).toFixed(2)}`;\n")
+    (p / "src/fmt.test.js").write_text(
+        'import { expect, it } from "vitest";\nimport { fmt } from "./fmt.js";\n\n'
+        'it("formats cents", () => {\n  expect(fmt(500)).toMatchSnapshot();\n});\n'
+    )
+    (p / "node_modules").symlink_to(node_modules)
+    sh(p, "./node_modules/.bin/vitest", "run", "-u")
+    (p / "node_modules").unlink()
+    sh(p, "git", "add", "-A")
+    sh(p, "git", "commit", "-qm", "add snapshot test")
+
+    snap = "src/__snapshots__/fmt.test.js.snap"
+    assert '"$5.00"' in sample_repo.read(snap)
+    sample_repo.branch("snapshot-bug", {
+        "src/fmt.js": "export const fmt = (cents) => `$${(cents / 10).toFixed(2)}`;\n",
+        snap: sample_repo.read(snap).replace('"$5.00"', '"$50.00"'),
+    })
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    found = rules(rep)
+    assert "ORIGINAL_TESTS_FAIL" in found and "SNAPSHOT_CHANGED" in found, rep["findings"]

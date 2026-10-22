@@ -11,14 +11,14 @@ Every run has three layers. Configuration is always read from the **base** commi
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
 2. **Jev judge.** Each changed file's diff is split into chunks that fit Jev's 32k-token state limit. Each chunk is asked yes/no (`noul`) questions. A probability at or above `fail` fails the check; at or above `warn`, it warns. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain.
-3. **Haiku explainer.** Every chunk Jev flags is sent to Claude Haiku (`claude-haiku-5-5`) with the statements Jev judged true. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
+3. **Haiku explainer.** Every chunk Jev flags is sent to Claude Haiku (`claude-haiku-5-5`) with the statements Jev judged true. It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
 4. **Test runs.** Each suite runs in clean git worktrees:
    - **base:** the base commit as-is
    - **head:** the branch, with test-runner config restored from base
    - **original:** the branch's code against the base branch's test files
    - **new-vs-base:** the branch's test files against the base code (only when application code changed), to find new tests that pass without the change
 
-**Fail-closed.** If Jev returns an HTTP error, a malformed answer or a missing answer, the check fails. So does any Haiku API error, refusal, cut-off or malformed answer. It also fails if either key is missing, a suite writes no report, or the config is invalid. There is no fallback. Jev retries happen only on HTTP 429/5xx, at most 3 times; Haiku uses the Anthropic SDK's default retries (2) for connection errors, 408, 409, 429 and 5xx. Test commands never see `TYPESAFE_API_KEY`, `ANTHROPIC_API_KEY` or GitHub tokens.
+**Fail-closed.** If Jev returns an HTTP error, a malformed answer or a missing answer, the check fails. So does a `claude` CLI failure, an error result or a missing structured answer from Haiku. It also fails if the Jev key, the Claude token or the `claude` CLI is missing, a suite writes no report, or the config is invalid. There is no fallback. Jev retries happen only on HTTP 429/5xx, at most 3 times. Test commands never see `TYPESAFE_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` or GitHub tokens.
 
 Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 
@@ -53,14 +53,14 @@ You can set any rule to `fail`, `warn` or `off` under `[rules]`.
 ## Setup
 
 1. Copy [`examples/.rewardguard.toml`](examples/.rewardguard.toml) to your project root, set your test command, and commit it to `main`.
-2. Get a TypeSafe API key and an Anthropic API key.
+2. Get a TypeSafe API key. Install the Claude Code CLI (`npm install -g @anthropic-ai/claude-code`, v2.1.293 or later) and run `claude setup-token` to create a one-year subscription token (Pro, Max, Team or Enterprise plan). Subscription rate limits apply.
 
 ### Local
 
 ```bash
 pipx install git+https://github.com/Advanced-Digital-Marketing-LTDA/reward-hacking-checker.git
 export TYPESAFE_API_KEY=...
-export ANTHROPIC_API_KEY=...
+export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
 git commit -am "wip"              # it checks committed history only
 rewardguard check --base main
 rewardguard check --base main --description "PR text" --markdown report.md --json report.json
@@ -68,7 +68,7 @@ rewardguard check --base main --description "PR text" --markdown report.md --jso
 
 ### GitHub Action
 
-1. Add `TYPESAFE_API_KEY` and `ANTHROPIC_API_KEY` as repository secrets.
+1. Add `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` as repository secrets. The Action installs the Claude Code CLI itself; the workflow needs Node (the example sets up Node 22).
 2. Copy [`examples/rewardguard.yml`](examples/rewardguard.yml) to `.github/workflows/`.
 3. In branch protection, make the `rewardguard` check **required**.
 4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. `CHECKER_CONFIG_CHANGED` also fails any PR that touches these files.

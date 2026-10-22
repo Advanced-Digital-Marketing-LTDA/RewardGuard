@@ -26,12 +26,13 @@ model = "jev-1.13.0"   # pin a version; jev-latest is rejected
 # context_lines = 20
 # concurrency = 4
 
-# Jev only answers yes/no. Every chunk it flags goes to Claude Haiku, which names the
-# lines and the problem. Haiku never clears a finding.
+# Jev only answers yes/no. Every chunk it flags goes to Claude Haiku (via the `claude` CLI,
+# billed to the subscription behind CLAUDE_CODE_OAUTH_TOKEN), which names the lines and
+# the problem. Haiku never clears a finding.
 [explainer]
 model = "claude-haiku-5-5"
 effort = "low"
-# max_tokens = 8000
+# timeout_seconds = 300
 
 # [paths]
 # test_globs = ["**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "**/__tests__/**", "**/{test,tests,e2e}/**"]

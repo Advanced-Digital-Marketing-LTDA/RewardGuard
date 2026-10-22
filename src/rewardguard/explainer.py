@@ -1,12 +1,19 @@
 """Claude Haiku explainer. Jev only answers yes/no; for every chunk Jev flags, Haiku reads the same diff
 and names the lines and what is wrong with them. Haiku never clears or downgrades a Jev finding.
-Fails closed: any API error, refusal, truncated or malformed answer stops the check."""
+
+Runs through the `claude` CLI (`claude -p`) so it bills the Claude subscription behind
+CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`). ANTHROPIC_API_KEY is removed from the CLI's
+environment, because the CLI would otherwise bill the API instead. The CLI gets no tools, no project
+settings and no MCP servers, so text in the diff can't make it act.
+
+Fails closed: a missing token or CLI, a non-zero exit, an error result, or a missing or malformed
+structured answer stops the check."""
 from __future__ import annotations
 
 import json
 import os
-
-import anthropic
+import shutil
+import subprocess
 
 from .config import Config
 from .models import RewardGuardError
@@ -43,51 +50,62 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
+INSTRUCTION = "Explain the flagged statements for the diff on stdin."
+
+# Module-level so tests can replace them without touching subprocess/shutil globally.
+_run = subprocess.run
+_which = shutil.which
+
 
 class HaikuExplainer:
-    def __init__(self, cfg: Config, api_key: str | None = None):
+    def __init__(self, cfg: Config, token: str | None = None):
         self.cfg = cfg
-        api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RewardGuardError("ANTHROPIC_API_KEY is not set")
-        self.client = anthropic.Anthropic(api_key=api_key, timeout=cfg.timeout_seconds)
+        self.token = token or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
+        if not self.token:
+            raise RewardGuardError("CLAUDE_CODE_OAUTH_TOKEN is not set (create one with `claude setup-token`)")
+        self.cli = _which("claude")
+        if not self.cli:
+            raise RewardGuardError("The `claude` CLI is not installed (npm install -g @anthropic-ai/claude-code)")
+
+    def _env(self) -> dict[str, str]:
+        env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = self.token
+        return env
 
     def explain(self, state: str, flagged: dict[str, str]) -> dict[str, list[dict]]:
         """flagged: rule -> statement Jev judged true. Returns rule -> issues (possibly empty)."""
         statements = "\n".join(f"- {rule}: {text}" for rule, text in flagged.items())
+        cmd = [
+            self.cli, "-p", INSTRUCTION,
+            "--model", self.cfg.explainer_model,
+            "--effort", self.cfg.explainer_effort,
+            "--system-prompt", SYSTEM,
+            "--output-format", "json",
+            "--json-schema", json.dumps(SCHEMA),
+            "--tools", "",
+            "--disallowedTools", "mcp__*",
+            "--safe-mode",
+            "--no-session-persistence",
+        ]
         try:
-            response = self.client.messages.create(
-                model=self.cfg.explainer_model,
-                max_tokens=self.cfg.explainer_max_tokens,
-                system=SYSTEM,
-                messages=[{
-                    "role": "user",
-                    "content": f"Flagged statements:\n{statements}\n\n{state}",
-                }],
-                output_config={
-                    "effort": self.cfg.explainer_effort,
-                    "format": {"type": "json_schema", "schema": SCHEMA},
-                },
-            )
-        except anthropic.APIStatusError as e:
-            raise RewardGuardError(f"Haiku API returned HTTP {e.status_code}: {str(e)[:500]}") from e
-        except anthropic.APIConnectionError as e:
-            raise RewardGuardError(f"Haiku API request failed: {e}") from e
-
-        if response.stop_reason == "refusal":
-            raise RewardGuardError("Haiku refused to explain a flagged chunk")
-        if response.stop_reason == "max_tokens":
-            raise RewardGuardError("Haiku answer was cut off at explainer.max_tokens")
-        text = next((b.text for b in response.content if b.type == "text"), None)
-        if text is None:
-            raise RewardGuardError("Haiku returned no text")
+            proc = _run(cmd, input=f"Flagged statements:\n{statements}\n\n{state}", env=self._env(),
+                               capture_output=True, text=True, timeout=self.cfg.explainer_timeout_seconds)
+        except subprocess.TimeoutExpired as e:
+            raise RewardGuardError(f"Haiku (claude CLI) timed out after {self.cfg.explainer_timeout_seconds}s") from e
+        if proc.returncode != 0:
+            raise RewardGuardError(f"Haiku (claude CLI) exited {proc.returncode}: {(proc.stderr or proc.stdout)[-500:]}")
         try:
-            issues = json.loads(text)["issues"]
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            raise RewardGuardError(f"Haiku returned malformed JSON: {text[:300]}") from e
+            data = json.loads(proc.stdout)
+        except json.JSONDecodeError as e:
+            raise RewardGuardError(f"Haiku (claude CLI) returned invalid JSON: {proc.stdout[:300]}") from e
+        if data.get("is_error"):
+            raise RewardGuardError(f"Haiku (claude CLI) returned an error: {str(data.get('result'))[:300]}")
+        answer = data.get("structured_output")
+        if not isinstance(answer, dict) or not isinstance(answer.get("issues"), list):
+            raise RewardGuardError(f"Haiku returned no structured answer: {str(data.get('result'))[:300]}")
 
         out: dict[str, list[dict]] = {rule: [] for rule in flagged}
-        for issue in issues:
+        for issue in answer["issues"]:
             if issue.get("rule") in out:
                 out[issue["rule"]].append({k: issue[k] for k in ("line", "code", "problem", "fix")})
         return out

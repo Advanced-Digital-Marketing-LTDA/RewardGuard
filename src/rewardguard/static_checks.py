@@ -29,9 +29,12 @@ SKIP = re.compile(
     r"|(?<![\w.$])x(?:it|test|describe)\s*\("
 )
 ONLY = re.compile(r"(?<![\w$])(?:it|test|describe|suite)(?:\.\w+)*\.only\s*\(|(?<![\w.$])f(?:it|describe)\s*\(")
+_LITERAL = r"(?:true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|\"[^\"]*\")"
 TAUTOLOGY = re.compile(
-    r"expect\(\s*(?:true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|\"[^\"]*\")\s*\)\s*\.\s*(?:not\s*\.\s*)?"
-    r"(?:toBe|toEqual|toStrictEqual|toBeTruthy|toBeFalsy|toBeDefined|toBeUndefined|toBeNull)\b"
+    # a literal compared with a literal, or checked with an argument-free matcher; both sides are constant
+    rf"expect\(\s*{_LITERAL}\s*\)\s*\.\s*(?:not\s*\.\s*)?"
+    rf"(?:(?:toBe|toEqual|toStrictEqual)\(\s*{_LITERAL}\s*\)"
+    r"|(?:toBeTruthy|toBeFalsy|toBeDefined|toBeUndefined|toBeNull)\(\s*\))"
     r"|expect\(\s*([\w.$\[\]'\"]+)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\(\s*\1\s*\)"
     r"|assert(?:\.ok)?\(\s*true\s*\)"
     r"|assert\.(?:equal|strictEqual|deepEqual|deepStrictEqual)\(\s*([\w.$]+)\s*,\s*\2\s*\)"

@@ -60,7 +60,7 @@ class Config:
     timeout_seconds: int = 60
     explainer_model: str = "claude-haiku-5-5"
     explainer_effort: str = "low"
-    explainer_max_tokens: int = 8000
+    explainer_timeout_seconds: int = 300
     test_timeout_seconds: int = 1800
     rule_severity: dict[str, str] = field(default_factory=dict)
 
@@ -117,7 +117,7 @@ def parse(text: str) -> Config:
         timeout_seconds=int(judge.get("timeout_seconds", 60)),
         explainer_model=str(explainer.get("model", "claude-haiku-5-5")),
         explainer_effort=str(explainer.get("effort", "low")),
-        explainer_max_tokens=int(explainer.get("max_tokens", 8000)),
+        explainer_timeout_seconds=int(explainer.get("timeout_seconds", 300)),
         test_timeout_seconds=int(data.get("test_timeout_seconds", 1800)),
         rule_severity=dict(rules),
     )
