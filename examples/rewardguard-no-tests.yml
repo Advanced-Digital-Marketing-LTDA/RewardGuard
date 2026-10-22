@@ -3,7 +3,7 @@
 # and make "rewardguard" a required status check.
 #
 # One job: static checks, Jev and Haiku on the diff. It never runs the branch's code,
-# so it can hold the secrets. If the config still has run_tests = true, the check
+# so it can hold the secrets. If the base config still has run_tests = true, the check
 # fails instead of running tests here.
 name: rewardguard
 

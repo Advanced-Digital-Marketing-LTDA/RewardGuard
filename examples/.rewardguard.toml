@@ -1,6 +1,5 @@
-# rewardguard reads this from the branch being checked. Any PR that changes it (or anything
-# under .github/) always fails CHECKER_CONFIG_CHANGED, which no setting here can turn off,
-# so every config change gets your review. judge.api_url can only change on the base branch.
+# Commit this to your BASE branch (e.g. main). rewardguard always reads it from the
+# base commit, so a branch can't loosen its own check.
 
 # If your test suite can't run in a workflow (too large, needs services), set this to
 # false and drop install/[[suites]]: rewardguard then runs static checks, Jev and Haiku
