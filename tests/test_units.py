@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -268,64 +267,3 @@ def test_run_tests_false_needs_no_suites():
         config.parse("")
     with pytest.raises(RewardGuardError, match="true or false"):
         config.parse('run_tests = "no"\n')
-
-
-def _review(login, state="APPROVED", sha="h" * 40, kind="User"):
-    return {"user": {"login": login, "type": kind}, "state": state, "commit_id": sha}
-
-
-@pytest.mark.parametrize("reviews,expected", [
-    ([_review("Owner")], ["owner"]),                                         # owner approved this commit
-    ([_review("Owner", sha="o" * 40)], []),                                  # approval of an older commit
-    ([_review("stranger")], []),                                             # not in CODEOWNERS
-    ([_review("author")], []),                                               # the PR's own author
-    ([_review("Owner", kind="Bot")], []),                                    # bots never count
-    ([_review("Owner"), _review("Owner", state="CHANGES_REQUESTED")], []),   # later review replaces approval
-    ([_review("Owner"), _review("Owner", state="DISMISSED")], []),
-    ([_review("Owner"), _review("Owner", state="COMMENTED")], ["owner"]),    # a comment doesn't undo it
-])
-def test_trusted_approvers(reviews, expected):
-    from rewardguard import approvals
-    assert approvals.trusted_approvers(reviews, {"owner", "author"}, "Author", "h" * 40) == expected
-
-
-def test_code_owners_reads_individual_users_from_base(sample_repo):
-    from conftest import sh
-    from rewardguard import approvals
-    (sample_repo.path / ".github").mkdir()
-    (sample_repo.path / ".github/CODEOWNERS").write_text(
-        "# owners\n/.github/   @Owner-One @org/team\n*.toml @second  # trailing comment\ndocs/ alice@example.com\n")
-    sh(sample_repo.path, "git", "add", "-A")
-    sh(sample_repo.path, "git", "commit", "-qm", "owners")
-    assert approvals.code_owners(str(sample_repo.path), "HEAD") == {"owner-one", "second"}
-
-
-def test_github_reviews_paginates_and_fails_closed():
-    import io
-    import urllib.error
-    from rewardguard import approvals
-
-    pages = {1: [{"n": i} for i in range(100)], 2: [{"n": 100}]}
-    seen = []
-
-    def opener(req, timeout=None):
-        page = int(req.full_url.rsplit("page=", 1)[1])
-        seen.append(req.full_url)
-        assert req.headers["Authorization"] == "Bearer tok"
-
-        class Resp(io.BytesIO):
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-        return Resp(json.dumps(pages[page]).encode())
-
-    gh = approvals.GitHubReviews("https://api.example/", "o/r", "tok", opener=opener)
-    assert len(gh.reviews(7)) == 101
-    assert seen[0] == "https://api.example/repos/o/r/pulls/7/reviews?per_page=100&page=1"
-
-    def failing(req, timeout=None):
-        raise urllib.error.HTTPError(req.full_url, 403, "no", {}, io.BytesIO(b""))
-    with pytest.raises(RewardGuardError, match="HTTP 403"):
-        approvals.GitHubReviews("https://api.example", "o/r", "tok", opener=failing).reviews(7)

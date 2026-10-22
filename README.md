@@ -8,8 +8,7 @@ The same tool runs locally and as a GitHub Action.
 ## How it works
 
 Configuration is read from the branch being checked (the PR head). A branch can change it, but not quietly:
-- Any change to `.rewardguard.toml` or `.github/` fails `CHECKER_CONFIG_CHANGED`. The config can't lower that rule or exclude those files.
-- **The one exception: owner approval.** CI workflows sometimes have to change. Such a PR passes, with `CHECKER_CONFIG_CHANGED` shown as a warning, once a person named in the **base branch's** CODEOWNERS approves the PR's **current head commit**. That person can't be the PR author, and bots don't count. Only individual `@users` count; teams don't. A new push makes the approval stale. The owner list comes from the base branch, so a PR can't add itself to it. If GitHub can't be reached to check approvals, the check fails. For the check to re-run after an approval, the workflow must also trigger on `pull_request_review` (the examples do).
+- Any change to `.rewardguard.toml` or `.github/` always fails `CHECKER_CONFIG_CHANGED`. The config can't lower that rule or exclude those files, so you review every config change (pair it with CODEOWNERS).
 - `judge.api_url` can only change on the base branch, so a branch can't send the Jev key to another server.
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
