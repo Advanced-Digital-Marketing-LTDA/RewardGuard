@@ -165,6 +165,8 @@ def test_staged_check_uses_staged_version_without_project_config(tmp_path, fake_
     ("git commit --only file.js", "outside the checked index"),
     ("git commit -- file.js", "outside the checked index"),
     ("git commit file.js", "outside the checked index"),
+    ("git --git-dir=/repo-b/.git --work-tree=/repo-b commit -m x", "repository override"),
+    ("git --git-dir /repo-b/.git --work-tree /repo-b commit -m x", "repository override"),
 ])
 def test_codex_hook_blocks_commands_that_change_commit_content(command, reason_text, tmp_path):
     context = codex_hook.commit_context(command, str(tmp_path))
@@ -174,13 +176,19 @@ def test_codex_hook_blocks_commands_that_change_commit_content(command, reason_t
     assert reason_text in context[1]
 
 
-def test_codex_hook_allows_commit_from_existing_index_only(tmp_path):
-    assert codex_hook.commit_context("git commit -m x", str(tmp_path)) == (str(tmp_path.resolve()), None)
+@pytest.mark.parametrize("command", [
+    "git commit -m x",
+    "git commit -qm change",
+    "git commit -vm change",
+])
+def test_codex_hook_allows_commit_from_existing_index_only(command, tmp_path):
+    assert codex_hook.commit_context(command, str(tmp_path)) == (str(tmp_path.resolve()), None)
 
 
 @pytest.mark.parametrize("command", [
     "git add -A && git commit -m x",
     "git commit -am x",
+    "git --git-dir=/other/.git --work-tree=/other commit -m x",
 ])
 def test_codex_hook_blocks_unsafe_commit_before_running_check(monkeypatch, tmp_path, capsys, command):
     event = {
@@ -196,6 +204,26 @@ def test_codex_hook_blocks_unsafe_commit_before_running_check(monkeypatch, tmp_p
     err = capsys.readouterr().err
     assert "commit blocked" in err
     assert "Stage changes in a separate Codex Bash call" in err
+
+
+def test_codex_hook_checks_repository_root_when_commit_runs_from_subdirectory(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    nested = repo / "nested"
+    nested.mkdir()
+    event = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "cwd": str(nested),
+        "tool_input": {"command": "git commit -m x"},
+    }
+    captured = []
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+    monkeypatch.setattr(cli, "check", lambda args: captured.append(args) or 0)
+
+    assert cli.codex_precommit() == 0
+    assert captured[0].repo == str(repo.resolve())
 
 
 def test_codex_hook_checks_multiline_commit(monkeypatch, tmp_path):
