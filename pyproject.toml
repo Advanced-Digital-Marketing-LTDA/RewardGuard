@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "rewardguard"
 version = "0.1.0"
 description = "Pre-commit and pre-merge check for reward hacking by AI coding agents (Jest, Vitest, Playwright) using the Jev decision model, with Claude Haiku explaining what Jev flags."
 readme = "README.md"
+license = "LicenseRef-PolyForm-Shield-1.0.0"
+license-files = ["LICENSE", "COMMERCIAL.md"]
 requires-python = ">=3.11"
 dependencies = []
 

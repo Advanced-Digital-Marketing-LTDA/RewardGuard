@@ -114,3 +114,9 @@ Either can be added as another `[[suites]]` entry whose command lives outside th
 pip install -e ".[dev]"
 python -m pytest -q      # needs Node 22+ and npm; Jev and Haiku APIs are faked in tests
 ```
+
+## License
+
+Rewardguard is source-available under the [PolyForm Shield License 1.0.0](LICENSE).
+Commercial use is permitted when it complies with that license. For uses not
+permitted by PolyForm Shield, see [commercial licensing](COMMERCIAL.md).
