@@ -55,12 +55,7 @@ def _split_unquoted_newlines(command: str) -> str:
             i += 1
             continue
         if char == "#" and at_word_start:
-            while i < len(command):
-                if command[i] == "\\" and i + 1 < len(command) and command[i + 1] == "\n":
-                    i += 2
-                    continue
-                if command[i] == "\n":
-                    break
+            while i < len(command) and command[i] != "\n":
                 i += 1
             if i < len(command):
                 parts.append(";")
