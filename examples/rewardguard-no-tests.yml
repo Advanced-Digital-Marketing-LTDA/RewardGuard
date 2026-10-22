@@ -9,6 +9,9 @@ name: rewardguard
 
 on:
   pull_request:
+  # re-run when a code owner approves, so an approved CI/config change can pass
+  pull_request_review:
+    types: [submitted, dismissed]
 
 jobs:
   rewardguard:

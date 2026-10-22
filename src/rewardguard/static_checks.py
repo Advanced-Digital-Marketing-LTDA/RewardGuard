@@ -183,7 +183,8 @@ def run(ctx: StaticContext, changed: list[gitops.ChangedFile]) -> tuple[list[Fin
                 continue
 
         if kind == CHECKER:
-            # always fail, whatever [rules] says: the config being read is the branch's own
+            # always fail, whatever [rules] says: the config being read is the branch's own.
+            # The only way past it is a code owner approving this commit (cli._owner_exception).
             add(Finding("CHECKER_CONFIG_CHANGED", FAIL,
                         "CI workflow or rewardguard config changed; needs human review", file=cf.path))
         elif kind == CONFIG:

@@ -6,8 +6,40 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, config, explainer, gitops, judge, report, runner, static_checks
+from . import __version__, approvals, config, explainer, gitops, judge, report, runner, static_checks
 from .models import FAIL, WARN, Finding, Report, RewardGuardError
+
+
+def _pr_event() -> dict | None:
+    """The pull_request object of the triggering GitHub event (pull_request or pull_request_review)."""
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path or not Path(event_path).exists():
+        return None
+    return json.loads(Path(event_path).read_text()).get("pull_request")
+
+
+def _owner_exception(rep: Report, repo: str, base: str, head: str, log) -> None:
+    """Downgrades CHECKER_CONFIG_CHANGED to a warning when a code owner approved this exact commit."""
+    flagged = [f for f in rep.findings if f.rule == "CHECKER_CONFIG_CHANGED" and f.severity == FAIL]
+    pr = _pr_event()
+    if not flagged or pr is None:  # local runs have no PR, so no exception
+        return
+    missing = [k for k in ("GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_API_URL") if not os.environ.get(k)]
+    if missing:
+        raise RewardGuardError(f"{', '.join(missing)} not set; needed to check owner approval of CI changes")
+    log("rewardguard: checking code-owner approval for CI/config changes")
+    owners = approvals.code_owners(repo, base)
+    reviews = approvals.GitHubReviews(os.environ["GITHUB_API_URL"], os.environ["GITHUB_REPOSITORY"],
+                                      os.environ["GITHUB_TOKEN"]).reviews(int(pr["number"]))
+    approvers = approvals.trusted_approvers(reviews, owners, pr["user"]["login"], head)
+    if approvers:
+        names = ", ".join("@" + a for a in approvers)
+        for f in flagged:
+            f.severity = WARN
+            f.message += f"; approved by code owner {names} on {head[:12]}"
+    else:
+        rep.notes.append("CI/config changes pass only with an approving review of this commit from a person "
+                         "named in the base branch's CODEOWNERS who is not the PR author")
 
 
 def _description(args) -> str:
@@ -99,6 +131,10 @@ def check(args) -> int:
     log("rewardguard: static checks")
     findings, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
     rep.findings.extend(findings)
+    try:
+        _owner_exception(rep, repo, base, head, log)
+    except RewardGuardError as e:
+        rep.errors.append(f"Owner approval: {e}")
 
     log("rewardguard: Jev judge, Haiku explainer")
     try:

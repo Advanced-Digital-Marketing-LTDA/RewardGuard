@@ -35,7 +35,7 @@ inputs:
     required: false
     default: "true"
   github-token:
-    description: Token used to post the PR comment. Check mode only.
+    description: Token used to read PR reviews (code-owner approval of CI changes) and post the PR comment. Check mode only.
     required: false
     default: ${{ github.token }}
 
@@ -76,7 +76,8 @@ runs:
       shell: bash
       env:
         BASE_INPUT: ${{ inputs.base }}
-        BASE_REF: ${{ github.base_ref }}
+        # github.base_ref is empty on pull_request_review events; the event payload has it on both
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
       run: |
         base="${BASE_INPUT:-$BASE_REF}"
         if [ -z "$base" ]; then
@@ -125,6 +126,8 @@ runs:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
         TESTS: ${{ inputs.tests }}
+        # reads PR reviews for the code-owner exception to CHECKER_CONFIG_CHANGED (needs pull-requests: read)
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         # --no-local-tests: this job holds the secrets, so it never runs branch code
         results=()
@@ -141,7 +144,7 @@ runs:
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
     - name: Post PR comment
-      if: inputs.mode == 'check' && inputs.comment == 'true' && github.event_name == 'pull_request'
+      if: inputs.mode == 'check' && inputs.comment == 'true' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_review')
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
