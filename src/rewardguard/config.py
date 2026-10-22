@@ -143,9 +143,13 @@ def _validate(cfg: Config) -> None:
         raise RewardGuardError(f"{CONFIG_FILE}: explainer min_probability must be above 0 and at most 1")
 
 
-def load_from_commit(repo: str, commit: str) -> Config:
+def load_from_commit(repo: str, commit: str, *, allow_missing: bool = False) -> Config:
     text = gitops.show_file(repo, commit, CONFIG_FILE)
     if text is None:
+        if allow_missing:
+            # Global Codex precommit: every repository gets a baseline, without requiring
+            # a project file. Test suites need project-specific commands, so they stay off.
+            return Config(install=None, suites=[], run_tests=False)
         raise RewardGuardError(
             f"{CONFIG_FILE} not found on the base commit {commit[:12]}. "
             "Commit it to the base branch first; it is never read from the branch being checked."

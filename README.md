@@ -74,6 +74,34 @@ rewardguard run-tests --base main --out run.json
 rewardguard check --base main --run-results run.json
 ```
 
+### Codex global precommit
+
+To check staged changes before commits Codex makes in any repository, add this hook to `~/.codex/hooks.json`. Merge it into the existing JSON if that file already has hooks:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rewardguard codex-precommit",
+            "timeout": 600,
+            "statusMessage": "Checking staged changes with RewardGuard"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Install RewardGuard globally using the command above, make sure `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` are available to the Codex process, then review and trust the hook in Codex's `/hooks` view. It runs Jev and Claude Haiku for each non-empty staged change; provider rate limits apply. RewardGuard reads an existing project config from the merge base with `origin/HEAD`, `origin/main`, `origin/master`, local `main` or local `master`, in that order; staged config edits do not affect the check. If none of those refs exist, it uses `HEAD`. When the trusted base has no `.rewardguard.toml`, built-in global defaults run static and model checks with test execution off. Otherwise it uses the trusted base config, including its test suites. The staged index is checked; unstaged edits are excluded. Stage changes in one Codex Bash call, then commit in a separate call. The hook blocks combined staging-and-commit commands, `git commit -a`, pathspec or interactive commit forms that can select content outside the checked index, and explicit `--git-dir`/`--work-tree` overrides that target another repository. Commits issued from a repository subdirectory are checked from the worktree root.
+
+This is a Codex local-shell hook. It applies across repositories without adding files to each one. It doesn't intercept Git commands you run outside Codex or every possible way a shell script could invoke Git. See [Codex hook coverage](https://developers.openai.com/codex/hooks).
+
 Locally, `rewardguard check` runs the tests in the same process as the keys. That's fine on your own machine, but don't run it on code you don't trust with those keys.
 
 ### GitHub Action
