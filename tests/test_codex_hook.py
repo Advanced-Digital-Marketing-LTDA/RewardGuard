@@ -77,6 +77,8 @@ def test_missing_project_config_uses_global_precommit_defaults(sample_repo):
     ("git -C nested commit -m x", "nested"),
     ("cd nested && git commit", "nested"),
     ("git status; env FLAG=1 git -c user.name=Codex commit", "."),
+    ("git status\ngit commit -m change", "."),
+    ("echo 'first line\ngit commit'", None),
     ("git status", None),
     ("echo 'git commit'", None),
     ("python -c 'git commit'", None),
@@ -153,3 +155,59 @@ def test_staged_check_uses_staged_version_without_project_config(tmp_path, fake_
 
     assert status == 1
     assert "ONLY_ADDED" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("command", "reason_text"), [
+    ("git add -A && git commit -m x", "git add"),
+    ("git add -- file.js\ngit commit -m x", "git add"),
+    ("git commit -am x", "-a"),
+    ("git commit --all -m x", "-a"),
+    ("git commit --only file.js", "pathspec"),
+    ("git commit -- file.js", "pathspec"),
+    ("git commit file.js", "pathspec"),
+])
+def test_codex_hook_blocks_commands_that_change_commit_content(command, reason_text, tmp_path):
+    context = codex_hook.commit_context(command, str(tmp_path))
+
+    assert context is not None
+    assert context[0] == str(tmp_path.resolve())
+    assert reason_text in context[1]
+
+
+def test_codex_hook_allows_commit_from_existing_index_only(tmp_path):
+    assert codex_hook.commit_context("git commit -m x", str(tmp_path)) == (str(tmp_path.resolve()), None)
+
+
+@pytest.mark.parametrize("command", [
+    "git add -A && git commit -m x",
+    "git commit -am x",
+])
+def test_codex_hook_blocks_unsafe_commit_before_running_check(monkeypatch, tmp_path, capsys, command):
+    event = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "cwd": str(tmp_path),
+        "tool_input": {"command": command},
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+    monkeypatch.setattr(cli, "check", lambda _args: pytest.fail("unsafe commit must be rejected before check"))
+
+    assert cli.codex_precommit() == 2
+    err = capsys.readouterr().err
+    assert "commit blocked" in err
+    assert "Stage changes in a separate Codex Bash call" in err
+
+
+def test_codex_hook_checks_multiline_commit(monkeypatch, tmp_path):
+    event = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "cwd": str(tmp_path),
+        "tool_input": {"command": "git status\ngit commit -m x"},
+    }
+    captured = []
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(event)))
+    monkeypatch.setattr(cli, "check", lambda args: captured.append(args) or 1)
+
+    assert cli.codex_precommit() == 2
+    assert captured[0].repo == str(tmp_path.resolve())

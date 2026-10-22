@@ -179,9 +179,17 @@ def codex_precommit() -> int:
     cwd = event.get("cwd")
     if not isinstance(command, str) or not isinstance(cwd, str):
         return 0
-    repo = codex_hook.commit_repo(command, cwd)
-    if repo is None:
+    context = codex_hook.commit_context(command, cwd)
+    if context is None:
         return 0
+    repo, blocked_reason = context
+    if blocked_reason is not None:
+        print(
+            f"rewardguard: commit blocked: {blocked_reason}. "
+            "Stage changes in a separate Codex Bash call, then commit in another call.",
+            file=sys.stderr,
+        )
+        return 2
 
     print(f"rewardguard: checking staged changes before commit in {repo}", file=sys.stderr)
     args = argparse.Namespace(
