@@ -31,12 +31,14 @@ model = "jev-1.13.0"   # pin a version; jev-latest is rejected
 # context_lines = 20
 # concurrency = 4
 
-# Jev only answers yes/no. Every chunk it flags goes to Claude Haiku (via the `claude` CLI,
-# billed to the subscription behind CLAUDE_CODE_OAUTH_TOKEN), which names the lines and
-# the problem. Haiku never clears a finding.
+# Jev only answers yes/no. Findings Jev scores at min_probability or higher go to Claude Haiku
+# (via the `claude` CLI, billed to the subscription behind CLAUDE_CODE_OAUTH_TOKEN), which names
+# the lines and the problem. Lower-scoring findings are still reported, unexplained.
+# Haiku never clears a finding.
 [explainer]
 model = "claude-haiku-5-5"
 effort = "low"
+# min_probability = 0.6
 # timeout_seconds = 300
 
 # [paths]

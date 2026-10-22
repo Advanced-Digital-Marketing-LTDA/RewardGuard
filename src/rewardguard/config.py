@@ -62,6 +62,7 @@ class Config:
     explainer_model: str = "claude-haiku-5-5"
     explainer_effort: str = "low"
     explainer_timeout_seconds: int = 300
+    explainer_min_probability: float = 0.6  # Haiku explains only Jev findings at or above this
     test_timeout_seconds: int = 1800
     rule_severity: dict[str, str] = field(default_factory=dict)
 
@@ -123,16 +124,23 @@ def parse(text: str) -> Config:
         explainer_model=str(explainer.get("model", "claude-haiku-5-5")),
         explainer_effort=str(explainer.get("effort", "low")),
         explainer_timeout_seconds=int(explainer.get("timeout_seconds", 300)),
+        explainer_min_probability=float(explainer.get("min_probability", 0.6)),
         test_timeout_seconds=int(data.get("test_timeout_seconds", 1800)),
         rule_severity=dict(rules),
     )
+    _validate(cfg)
+    return cfg
+
+
+def _validate(cfg: Config) -> None:
     if not 0 < cfg.warn_threshold <= cfg.fail_threshold <= 1:
         raise RewardGuardError(f"{CONFIG_FILE}: need 0 < warn <= fail <= 1")
     if cfg.model == "jev-latest":
         raise RewardGuardError(f"{CONFIG_FILE}: pin a versioned Jev model, not jev-latest")
     if cfg.explainer_effort not in ("low", "medium", "high", "xhigh", "max"):
         raise RewardGuardError(f"{CONFIG_FILE}: explainer effort must be low, medium, high, xhigh or max")
-    return cfg
+    if not 0 < cfg.explainer_min_probability <= 1:
+        raise RewardGuardError(f"{CONFIG_FILE}: explainer min_probability must be above 0 and at most 1")
 
 
 def load_from_commit(repo: str, commit: str) -> Config:
