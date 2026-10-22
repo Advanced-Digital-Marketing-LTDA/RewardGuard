@@ -127,10 +127,24 @@ def test_missing_claude_token_fails_closed(sample_repo, fake_jev, monkeypatch, t
 
 def test_branch_cannot_change_its_own_config(sample_repo, fake_jev, tmp_path):
     fake_jev()
-    sample_repo.branch("loosen", {".rewardguard.toml": '[[suites]]\nname = "x"\ncommand = "true"\n'})
+    sample_repo.branch("loosen", {
+        ".rewardguard.toml": 'run_tests = false\n[rules]\nSKIP_ADDED = "off"\n',
+        TEST: sample_repo.read(TEST).replace('it("splits evenly"', 'it.skip("splits evenly"'),
+    })
     code, rep = run_check(sample_repo, tmp_path)
     assert code == 1
-    assert "CHECKER_CONFIG_CHANGED" in rules(rep)
+    assert rules(rep)["SKIP_ADDED"] == "fail"  # the base config still applies
+
+
+def test_ci_and_config_changes_pass(sample_repo, fake_jev, tmp_path):
+    fake_jev()
+    sample_repo.branch("ci", {
+        ".github/workflows/deploy.yml": "name: deploy\non: push\njobs: {}\n",
+        ".rewardguard.toml": sample_repo.read(".rewardguard.toml") + "\n# tuned\n",
+    })
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == []
+    assert code == 0, rep["findings"]
 
 
 def test_judge_error_fails_closed(sample_repo, fake_jev, tmp_path):

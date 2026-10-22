@@ -181,10 +181,9 @@ def run(ctx: StaticContext, changed: list[gitops.ChangedFile]) -> tuple[list[Fin
                        f"Test file deleted ({count(TEST_DECL, old_text)} tests removed)", file=cf.path))
                 continue
 
-        if kind == CHECKER:
-            add(_f(ctx, "CHECKER_CONFIG_CHANGED", FAIL,
-                   "CI workflow or rewardguard config changed; needs human review", file=cf.path))
-        elif kind == CONFIG:
+        # CI workflows and .rewardguard.toml (kind CHECKER) are not flagged: CI sometimes has to change,
+        # and the config is read from base, so a branch's edits to it only apply once merged
+        if kind == CONFIG:
             add(_f(ctx, "CONFIG_CHANGED", FAIL, "Test runner configuration changed", file=cf.path))
         elif kind == SNAPSHOT and cf.status in ("M", "D"):
             add(_f(ctx, "SNAPSHOT_CHANGED", WARN,

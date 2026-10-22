@@ -32,7 +32,6 @@ Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 | `TAUTOLOGICAL_ASSERTION` (`expect(true)…`, `expect(x).toBe(x)`) | static | fail |
 | `EARLY_EXIT`, `DEAD_BRANCH` in tests | static | fail |
 | `PASS_WITH_NO_TESTS`, `CONFIG_CHANGED`, `TEST_SCRIPT_CHANGED` | static | fail |
-| `CHECKER_CONFIG_CHANGED` (`.github/**`, `.rewardguard.toml`) | static | fail |
 | `REVIEWER_NOTE` (text addressed to a reviewer/AI) | static | fail |
 | `ASSERTION_COUNT_DROP`, `SNAPSHOT_CHANGED`, `EMPTY_CATCH`, `TYPE_ESCAPE`, `TEST_ENV_BRANCH`, `MOCK_IN_SOURCE` | static | warn |
 | `COVERAGE_IGNORE` (`istanbul`/`c8`/`v8 ignore`), `LOG_SILENCED`, `TIMEOUT_CHANGED`, `FIXED_WAIT`, `DEPENDENCY_DOWNGRADE` | static | warn |
@@ -83,7 +82,7 @@ Locally, `rewardguard check` runs the tests in the same process as the keys. Tha
 3. In branch protection, make the `rewardguard` check **required** (the second job).
 
    **No test runs:** if your suite is too large or needs services a workflow doesn't have, set `run_tests = false` in `.rewardguard.toml` and use [`examples/rewardguard-no-tests.yml`](examples/rewardguard-no-tests.yml) instead. It's one job (static checks, Jev, Haiku) that never runs branch code. You lose the run-layer rules (`NO_TESTS_RAN`, `NEW_FAILURES`, `ORIGINAL_TESTS_FAIL`, and so on), but every static and Jev rule still applies. The check job always passes `--no-local-tests`, so if the base config still says `run_tests = true` it fails instead of running tests next to the secrets.
-4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. `CHECKER_CONFIG_CHANGED` also fails any PR that touches these files.
+4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. Rewardguard itself doesn't flag changes to these files, because CI sometimes has to change; `.rewardguard.toml` edits only take effect once merged.
 
 The Action writes the report to the job summary and posts or updates one PR comment.
 
