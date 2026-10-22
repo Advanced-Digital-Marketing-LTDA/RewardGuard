@@ -89,6 +89,7 @@ SECRET = re.compile(
     r"|\bAIza[0-9A-Za-z_-]{35}\b"
     r"|\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqps?)://[^\s:/@'\"`]+:(?![^@\s]*\$\{)[^@\s/'\"`]{3,}@(?!(?:localhost|127\.0\.0\.1|0\.0\.0\.0)\b)"
 )
+CREDENTIAL_URL = re.compile(r"://[^/\s@]+@")  # user or token embedded in a URL
 _B64_BLOB = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
 
 # Agent instruction and harness files: an edit changes what every later agent session is told to do
@@ -114,7 +115,8 @@ MONKEYPATCH = re.compile(
     r"|(?<![\w.$])(?:Array|Object|String|Number|Function|Promise|Date|Map|Set|RegExp|Error)\.prototype\.\w+\s*=(?!=)"
     r"|(?<![\w.$])(?:globalThis|global|window)\.(?:Math|JSON|Date|expect|describe|it|test|vi|jest|assert)\s*=(?!=)"
     r"|(?<![\w.$])(?:Date|Math|JSON)\s*=(?!=)"
-    r"|Object\.defineProperty\(\s*(?:Math|JSON|Date|globalThis|global|\w+\.prototype)\b"
+    r"|Object\.defineProperty\(\s*(?:Math|JSON|Date|globalThis|global"
+    r"|(?:Array|Object|String|Number|Function|Promise|Date|Map|Set|RegExp|Error)\.prototype)\b"
     r"|\bError\.prepareStackTrace\s*=(?!=)"
     r"|\binspect\.stack\(|\bsys\._getframe\(|\bsetattr\(\s*(?:np|numpy|math|builtins|torch|sklearn)\b"
 )
@@ -215,8 +217,10 @@ def _package_json_findings(ctx: StaticContext, path: str) -> list[Finding]:
         old_d, new_d = old.get(section, {}) or {}, new.get(section, {}) or {}
         known = set().union(*((old.get(s, {}) or {}) for s in DEP_SECTIONS))
         for name in sorted(set(new_d) - set(old_d) - known):
+            spec = str(new_d[name])
+            shown = "spec redacted: it holds a credential" if find_secret(spec) or CREDENTIAL_URL.search(spec) else spec
             out.append(_f(ctx, "NEW_DEPENDENCY", WARN,
-                          f"{section} '{name}' added ({new_d[name]}); check the name is the package you meant",
+                          f"{section} '{name}' added ({shown}); check the name is the package you meant",
                           file=path))
     return [f for f in out if f]
 

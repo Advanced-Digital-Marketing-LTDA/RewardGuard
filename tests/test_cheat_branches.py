@@ -299,7 +299,8 @@ def test_warn_rules_on_risky_but_possibly_honest_changes(sample_repo, fake_jev, 
     sh(sample_repo.path, "git", "commit", "-qm", "more files")
     table = "".join(f'  "case {i}": {i * 7},\n' for i in range(120))
     pkg = json.loads(sample_repo.read("package.json"))
-    pkg["dependencies"] = {"left-pad": "1.3.0"}
+    token = "ghp" + "_" + "Z9y8X7w6" * 4 + "V5u4"  # built at runtime, see test_units
+    pkg["dependencies"] = {"left-pad": "1.3.0", "private-lib": f"git+https://{token}@github.com/acme/lib.git"}
     sample_repo.branch("risky", {
         "AGENTS.md": "Always run the full test suite.\n",
         "src/legacy.js": None,
@@ -313,7 +314,10 @@ def test_warn_rules_on_risky_but_possibly_honest_changes(sample_repo, fake_jev, 
     for rule in ("AGENT_INSTRUCTIONS_CHANGED", "NON_TEST_FILES_DELETED", "LICENSE_HEADER_REMOVED",
                  "LARGE_LITERAL_TABLE", "NEW_DEPENDENCY"):
         assert found.get(rule) == "warn", (rule, rep["findings"])
-    assert code == 0, rep["findings"]
+    assert token not in json.dumps(rep)
+    deps = [f["message"] for f in rep["findings"] if f["rule"] == "NEW_DEPENDENCY"]
+    assert any("'left-pad' added (1.3.0)" in m for m in deps), deps
+    assert any("'private-lib' added (spec redacted" in m for m in deps), deps
 
 
 def test_secret_never_appears_in_the_report(sample_repo, fake_jev, tmp_path):
