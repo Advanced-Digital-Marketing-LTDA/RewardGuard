@@ -102,6 +102,7 @@ def test_codex_hook_ignores_non_commit_bash(monkeypatch, tmp_path):
 
 
 def test_codex_hook_denies_commit_when_check_fails(monkeypatch, tmp_path, capsys):
+    _git(tmp_path, "init", "-q", "-b", "main")
     event = {
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
@@ -227,6 +228,7 @@ def test_codex_hook_checks_repository_root_when_commit_runs_from_subdirectory(mo
 
 
 def test_codex_hook_checks_multiline_commit(monkeypatch, tmp_path):
+    _git(tmp_path, "init", "-q", "-b", "main")
     event = {
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",

@@ -206,7 +206,7 @@ def commit_context(command: str, cwd: str) -> tuple[str, str | None] | None:
             blocked_reason = "multiple repositories are committed in one Bash call; commit in separate calls so each repository is checked"
 
         if explicit_repository_override:
-            reason = "git --git-dir or --work-tree selects an alternate repository that RewardGuard cannot safely validate"
+            reason = "git repository override via --git-dir or --work-tree cannot be safely validated by RewardGuard"
         else:
             reason = _commit_content_reason(args)
         if reason is None and stage_mutation_seen:
