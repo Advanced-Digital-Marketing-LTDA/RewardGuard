@@ -64,13 +64,23 @@ export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
 git commit -am "wip"              # it checks committed history only
 rewardguard check --base main
 rewardguard check --base main --description "PR text" --markdown report.md --json report.json
+
+# The same split CI uses: run the tests without secrets, then judge
+rewardguard run-tests --base main --out run.json
+rewardguard check --base main --run-results run.json
 ```
+
+Locally, `rewardguard check` runs the tests in the same process as the keys. That's fine on your own machine, but don't run it on code you don't trust with those keys.
 
 ### GitHub Action
 
 1. Add `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` as repository secrets. The Action installs the Claude Code CLI itself; the workflow needs Node (the example sets up Node 22).
-2. Copy [`examples/rewardguard.yml`](examples/rewardguard.yml) to `.github/workflows/`.
-3. In branch protection, make the `rewardguard` check **required**.
+2. Copy [`examples/rewardguard.yml`](examples/rewardguard.yml) to `.github/workflows/`. It has two jobs:
+   - **`rewardguard-tests`** (`mode: tests`) runs the branch's test suites with no secrets, a read-only token and no saved git credentials. It uploads the results as an artifact.
+   - **`rewardguard`** (`mode: check`) runs the static checks, Jev and Haiku, and reads the uploaded results. It holds the secrets and never runs branch code.
+
+   The split matters because branch code running as the same user can read secrets from other processes (for example through `/proc/<pid>/environ`). Removing them from the test command's environment is not enough. Never pass secrets to `mode: tests`; the Action refuses if you do. If the tests job fails or uploads nothing, the `rewardguard` job fails.
+3. In branch protection, make the `rewardguard` check **required** (the second job).
 4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. `CHECKER_CONFIG_CHANGED` also fails any PR that touches these files.
 
 The Action writes the report to the job summary and posts or updates one PR comment.
@@ -79,7 +89,7 @@ The Action writes the report to the job summary and posts or updates one PR comm
 
 The default thresholds (`fail = 0.8`, `warn = 0.5`) are a starting point. Before relying on them:
 
-1. Run against branches that cheat on purpose; [`tests/test_cheat_branches.py`](tests/test_cheat_branches.py) has 14 ready-made ones.
+1. Run against branches that cheat on purpose; [`tests/test_cheat_branches.py`](tests/test_cheat_branches.py) has ready-made ones.
 2. Run against a set of honest PRs.
 3. Adjust the thresholds in `.rewardguard.toml` on `main`.
 

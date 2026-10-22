@@ -1,22 +1,25 @@
 # Copy to .github/workflows/rewardguard.yml in the project you want to protect,
-# then make "rewardguard" a required status check on your default branch.
+# then make the "rewardguard" job a required status check on your default branch.
+#
+# Two jobs, so the branch's code never runs where the secrets are:
+#   rewardguard-tests  runs the branch's tests. No secrets, read-only token, no saved git credentials.
+#   rewardguard        static checks, Jev and Haiku, plus the test results. Never runs branch code.
 name: rewardguard
 
 on:
   pull_request:
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  rewardguard:
+  rewardguard-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false   # don't leave the token in .git/config for test code to read
 
       - uses: actions/setup-node@v4
         with:
@@ -27,5 +30,29 @@ jobs:
 
       - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
         with:
+          mode: tests            # never pass secrets here
+
+  rewardguard:
+    needs: rewardguard-tests
+    # Run even if the tests job failed, so the check reports it instead of being skipped
+    # (a skipped job would count as passing).
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
+        with:
+          mode: check
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

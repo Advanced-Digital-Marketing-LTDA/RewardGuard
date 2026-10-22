@@ -202,3 +202,41 @@ def test_binary_test_fixture_does_not_crash(sample_repo, fake_jev, tmp_path):
     code, rep = run_check(sample_repo, tmp_path)
     assert rep["errors"] == [], rep["errors"]
     assert code == 0, rep["findings"]
+
+
+def test_split_run_tests_then_check(sample_repo, fake_jev, monkeypatch, tmp_path):
+    """CI's two-job flow: run-tests (no secrets) writes results; check reads them and runs no tests."""
+    sample_repo.branch("skip-split", {TEST: sample_repo.read(TEST).replace('it("splits evenly"', 'it.skip("splits evenly"')})
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    results = tmp_path / "run.json"
+    assert main(["run-tests", "--repo", str(sample_repo.path), "--base", "main", "--out", str(results), "--quiet"]) == 0
+    saved = json.loads(results.read_text())
+    assert {f["rule"] for f in saved["findings"]} >= {"RUN_SKIPPED_INCREASE"}
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "test-token")
+    fake_jev()
+    monkeypatch.setattr("rewardguard.runner.run", lambda *a, **k: pytest.fail("check must not run tests"))
+    code, rep = run_check(sample_repo, tmp_path, "--run-results", str(results))
+    assert rep["errors"] == [], rep["errors"]
+    assert code == 1
+    assert {"SKIP_ADDED", "RUN_SKIPPED_INCREASE"} <= set(rules(rep))
+
+
+@pytest.mark.parametrize("tamper,msg", [
+    (lambda d: d.update(head="0" * 40), "not for base"),
+    (lambda d: d["findings"].append({"rule": "X", "severity": "fail", "message": "m", "source": "judge"}), "invalid finding"),
+    (lambda d: d["findings"].append({"rule": "X", "bogus": 1}), "malformed finding"),
+])
+def test_check_rejects_bad_run_results(sample_repo, fake_jev, tmp_path, tamper, msg):
+    sample_repo.branch("any", {SRC: sample_repo.read(SRC) + "\n// tweak\n"})
+    results = tmp_path / "run.json"
+    assert main(["run-tests", "--repo", str(sample_repo.path), "--base", "main", "--out", str(results), "--quiet"]) == 0
+    data = json.loads(results.read_text())
+    tamper(data)
+    results.write_text(json.dumps(data))
+    fake_jev()
+    code, rep = run_check(sample_repo, tmp_path, "--run-results", str(results))
+    assert code == 2
+    assert any(msg in e for e in rep["errors"]), rep["errors"]

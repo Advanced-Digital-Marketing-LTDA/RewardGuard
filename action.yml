@@ -1,37 +1,62 @@
 name: rewardguard
-description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs the Jev decision model, and Claude Haiku to explain what Jev flags.
+description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs, the Jev decision model, and Claude Haiku to explain what Jev flags.
 branding:
   icon: shield
   color: red
 
+# Use in two jobs (see examples/rewardguard.yml):
+#   mode: tests  - runs the branch's test suites. Give it NO secrets: it executes branch code.
+#   mode: check  - static checks, Jev and Haiku, plus the tests job's results. Never runs branch code.
+
 inputs:
+  mode:
+    description: '"tests" (run branch tests, no secrets) or "check" (judge and report, needs secrets).'
+    required: true
   typesafe-api-key:
-    description: TypeSafe API key for Jev.
-    required: true
+    description: TypeSafe API key for Jev. Check mode only.
+    required: false
+    default: ""
   claude-code-oauth-token:
-    description: Claude subscription token from `claude setup-token`, used by the Claude Haiku explainer.
-    required: true
+    description: Claude subscription token from `claude setup-token`, used by the Claude Haiku explainer. Check mode only.
+    required: false
+    default: ""
   base:
     description: Base ref to compare against. Defaults to the PR's base branch.
     required: false
     default: ""
   comment:
-    description: Post or update the report as a PR comment ("true"/"false").
+    description: Post or update the report as a PR comment ("true"/"false"). Check mode only.
     required: false
     default: "true"
   github-token:
-    description: Token used to post the PR comment.
+    description: Token used to post the PR comment. Check mode only.
     required: false
     default: ${{ github.token }}
 
 outputs:
   result:
-    description: '"passed" or "failed"'
+    description: '"passed" or "failed" (check mode)'
     value: ${{ steps.check.outputs.result }}
 
 runs:
   using: composite
   steps:
+    - name: Validate mode
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        HAS_SECRET: ${{ inputs.typesafe-api-key != '' || inputs.claude-code-oauth-token != '' }}
+      run: |
+        case "$MODE" in
+          tests)
+            if [ "$HAS_SECRET" = "true" ]; then
+              echo "::error::mode: tests runs branch code and must not be given secrets."
+              exit 2
+            fi ;;
+          check) ;;
+          *) echo "::error::mode must be 'tests' or 'check'"; exit 2 ;;
+        esac
+
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
@@ -40,16 +65,10 @@ runs:
       shell: bash
       run: python -m pip install --quiet "${{ github.action_path }}"
 
-    - name: Install Claude Code CLI
-      shell: bash
-      run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
-
-    - name: Run rewardguard
-      id: check
+    - name: Resolve base
+      id: base
       shell: bash
       env:
-        TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
-        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE_INPUT: ${{ inputs.base }}
         BASE_REF: ${{ github.base_ref }}
       run: |
@@ -58,9 +77,51 @@ runs:
           echo "::error::No base ref. Run on pull_request events or set the 'base' input."
           exit 2
         fi
-        git fetch --no-tags --quiet origin "$base"
+        # checkout with fetch-depth: 0 already has it; fetch only if missing
+        git rev-parse --verify --quiet "origin/$base" > /dev/null || git fetch --no-tags --quiet origin "$base"
+        echo "ref=origin/$base" >> "$GITHUB_OUTPUT"
+
+    # ---- tests mode: runs branch code, holds no secrets ----
+    - name: Run test suites
+      if: inputs.mode == 'tests'
+      shell: bash
+      env:
+        BASE: ${{ steps.base.outputs.ref }}
+      run: rewardguard run-tests --base "$BASE" --head HEAD --out "$RUNNER_TEMP/rewardguard-run.json"
+
+    - name: Upload run results
+      if: inputs.mode == 'tests'
+      uses: actions/upload-artifact@v4
+      with:
+        name: rewardguard-run
+        path: ${{ runner.temp }}/rewardguard-run.json
+        if-no-files-found: error
+
+    # ---- check mode: judges the diff, never runs branch code ----
+    - name: Install Claude Code CLI
+      if: inputs.mode == 'check'
+      shell: bash
+      run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
+
+    - name: Download run results
+      if: inputs.mode == 'check'
+      uses: actions/download-artifact@v4
+      with:
+        name: rewardguard-run
+        path: ${{ runner.temp }}/rewardguard-run
+
+    - name: Run rewardguard
+      if: inputs.mode == 'check'
+      id: check
+      shell: bash
+      env:
+        TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+        BASE: ${{ steps.base.outputs.ref }}
+      run: |
         set +e
-        rewardguard check --base "origin/$base" --head HEAD \
+        rewardguard check --base "$BASE" --head HEAD \
+          --run-results "$RUNNER_TEMP/rewardguard-run/rewardguard-run.json" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e
@@ -69,7 +130,7 @@ runs:
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
     - name: Post PR comment
-      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      if: inputs.mode == 'check' && inputs.comment == 'true' && github.event_name == 'pull_request'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -85,5 +146,6 @@ runs:
         fi
 
     - name: Set result
+      if: inputs.mode == 'check'
       shell: bash
       run: exit ${{ steps.check.outputs.exit_code }}
