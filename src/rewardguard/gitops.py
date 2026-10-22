@@ -23,6 +23,58 @@ def merge_base(repo: str, a: str, b: str) -> str:
     return git(repo, "merge-base", a, b).stdout.strip()
 
 
+def default_base(repo: str, fallback: str) -> str:
+    """Find a local default-branch ref for trusted policy; fall back to the current base."""
+    remote_head = git(repo, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", check=False)
+    refs = [remote_head.stdout.strip()] if remote_head.returncode == 0 else []
+    refs.extend([
+        "refs/remotes/origin/main", "refs/remotes/origin/master",
+        "refs/heads/main", "refs/heads/master",
+    ])
+    for ref in dict.fromkeys(refs):
+        commit = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}", check=False)
+        if commit.returncode == 0:
+            return commit.stdout.strip()
+    return rev_parse(repo, fallback)
+
+
+def _commit_tree(repo: str, tree: str, parent: str | None, message: str) -> str:
+    command = [
+        "git", "-C", repo,
+        "-c", "user.name=RewardGuard",
+        "-c", "user.email=rewardguard@localhost",
+        "commit-tree", tree,
+    ]
+    if parent:
+        command.extend(["-p", parent])
+    command.extend(["-m", message])
+    proc = subprocess.run(command, capture_output=True, text=True, errors="replace")
+    if proc.returncode != 0:
+        raise RewardGuardError(f"git commit-tree failed: {proc.stderr.strip()}")
+    return proc.stdout.strip()
+
+
+def staged_snapshot(repo: str) -> tuple[str, str]:
+    """Return (base, staged snapshot) without moving refs or changing the index/worktree."""
+    head = git(repo, "rev-parse", "--verify", "HEAD^{commit}", check=False)
+    if head.returncode == 0:
+        base = head.stdout.strip()
+    else:
+        empty = subprocess.run(
+            ["git", "-C", repo, "mktree"],
+            input="", capture_output=True, text=True, errors="replace",
+        )
+        if empty.returncode != 0:
+            raise RewardGuardError(f"Cannot create empty Git tree: {empty.stderr.strip()}")
+        base = _commit_tree(repo, empty.stdout.strip(), None, "RewardGuard empty baseline")
+
+    staged_tree = git(repo, "write-tree").stdout.strip()
+    base_tree = git(repo, "rev-parse", f"{base}^{{tree}}").stdout.strip()
+    if staged_tree == base_tree:
+        return base, base
+    return base, _commit_tree(repo, staged_tree, base, "RewardGuard staged snapshot")
+
+
 def is_dirty(repo: str) -> bool:
     return bool(git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip())
 
