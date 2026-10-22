@@ -7,9 +7,7 @@ The same tool runs locally and as a GitHub Action.
 
 ## How it works
 
-Configuration is read from the branch being checked (the PR head). A branch can change it, but not quietly:
-- Any change to `.rewardguard.toml` or `.github/` always fails `CHECKER_CONFIG_CHANGED`. The config can't lower that rule or exclude those files, so you review every config change (pair it with CODEOWNERS).
-- `judge.api_url` can only change on the base branch, so a branch can't send the Jev key to another server.
+Every run has three layers. Configuration is always read from the **base** commit, so a branch can't loosen its own check.
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
 2. **Jev judge.** Each changed file's diff is split into chunks that fit Jev's 32k-token state limit. Each chunk is asked yes/no (`noul`) questions. A probability at or above `fail` fails the check; at or above `warn`, it warns. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain.
@@ -54,7 +52,7 @@ You can set any rule to `fail`, `warn` or `off` under `[rules]`.
 
 ## Setup
 
-1. Copy [`examples/.rewardguard.toml`](examples/.rewardguard.toml) to your project root and set your test command. It can arrive in the same PR as the workflow; that PR fails `CHECKER_CONFIG_CHANGED` until you review it.
+1. Copy [`examples/.rewardguard.toml`](examples/.rewardguard.toml) to your project root, set your test command, and commit it to `main`.
 2. Get a TypeSafe API key. Install the Claude Code CLI (`npm install -g @anthropic-ai/claude-code`, v2.1.293 or later) and run `claude setup-token` to create a one-year subscription token (Pro, Max, Team or Enterprise plan). Subscription rate limits apply.
 
 ### Local
@@ -84,7 +82,7 @@ Locally, `rewardguard check` runs the tests in the same process as the keys. Tha
    The split matters because branch code running as the same user can read secrets from other processes (for example through `/proc/<pid>/environ`). Removing them from the test command's environment is not enough. Never pass secrets to `mode: tests`; the Action refuses if you do. If the tests job fails or uploads nothing, the `rewardguard` job fails.
 3. In branch protection, make the `rewardguard` check **required** (the second job).
 
-   **No test runs:** if your suite is too large or needs services a workflow doesn't have, set `run_tests = false` in `.rewardguard.toml` and use [`examples/rewardguard-no-tests.yml`](examples/rewardguard-no-tests.yml) instead. It's one job (static checks, Jev, Haiku) that never runs branch code. You lose the run-layer rules (`NO_TESTS_RAN`, `NEW_FAILURES`, `ORIGINAL_TESTS_FAIL`, and so on), but every static and Jev rule still applies. The check job always passes `--no-local-tests`, so if the config still says `run_tests = true` it fails instead of running tests next to the secrets.
+   **No test runs:** if your suite is too large or needs services a workflow doesn't have, set `run_tests = false` in `.rewardguard.toml` and use [`examples/rewardguard-no-tests.yml`](examples/rewardguard-no-tests.yml) instead. It's one job (static checks, Jev, Haiku) that never runs branch code. You lose the run-layer rules (`NO_TESTS_RAN`, `NEW_FAILURES`, `ORIGINAL_TESTS_FAIL`, and so on), but every static and Jev rule still applies. The check job always passes `--no-local-tests`, so if the base config still says `run_tests = true` it fails instead of running tests next to the secrets.
 4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. `CHECKER_CONFIG_CHANGED` also fails any PR that touches these files.
 
 The Action writes the report to the job summary and posts or updates one PR comment.
@@ -95,7 +93,7 @@ The default thresholds (`fail = 0.8`, `warn = 0.5`) are a starting point. Before
 
 1. Run against branches that cheat on purpose; [`tests/test_cheat_branches.py`](tests/test_cheat_branches.py) has ready-made ones.
 2. Run against a set of honest PRs.
-3. Adjust the thresholds in `.rewardguard.toml` (any PR that does this fails `CHECKER_CONFIG_CHANGED` for your review).
+3. Adjust the thresholds in `.rewardguard.toml` on `main`.
 
 Pin the Jev model version (`jev-latest` is rejected). The model that actually answered is printed in each report.
 

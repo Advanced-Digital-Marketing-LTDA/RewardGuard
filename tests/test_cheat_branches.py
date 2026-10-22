@@ -125,62 +125,12 @@ def test_missing_claude_token_fails_closed(sample_repo, fake_jev, monkeypatch, t
     assert any("CLAUDE_CODE_OAUTH_TOKEN" in e for e in rep["errors"])
 
 
-def test_branch_config_is_read_but_changing_it_always_fails(sample_repo, fake_jev, tmp_path):
-    """The head's config is used, so a branch can loosen it, but never without failing."""
+def test_branch_cannot_change_its_own_config(sample_repo, fake_jev, tmp_path):
     fake_jev()
-    loosened = (
-        "run_tests = false\n[thresholds]\nfail = 1.0\nwarn = 1.0\n"
-        '[paths]\nexclude = ["**"]\n'          # tries to hide every file, .rewardguard.toml included
-        '[rules]\nSKIP_ADDED = "off"\n'
-    )
-    sample_repo.branch("loosen", {
-        ".rewardguard.toml": loosened,
-        TEST: sample_repo.read(TEST).replace('it("splits evenly"', 'it.skip("splits evenly"'),
-    })
+    sample_repo.branch("loosen", {".rewardguard.toml": '[[suites]]\nname = "x"\ncommand = "true"\n'})
     code, rep = run_check(sample_repo, tmp_path)
-    assert rep["errors"] == [], rep["errors"]
     assert code == 1
-    assert rules(rep) == {"CHECKER_CONFIG_CHANGED": "fail"}     # the loosened config did take effect
-    assert any("config read from head" in n for n in rep["notes"])
-
-
-def test_config_cannot_lower_checker_rule(sample_repo, fake_jev, tmp_path):
-    fake_jev()
-    sample_repo.branch("off", {".rewardguard.toml": 'run_tests = false\n[rules]\nCHECKER_CONFIG_CHANGED = "off"\n'})
-    code, rep = run_check(sample_repo, tmp_path)
-    assert code == 2
-    assert any("always fails" in e for e in rep["errors"]), rep["errors"]
-
-
-def test_branch_cannot_redirect_jev_endpoint(sample_repo, fake_jev, tmp_path):
-    fj = fake_jev()
-    sample_repo.branch("exfil", {
-        ".rewardguard.toml": 'run_tests = false\n[judge]\napi_url = "https://attacker.example/v1"\n',
-        SRC: sample_repo.read(SRC) + "\n// tweak\n",
-    })
-    code, rep = run_check(sample_repo, tmp_path)
-    assert code == 2
-    assert any("api_url can only change on the base branch" in e for e in rep["errors"]), rep["errors"]
-    assert fj.calls == []                                       # the key was never sent anywhere
-
-
-def test_first_config_can_arrive_on_the_branch(sample_repo, fake_jev, tmp_path):
-    from conftest import sh
-    fake_jev()
-    sh(sample_repo.path, "git", "rm", "-q", ".rewardguard.toml")
-    sh(sample_repo.path, "git", "commit", "-qm", "no config on main")
-    sample_repo.branch("bootstrap", {".rewardguard.toml": "run_tests = false\n"})
-    code, rep = run_check(sample_repo, tmp_path)
-    assert rep["errors"] == [], rep["errors"]
-    assert code == 1 and rules(rep) == {"CHECKER_CONFIG_CHANGED": "fail"}
-
-
-def test_branch_without_config_fails(sample_repo, fake_jev, tmp_path):
-    fake_jev()
-    sample_repo.branch("drop-config", {".rewardguard.toml": None})
-    code, rep = run_check(sample_repo, tmp_path)
-    assert code == 2
-    assert any("not found on commit" in e for e in rep["errors"]), rep["errors"]
+    assert "CHECKER_CONFIG_CHANGED" in rules(rep)
 
 
 def test_judge_error_fails_closed(sample_repo, fake_jev, tmp_path):

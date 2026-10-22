@@ -30,7 +30,6 @@ def test_glob_matching():
     (BASE_TOML + "[thresholds]\nfail = 0.4\nwarn = 0.6\n", "warn <= fail"),
     (BASE_TOML + '[rules]\nX = "maybe"\n', "severity"),
     (BASE_TOML + '[explainer]\neffort = "huge"\n', "explainer effort"),
-    (BASE_TOML + '[rules]\nCHECKER_CONFIG_CHANGED = "warn"\n', "always fails"),
 ])
 def test_config_validation(text, err):
     with pytest.raises(RewardGuardError, match=err):

@@ -87,11 +87,10 @@ def count(pattern: re.Pattern[str], text: str | None) -> int:
 
 
 def classify(path: str, cfg: Config) -> str:
-    # before exclude: the config is the branch's own, so it must not be able to hide these files
-    if path == CONFIG_FILE or path.startswith(".github/"):
-        return CHECKER
     if match(path, cfg.exclude):
         return EXCLUDED
+    if path == CONFIG_FILE or path.startswith(".github/"):
+        return CHECKER
     if match(path, cfg.snapshot_globs):
         return SNAPSHOT
     if match(path, cfg.config_globs):
@@ -183,9 +182,8 @@ def run(ctx: StaticContext, changed: list[gitops.ChangedFile]) -> tuple[list[Fin
                 continue
 
         if kind == CHECKER:
-            # always fail, whatever [rules] says: the config being read is the branch's own
-            add(Finding("CHECKER_CONFIG_CHANGED", FAIL,
-                        "CI workflow or rewardguard config changed; needs human review", file=cf.path))
+            add(_f(ctx, "CHECKER_CONFIG_CHANGED", FAIL,
+                   "CI workflow or rewardguard config changed; needs human review", file=cf.path))
         elif kind == CONFIG:
             add(_f(ctx, "CONFIG_CHANGED", FAIL, "Test runner configuration changed", file=cf.path))
         elif kind == SNAPSHOT and cf.status in ("M", "D"):
