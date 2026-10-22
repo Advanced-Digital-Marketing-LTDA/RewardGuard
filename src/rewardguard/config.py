@@ -128,6 +128,11 @@ def parse(text: str) -> Config:
         test_timeout_seconds=int(data.get("test_timeout_seconds", 1800)),
         rule_severity=dict(rules),
     )
+    _validate(cfg)
+    return cfg
+
+
+def _validate(cfg: Config) -> None:
     if not 0 < cfg.warn_threshold <= cfg.fail_threshold <= 1:
         raise RewardGuardError(f"{CONFIG_FILE}: need 0 < warn <= fail <= 1")
     if cfg.model == "jev-latest":
@@ -136,7 +141,6 @@ def parse(text: str) -> Config:
         raise RewardGuardError(f"{CONFIG_FILE}: explainer effort must be low, medium, high, xhigh or max")
     if not 0 < cfg.explainer_min_probability <= 1:
         raise RewardGuardError(f"{CONFIG_FILE}: explainer min_probability must be above 0 and at most 1")
-    return cfg
 
 
 def load_from_commit(repo: str, commit: str) -> Config:

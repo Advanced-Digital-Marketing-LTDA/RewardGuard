@@ -339,6 +339,8 @@ def test_haiku_only_explains_findings_at_or_above_min_probability(p, explained, 
     [f] = [f for f in rep["findings"] if f["rule"] == "HARDCODED_OUTPUT"]
     assert len(fh.calls) == (1 if explained else 0)
     if explained:
-        assert f["details"] and f["details"][0]["problem"] == "HARDCODED_OUTPUT problem"
+        assert f["details"]
+        assert f["details"][0]["problem"] == "HARDCODED_OUTPUT problem"
     else:
-        assert f.get("details") is None and "not sent to Haiku" in f["message"]
+        assert f.get("details") is None
+        assert "not sent to Haiku" in f["message"]
