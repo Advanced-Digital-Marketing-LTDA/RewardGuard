@@ -78,6 +78,8 @@ def test_missing_project_config_uses_global_precommit_defaults(sample_repo):
     ("cd nested && git commit", "nested"),
     ("git status; env FLAG=1 git -c user.name=Codex commit", "."),
     ("git status\ngit commit -m change", "."),
+    ("git \\\n commit -m x", "."),
+    ("git status # comment\ngit commit -m x", "."),
     ("echo 'first line\ngit commit'", None),
     ("git status", None),
     ("echo 'git commit'", None),
@@ -181,6 +183,9 @@ def test_codex_hook_blocks_commands_that_change_commit_content(command, reason_t
     "git commit -m x",
     "git commit -qm change",
     "git commit -vm change",
+    "git commit -m change # explain the commit",
+    "git commit -m '#literal' # explain the commit",
+    "git commit -m change#literal",
 ])
 def test_codex_hook_allows_commit_from_existing_index_only(command, tmp_path):
     assert codex_hook.commit_context(command, str(tmp_path)) == (str(tmp_path.resolve()), None)
