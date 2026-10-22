@@ -20,6 +20,7 @@ class Finding:
     source: str = "static"  # static | run | judge
     probability: float | None = None
     evidence: str | None = None
+    details: list[dict] | None = None  # Haiku's explanation of a Jev finding
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if v is not None}

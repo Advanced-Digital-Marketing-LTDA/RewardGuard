@@ -1,5 +1,5 @@
 """End-to-end: each branch cheats in one known way and must be caught.
-Real git, real Vitest runs; only the Jev HTTP API is faked."""
+Real git, real Vitest runs; only the Jev and Haiku APIs are faked."""
 from __future__ import annotations
 
 import json
@@ -99,6 +99,30 @@ def test_cheat_is_caught(name, sample_repo, fake_jev, tmp_path):
     assert code == 1, f"{name} was not failed: {rep['findings']}"
     missing = expected - set(found)
     assert not missing, f"{name}: expected {missing}, got {found}"
+    for f in rep["findings"]:
+        if f["source"] == "judge":
+            assert f["details"] and f["details"][0]["problem"] == f"{f['rule']} problem", f
+
+
+def test_new_test_that_passes_on_base_is_flagged(sample_repo, fake_jev, tmp_path):
+    fake_jev()
+    sample_repo.branch("vacuous", {
+        SRC: sample_repo.read(SRC) + "\nexport function double(x) {\n  return x * 2;\n}\n",
+        TEST: sample_repo.read(TEST) + '\ndescribe("discount again", () => {\n  it("still discounts", () => {\n'
+              "    expect(applyDiscount(10, 50)).toBe(5);\n  });\n});\n",
+    })
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    assert rules(rep).get("NEW_TESTS_PASS_ON_BASE") == "warn", rep["findings"]
+
+
+def test_missing_anthropic_key_fails_closed(sample_repo, fake_jev, monkeypatch, tmp_path):
+    fake_jev()
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    sample_repo.branch("any", {SRC: sample_repo.read(SRC) + "\n// tweak\n"})
+    code, rep = run_check(sample_repo, tmp_path)
+    assert code == 2
+    assert any("ANTHROPIC_API_KEY" in e for e in rep["errors"])
 
 
 def test_branch_cannot_change_its_own_config(sample_repo, fake_jev, tmp_path):

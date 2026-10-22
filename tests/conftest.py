@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -102,9 +104,44 @@ class FakeJev:
         return Resp(json.dumps(payload).encode())
 
 
+class FakeHaiku:
+    """Stands in for anthropic.Anthropic. By default returns one issue per flagged statement."""
+
+    def __init__(self, stop_reason="end_turn", text=None):
+        self.stop_reason = stop_reason
+        self.text = text
+        self.calls: list[dict] = []
+        self.messages = self
+
+    def __call__(self, **client_kwargs):  # replaces the client class
+        return self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        flagged = re.findall(r"^- ([A-Z_]+):", kwargs["messages"][0]["content"], re.M)
+        text = self.text if self.text is not None else json.dumps({"issues": [
+            {"rule": r, "line": 3, "code": "x", "problem": f"{r} problem", "fix": "fix it"} for r in flagged
+        ]})
+        return SimpleNamespace(stop_reason=self.stop_reason, content=[SimpleNamespace(type="text", text=text)])
+
+
 @pytest.fixture
-def fake_jev(monkeypatch):
+def fake_haiku(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    def install(**kwargs) -> FakeHaiku:
+        fh = FakeHaiku(**kwargs)
+        monkeypatch.setattr("rewardguard.explainer.anthropic.Anthropic", fh)
+        return fh
+
+    return install
+
+
+@pytest.fixture
+def fake_jev(monkeypatch, fake_haiku):
+    """Fakes Jev, and Haiku with its default answers (call fake_haiku again to change them)."""
     monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    fake_haiku()
 
     def install(**kwargs) -> FakeJev:
         fj = FakeJev(**kwargs)

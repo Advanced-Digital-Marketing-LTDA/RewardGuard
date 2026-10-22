@@ -1,5 +1,5 @@
 name: rewardguard
-description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs and the Jev decision model.
+description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs the Jev decision model, and Claude Haiku to explain what Jev flags.
 branding:
   icon: shield
   color: red
@@ -7,6 +7,9 @@ branding:
 inputs:
   typesafe-api-key:
     description: TypeSafe API key for Jev.
+    required: true
+  anthropic-api-key:
+    description: Anthropic API key for the Claude Haiku explainer.
     required: true
   base:
     description: Base ref to compare against. Defaults to the PR's base branch.
@@ -42,6 +45,7 @@ runs:
       shell: bash
       env:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         BASE_INPUT: ${{ inputs.base }}
         BASE_REF: ${{ github.base_ref }}
       run: |

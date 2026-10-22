@@ -26,6 +26,13 @@ model = "jev-1.13.0"   # pin a version; jev-latest is rejected
 # context_lines = 20
 # concurrency = 4
 
+# Jev only answers yes/no. Every chunk it flags goes to Claude Haiku, which names the
+# lines and the problem. Haiku never clears a finding.
+[explainer]
+model = "claude-haiku-5-5"
+effort = "low"
+# max_tokens = 8000
+
 # [paths]
 # test_globs = ["**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "**/__tests__/**", "**/{test,tests,e2e}/**"]
 # exclude = ["**/node_modules/**", "**/dist/**"]

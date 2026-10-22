@@ -1,10 +1,13 @@
-"""Runs each test suite three times in clean worktrees:
+"""Runs each test suite four times in clean worktrees:
 
 1. base   - the base commit as-is
 2. head   - the branch, with test-runner config taken from base
 3. original - the branch's code, run against the base branch's test files and config
 
-Test commands never see the Jev key or GitHub tokens.
+4. new-vs-base - the base code, run against the branch's test files, to find new tests that already pass
+   before the change and so don't test it
+
+Test commands never see the Jev or Anthropic keys or GitHub tokens.
 """
 from __future__ import annotations
 
@@ -20,9 +23,9 @@ from pathlib import Path
 from . import gitops
 from .config import Config, Suite
 from .models import FAIL, WARN, Finding, RewardGuardError
-from .static_checks import CHECKER, CONFIG, TEST, classify
+from .static_checks import CHECKER, CONFIG, SOURCE, TEST, classify
 
-SECRET_ENV = ("TYPESAFE_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN",
+SECRET_ENV = ("TYPESAFE_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN",
               "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")
 
 
@@ -170,6 +173,16 @@ def _overlay_base_tests(repo: str, base: str, head: str, head_dir: Path, cfg: Co
                                             capture_output=True, check=True).stdout)
 
 
+def _overlay_head_tests(repo: str, base: str, head: str, base_dir: Path, cfg: Config) -> None:
+    """Copies the branch's new and changed test files into the base worktree."""
+    for cf in gitops.changed_files(repo, base, head):
+        if cf.status != "D" and classify(cf.path, cfg) == TEST:
+            dest = base_dir / cf.path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(subprocess.run(["git", "-C", repo, "show", f"{head}:{cf.path}"],
+                                            capture_output=True, check=True).stdout)
+
+
 def run(repo: str, base: str, head: str, cfg: Config, log=print) -> list[Finding]:
     tmp = Path(tempfile.mkdtemp(prefix="rewardguard-"))
     base_dir, head_dir = tmp / "base", tmp / "head"
@@ -204,6 +217,15 @@ def run(repo: str, base: str, head: str, cfg: Config, log=print) -> list[Finding
             log(f"  suite '{s.name}': branch code vs. original tests")
             orig_res[s.name] = run_suite(s, head_dir, cfg, "original")
 
+        # Only meaningful when application code changed: a new test for a change should fail without it.
+        source_changed = any(classify(cf.path, cfg) == SOURCE for cf in gitops.changed_files(repo, base, head))
+        prior_res = {}
+        if source_changed:
+            _overlay_head_tests(repo, base, head, base_dir, cfg)
+            for s in cfg.suites:
+                log(f"  suite '{s.name}': branch tests vs. base code")
+                prior_res[s.name] = run_suite(s, base_dir, cfg, "new-vs-base")
+
         for s in cfg.suites:
             b, h, o = base_res[s.name], head_res[s.name], orig_res[s.name]
             n = s.name
@@ -227,6 +249,13 @@ def run(repo: str, base: str, head: str, cfg: Config, log=print) -> list[Finding
                   f"[{n}] {len(broke)} base test(s) that passed now fail or don't run against the branch's code. "
                   "Either behavior changed on purpose (confirm the requirement) or the tests were edited to hide a bug.",
                   "\n".join(broke[:20]))
+            if n in prior_res:
+                new_tests = h.passed - b.passed - b.failed
+                vacuous = sorted(new_tests & prior_res[n].passed)
+                if vacuous:
+                    f("NEW_TESTS_PASS_ON_BASE", WARN,
+                      f"[{n}] {len(vacuous)} new test(s) also pass on the base code, so they don't test this "
+                      "branch's change", "\n".join(vacuous[:20]))
     finally:
         for d in (base_dir, head_dir):
             gitops.git(repo, "worktree", "remove", "--force", str(d), check=False)

@@ -22,6 +22,11 @@ def terminal(report: Report) -> str:
         out.append(f"{f.severity.upper():5}  {f.rule}{p}  {_loc(f)}\n       {f.message}")
         if f.evidence:
             out.extend("       > " + l for l in f.evidence.splitlines()[:10])
+        for d in f.details or []:
+            out.append(f"       line {d['line']}: {d['problem']}")
+            out.append(f"         fix: {d['fix']}")
+        if f.details == []:
+            out.append("       Haiku found no specific lines; review this chunk by hand")
     for n in report.notes:
         out.append(f"note   {n}")
     fails = sum(f.severity == FAIL for f in report.findings)
@@ -47,6 +52,11 @@ def markdown(report: Report) -> str:
             if f.evidence:
                 ev = f.evidence.splitlines()[0][:120].replace("|", "\\|").replace("`", "'")
                 detail += f"<br>`{ev}`"
+            for d in f.details or []:
+                problem = f"line {d['line']}: {d['problem']} Fix: {d['fix']}".replace("|", "\\|").replace("\n", " ")
+                detail += f"<br>{problem}"
+            if f.details == []:
+                detail += "<br>Haiku found no specific lines; review this chunk by hand"
             where = f"`{_loc(f)}`" if f.file else "—"
             lines.append(f"| {f.severity} | `{f.rule}`{p} | {where} | {detail} |")
         lines.append("")

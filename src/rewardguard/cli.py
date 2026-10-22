@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, config, gitops, judge, report, runner, static_checks
+from . import __version__, config, explainer, gitops, judge, report, runner, static_checks
 from .models import Report, RewardGuardError
 
 
@@ -49,10 +49,11 @@ def check(args) -> int:
     findings, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
     rep.findings.extend(findings)
 
-    log("rewardguard: Jev judge")
+    log("rewardguard: Jev judge, Haiku explainer")
     try:
         client = judge.JevClient(cfg)
-        rep.findings.extend(judge.run(repo, base, head, cfg, changed, kinds, _description(args), client, log))
+        haiku = explainer.HaikuExplainer(cfg)
+        rep.findings.extend(judge.run(repo, base, head, cfg, changed, kinds, _description(args), client, haiku, log))
         if client.models_seen:
             rep.notes.append("Jev model: " + ", ".join(sorted(client.models_seen)))
     except RewardGuardError as e:
