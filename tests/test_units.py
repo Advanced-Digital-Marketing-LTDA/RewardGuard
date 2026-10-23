@@ -340,3 +340,63 @@ def test_secret_not_found(line):
 ])
 def test_agent_files(path, hit):
     assert bool(static_checks.AGENT_FILES.search(path)) is hit
+
+
+def _big_branch(sample_repo, files):
+    from rewardguard import gitops
+    sample_repo.branch("big", files)
+    repo = str(sample_repo.path)
+    base, head = gitops.rev_parse(repo, "main"), gitops.rev_parse(repo, "big")
+    return repo, base, head, gitops.changed_files(repo, base, head)
+
+
+def test_confirmation_uses_the_chunk_that_holds_the_flagged_line(sample_repo):
+    from rewardguard.models import WARN, Finding
+    big = "\n".join(f"export const v{i} = {i};" for i in range(6000))
+    repo, base, head, changed = _big_branch(sample_repo, {"src/big.js": big})
+    cfg = config.parse(BASE_TOML + "[judge]\nmax_state_chars = 20000\nconcurrency = 1\n")
+    fj = FakeJev(confirm=0.9)
+    client = judge.JevClient(cfg, api_key="k", opener=fj)
+    findings = [Finding("HARDCODED_OUTPUT", WARN, "m", file="src/big.js", line=1),
+                Finding("HARDCODED_OUTPUT", WARN, "m", file="src/big.js", line=5000)]
+    judge.confirm(repo, base, head, cfg, changed, {"src/big.js": "source"}, "", client, [], findings, [])
+    states = [c["state"] for c in fj.calls]
+    assert len(states) == 2
+    assert any("+export const v0 = 0;" in s for s in states)
+    assert any("+export const v4999 = 4999;" in s for s in states)
+    assert not any("+export const v0 = 0;" in s and "+export const v4999 = 4999;" in s for s in states)
+
+
+def test_private_key_payload_is_redacted_with_its_markers(sample_repo):
+    payload = [f"QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo{i:02d}abcdefghijklmnopqrstuvwxyz0123" for i in range(20)]
+    key = "\n".join(["-----BEGIN " + "RSA PRIVATE KEY-----", *payload, "-----END " + "RSA PRIVATE KEY-----"])
+    repo, base, head, changed = _big_branch(sample_repo, {"keys/server.pem": key + "\nafter\n"})
+    chunks = judge.build_chunks(repo, base, head, config.parse(BASE_TOML), changed, {"keys/server.pem": "other"}, "")
+    text = "".join(c.text for c in chunks)
+    assert not any(p in text for p in payload)
+    assert "+after" in text
+
+
+def test_redaction_covers_a_key_block_cut_by_the_hunk_edge():
+    tail = ["+QUJDREVGR0hJSktMTU5PUFFS", "+-----END " + "PRIVATE KEY-----", " after"]
+    head = ["+before", "+-----BEGIN " + "PRIVATE KEY-----", "+QUJDREVGR0hJSktMTU5PUFFS"]
+    assert judge._redact_lines(tail) == ["+" + judge.REDACTED, "+" + judge.REDACTED, " after"]
+    assert judge._redact_lines(head) == ["+before", "+" + judge.REDACTED, "+" + judge.REDACTED]
+
+
+def test_repo_level_confirmation_keeps_diff_evidence(sample_repo):
+    from rewardguard.models import WARN, Finding
+    big = "\n".join(f"export const v{i} = {i};" for i in range(6000))
+    repo, base, head, changed = _big_branch(sample_repo, {"src/big.js": big})
+    cfg = config.parse(BASE_TOML + "[judge]\nmax_state_chars = 20000\n")
+    kinds = {"src/big.js": "source"}
+    chunks = judge.build_chunks(repo, base, head, cfg, changed, kinds, "")
+    fj = FakeJev(confirm=0.9)
+    client = judge.JevClient(cfg, api_key="k", opener=fj)
+    notes: list[str] = []
+    judge.confirm(repo, base, head, cfg, changed, kinds, "", client, chunks,
+                  [Finding("ORIGINAL_TESTS_FAIL", WARN, "m", source="run")], notes)
+    [state] = [c["state"] for c in fj.calls]
+    assert "File: src/big.js\n@@" in state and "+export const v0 = 0;" in state
+    assert len(state) <= cfg.max_state_chars - 4000
+    assert any("truncated" in n for n in notes), notes

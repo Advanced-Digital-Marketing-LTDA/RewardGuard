@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -212,9 +213,30 @@ JUDGED = (TEST, CONFIG, SOURCE, OTHER)  # CI workflows and .rewardguard.toml are
 REDACTED = "[credential redacted]"
 
 
+_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+_KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+
+
 def _redact(line: str) -> str:
     """Credential lines never leave the machine, not to Jev and not to Haiku."""
     return line[:1] + REDACTED if find_secret(line) else line
+
+
+def _redact_lines(lines: list[str]) -> list[str]:
+    """Like _redact, and every line of a private-key block is redacted, markers and payload alike. A block
+    cut by the hunk edge is redacted up to its END marker or from its BEGIN marker."""
+    first = next((l for l in lines if _KEY_BEGIN.search(l) or _KEY_END.search(l)), None)
+    in_key = first is not None and not _KEY_BEGIN.search(first)  # the hunk starts inside a block
+    out = []
+    for line in lines:
+        if _KEY_BEGIN.search(line):
+            in_key = True
+        if in_key:
+            out.append(line[:1] + REDACTED)
+            in_key = not _KEY_END.search(line)
+        else:
+            out.append(_redact(line))
+    return out
 
 
 def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.ChangedFile, kind: str,
@@ -234,17 +256,19 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     hunks = gitops.file_hunks(repo, base, head, cf.path, cfg.context_lines, cf.old_path)
     pieces: list[tuple[str, int]] = []
     for h in hunks:
-        lines = [_redact(line) for line in h.lines]
+        lines = _redact_lines(h.lines)
         text = "\n".join([h.header, *lines])
         if len(text) <= budget:
             pieces.append((text, h.new_start))
             continue
-        part, start = h.header + "\n", h.new_start
+        part, start, n = h.header + "\n", h.new_start, h.new_start
         for line in lines:
             if len(part) + len(line) + 1 > budget:
                 pieces.append((part, start))
-                part = h.header + " (continued)\n"
+                part, start = h.header + " (continued)\n", n  # a continuation starts at its own line
             part += line + "\n"
+            if not line.startswith("-"):
+                n += 1
         pieces.append((part, start))
     for text, start in pieces:
         if buf and len(buf) + len(text) + 1 > budget:
@@ -364,12 +388,20 @@ def _confirm_statement(f: Finding) -> str:
             "harmless change.")
 
 
-def _repo_state(chunks: list[Chunk], changed: list[gitops.ChangedFile], description: str, budget: int) -> str:
+def _repo_state(chunks: list[Chunk], changed: list[gitops.ChangedFile], description: str, budget: int,
+                notes: list[str]) -> str:
+    """The description, changed-file list and as much of the diff as fits. When the diff is cut, the cut
+    piece is kept up to the budget and a note says so."""
     files = "\n".join(f"{cf.status} {cf.path}" for cf in changed[:200])
     state = (f"Pull request description: {_desc(description)}\nChanged files:\n{files}\n--- diff ---\n")
-    for c in chunks:
+    for i, c in enumerate(chunks):
         piece = f"File: {c.path}\n{c.body}\n"
         if len(state) + len(piece) > budget:
+            room = budget - len(state)
+            if room > 0:
+                state += piece[:piece.rfind("\n", 0, room) + 1]
+            notes.append(f"Findings without a file were confirmed against a truncated diff: "
+                         f"{len(chunks) - i} of {len(chunks)} chunk(s) cut or left out to fit one Jev call")
             break
         state += piece
     return state
@@ -377,7 +409,7 @@ def _repo_state(chunks: list[Chunk], changed: list[gitops.ChangedFile], descript
 
 def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.ChangedFile],
             kinds: dict[str, str], description: str, client: JevClient, chunks: list[Chunk],
-            findings: list[Finding]) -> tuple[list[Finding], list[Flagged]]:
+            findings: list[Finding], notes: list[str]) -> tuple[list[Finding], list[Flagged]]:
     """Grades static and test-run findings that aren't clear-cut with Jev. Each is replaced by a finding
     whose severity comes from Jev's probability, or dropped below 0.60."""
     by_chunk: dict[int, list[Finding]] = {}
@@ -408,7 +440,7 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
 
     jobs: list[tuple[str, list[Finding]]] = [(c.text, by_chunk[id(c)]) for c in chunk_list]
     if repo_level:
-        jobs.append((_repo_state(chunks, changed, description, cfg.max_state_chars - 4000), repo_level))
+        jobs.append((_repo_state(chunks, changed, description, cfg.max_state_chars - 4000, notes), repo_level))
 
     def ask(job):
         state, fs = job
@@ -491,7 +523,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
 
     if graded:
         confirmed, confirmed_flagged = confirm(repo, base, head, cfg, changed, kinds, description, client,
-                                               chunks, graded)
+                                               chunks, graded, notes)
         findings.extend(confirmed)
         flagged.extend(confirmed_flagged)
 
