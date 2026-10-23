@@ -444,7 +444,8 @@ def test_key_block_in_concatenated_strings_is_redacted(quote, join, eol):
     ]
     out = judge._redact_lines(lines)[0]
     assert out[1:5] == ["+" + judge.REDACTED] * 4
-    assert out[0] == "+key = (" and out[5] == "+)"
+    assert out[0] == "+key = ("
+    assert out[5] == "+)"
     assert not any(p in "".join(out) for p in payload)
 
 
