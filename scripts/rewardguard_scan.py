@@ -644,6 +644,18 @@ def _commit_sha(root: Path) -> str:
     return result.stdout.decode("ascii", "ignore").strip() if result.returncode == 0 else ""
 
 
+def _safe_output(requested: Path, root: Path) -> Path | None:
+    """The CSV path with symlinks resolved, or None unless it is a .csv inside the repository or the
+    current directory."""
+    resolved = os.path.realpath(requested)
+    bases = (os.path.realpath(root), os.path.realpath(os.getcwd()))
+    if not resolved.casefold().endswith(".csv"):
+        return None
+    if not any(resolved.startswith(base + os.sep) for base in bases):
+        return None
+    return Path(resolved)
+
+
 def _atomic_csv(path: Path, findings: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: str | None = None
@@ -699,12 +711,10 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         _log(f"repository root is not a directory: {root}")
         return 2
-    output = args.output if args.output.is_absolute() else root / args.output
-    output = Path(os.path.abspath(output))
-    if output.suffix.casefold() != ".csv" or not any(
-        output.resolve().is_relative_to(base) for base in (root, Path.cwd().resolve())
-    ):
-        _log(f"--output must be a .csv file inside the repository or the current directory: {output}")
+    requested = args.output if args.output.is_absolute() else root / args.output
+    output = _safe_output(requested, root)
+    if output is None:
+        _log(f"--output must be a .csv file inside the repository or the current directory: {requested}")
         return 2
     try:
         entries, excluded = collect_manifest(root, output, args.max_file_bytes)
