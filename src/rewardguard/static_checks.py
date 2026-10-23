@@ -1,4 +1,5 @@
-"""Deterministic checks. Counting and pattern matching stay in code; Jev is not used for them."""
+"""Deterministic checks: counting and pattern matching. Clear-cut findings (models.CLEAR_CUT) keep the
+severity set here; every other finding is graded by Jev afterwards (judge.confirm)."""
 from __future__ import annotations
 
 import base64

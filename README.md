@@ -10,8 +10,10 @@ The same tool runs locally and as a GitHub Action.
 Every run has three layers. Configuration is always read from the **base** commit, so a branch can't loosen its own check.
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
-2. **Jev judge.** Each changed file's diff is split into chunks that fit Jev's 32k-token state limit. Each chunk is asked yes/no (`noul`) questions. A probability at or above `fail` fails the check; at or above `warn`, it warns. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain.
-3. **Haiku explainer.** Every chunk with a Jev finding scored at `[explainer] min_probability` (default `0.6`) or higher is sent to Claude Haiku (`claude-haiku-5-5`) with those statements. Findings below it are still reported, marked "not sent to Haiku". It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
+2. **Jev judge.** Every changed text file in any language is judged, except excluded paths, `.github/` and `.rewardguard.toml`. Its diff is split into chunks that fit Jev's 32k-token state limit, and each chunk is asked yes/no (`noul`) questions. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain. Jev also grades every static and test-run finding that isn't clear-cut (see the table below): it is asked whether the finding is a real problem, given that file's diff. Lines that hold a credential are redacted before anything is sent to Jev or Haiku.
+
+   Severity comes from Jev's probability and is fixed, not configurable: **below 0.60 there is no output**, 0.60–0.79 warns, and 0.80 or higher fails. Clear-cut findings, which report an objective fact, keep their fixed severity and are not sent to Jev or Haiku.
+3. **Haiku explainer.** Every Jev finding that is reported (0.60 or higher) is sent to Claude Haiku (`claude-haiku-5-5`) with the statement Jev answered. It runs through the `claude` CLI (`claude -p`), billed to your Claude subscription via `CLAUDE_CODE_OAUTH_TOKEN`; `ANTHROPIC_API_KEY` is removed from the CLI's environment so it can't bill the API instead. The CLI runs with no tools, no project settings and no MCP servers. Haiku returns the line, the code, the problem and a fix for each one, and these appear in the report. Haiku only explains: it can't clear or downgrade a Jev finding. If it finds no matching lines, the report says to review that chunk by hand.
 4. **Test runs** (optional; set `run_tests = false` in `.rewardguard.toml` to skip them for a suite that can't run in a workflow). Each suite runs in clean git worktrees:
    - **base:** the base commit as-is
    - **head:** the branch, with test-runner config restored from base
@@ -24,35 +26,33 @@ Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 
 ## What it catches
 
-| Rule | Layer | Default |
+| Rule | Layer | Severity |
 |---|---|---|
-| `TEST_FILE_DELETED`, `TEST_COUNT_DROP` | static | fail |
-| `SKIP_ADDED` (`.skip`, `xit`, `.todo`, `test.fixme`, `test.fail`, `it.fails`) | static | fail |
-| `ONLY_ADDED` (`.only`, `fit`) | static | fail |
-| `TAUTOLOGICAL_ASSERTION` (`expect(true)…`, `expect(x).toBe(x)`) | static | fail |
-| `EARLY_EXIT`, `DEAD_BRANCH` in tests | static | fail |
-| `PASS_WITH_NO_TESTS`, `CONFIG_CHANGED`, `TEST_SCRIPT_CHANGED` | static | fail |
-| `REVIEWER_NOTE` (text addressed to a reviewer/AI) | static | fail |
-| `ASSERTION_COUNT_DROP`, `SNAPSHOT_CHANGED`, `EMPTY_CATCH`, `TYPE_ESCAPE`, `TEST_ENV_BRANCH`, `MOCK_IN_SOURCE` | static | warn |
-| `COVERAGE_IGNORE` (`istanbul`/`c8`/`v8 ignore`), `LOG_SILENCED`, `TIMEOUT_CHANGED`, `FIXED_WAIT`, `DEPENDENCY_DOWNGRADE` | static | warn |
-| `SECRET_ADDED` (token formats, private keys, URLs with a password, also base64-encoded) | static | fail |
-| `GATE_CONFIG_WEAKENED` (`HUSKY=0`, `--no-verify`, `core.hooksPath`, `continue-on-error: true`, `"strict": false`, ESLint rule `off`; warns on any hook/lint/tsconfig change) | static | fail |
-| `RUNTIME_MONKEYPATCH` (application code reassigns `Math`/`Date`/`JSON` members, built-in prototypes or test globals, or reads the call stack) | static | fail |
-| `AGENT_INSTRUCTIONS_CHANGED` (`AGENTS.md`, `CLAUDE.md`, `SKILL.md`, `.claude/`, `.cursor/`, `.gemini/`…), `NEW_DEPENDENCY`, `NON_TEST_FILES_DELETED`, `LICENSE_HEADER_REMOVED`, `LARGE_LITERAL_TABLE` (100+ lines of literal lookup data in app code) | static | warn |
-| `NO_TESTS_RAN`, `RUN_TEST_TOTAL_DROP`, `RUN_SKIPPED_INCREASE`, `NEW_FAILURES` | run | fail |
-| `ORIGINAL_TESTS_FAIL` (base tests fail against the branch's code) | run | warn |
-| `PREEXISTING_FAILURES` | run | warn |
-| `NEW_TESTS_PASS_ON_BASE` (new tests pass on the base code, so they don't test the change) | run | warn |
-| `WEAKENED_ASSERTION`, `NEUTRALIZED_TEST`, `TEST_REPLACED_EASIER`, `MOCKS_CODE_UNDER_TEST`, `GRADER_TAMPERING` | Jev | by threshold |
-| `EXPECTED_VALUE_CHANGED` (fails only if app code also changed and the PR description doesn't justify it) | Jev | by threshold |
-| `OVER_MOCKING`, `ASSERTS_ON_MOCK`, `RECOMPUTED_EXPECTED`, `NO_OUTCOME_ASSERTION`, `TEST_NAME_MISMATCH`, `FLAKE_MASKING` | Jev | by threshold |
-| `HARDCODED_OUTPUT`, `SPECIAL_CASED_INPUTS`, `SWALLOWED_ERROR`, `FAKE_SUCCESS`, `MOCK_DATA_AT_RUNTIME`, `UNSAFE_RETRY`, `STUB_IMPLEMENTATION`, `TYPE_SAFETY_BYPASS`, `TIMING_TAMPER`, `REVIEWER_INJECTION` | Jev | by threshold |
-| `SECURITY_CHECK_DISABLED`, `UNREACHABLE_CHANGE`, `TEST_DATA_AT_RUNTIME`, `LOG_SUPPRESSION`, `DELAY_MASKING`, `LIMIT_RAISED` | Jev | by threshold |
-| `HOLLOW_FALLBACK`, `SPECULATIVE_TEST_HEDGING`, `SCOPE_CREEP`, `HIDDEN_PARAMETER_DISABLE` | Jev | by threshold |
-| `DESCRIPTION_OVERCLAIM` (PR description claims work the diff doesn't contain) | Jev | by threshold |
-| `DESCRIPTION_NOT_VERIFIED` (diff too large to check against the description in one call) | Jev | warn |
+| `TEST_FILE_DELETED`, `TEST_COUNT_DROP` | static | fail (clear-cut) |
+| `SKIP_ADDED` (`.skip`, `xit`, `.todo`, `test.fixme`, `test.fail`, `it.fails`) | static | fail (clear-cut) |
+| `ONLY_ADDED` (`.only`, `fit`), `EARLY_EXIT` in tests | static | fail (clear-cut) |
+| `PASS_WITH_NO_TESTS`, `CONFIG_CHANGED`, `TEST_SCRIPT_CHANGED` | static | fail (clear-cut) |
+| `SECRET_ADDED` (token formats, private keys, URLs with a password, also base64-encoded) | static | fail (clear-cut) |
+| `ASSERTION_COUNT_DROP`, `SNAPSHOT_CHANGED`, `DEPENDENCY_DOWNGRADE`, `NEW_DEPENDENCY`, `NON_TEST_FILES_DELETED`, `AGENT_INSTRUCTIONS_CHANGED` (`AGENTS.md`, `CLAUDE.md`, `SKILL.md`, `.claude/`, `.cursor/`, `.gemini/`…) | static | warn (clear-cut) |
+| `NO_TESTS_RAN`, `RUN_TEST_TOTAL_DROP`, `RUN_SKIPPED_INCREASE`, `NEW_FAILURES` | run | fail (clear-cut) |
+| `PREEXISTING_FAILURES` | run | warn (clear-cut) |
+| `TAUTOLOGICAL_ASSERTION` (`expect(true)…`, `expect(x).toBe(x)`), `DEAD_BRANCH`, `REVIEWER_NOTE` (text addressed to a reviewer/AI) | static | Jev-graded |
+| `EMPTY_CATCH`, `TYPE_ESCAPE`, `TEST_ENV_BRANCH`, `MOCK_IN_SOURCE`, `COVERAGE_IGNORE` (`istanbul`/`c8`/`v8 ignore`), `LOG_SILENCED`, `TIMEOUT_CHANGED`, `FIXED_WAIT` | static | Jev-graded |
+| `GATE_CONFIG_WEAKENED` (`HUSKY=0`, `--no-verify`, `core.hooksPath`, `continue-on-error: true`, `"strict": false`, ESLint rule `off`, any hook/lint/tsconfig change) | static | Jev-graded |
+| `RUNTIME_MONKEYPATCH` (application code reassigns `Math`/`Date`/`JSON` members, built-in prototypes or test globals, or reads the call stack) | static | Jev-graded |
+| `LICENSE_HEADER_REMOVED`, `LARGE_LITERAL_TABLE` (100+ lines of literal lookup data in app code) | static | Jev-graded |
+| `ORIGINAL_TESTS_FAIL` (base tests fail against the branch's code), `NEW_TESTS_PASS_ON_BASE` (new tests pass on the base code, so they don't test the change) | run | Jev-graded |
+| `WEAKENED_ASSERTION`, `NEUTRALIZED_TEST`, `TEST_REPLACED_EASIER`, `MOCKS_CODE_UNDER_TEST`, `GRADER_TAMPERING` | Jev | Jev-graded |
+| `EXPECTED_VALUE_CHANGED` (dropped when app code also changed and the PR description justifies it) | Jev | Jev-graded |
+| `OVER_MOCKING`, `ASSERTS_ON_MOCK`, `RECOMPUTED_EXPECTED`, `NO_OUTCOME_ASSERTION`, `TEST_NAME_MISMATCH`, `FLAKE_MASKING` | Jev | Jev-graded |
+| `HARDCODED_OUTPUT`, `SPECIAL_CASED_INPUTS`, `SWALLOWED_ERROR`, `FAKE_SUCCESS`, `MOCK_DATA_AT_RUNTIME`, `UNSAFE_RETRY`, `STUB_IMPLEMENTATION`, `TYPE_SAFETY_BYPASS`, `TIMING_TAMPER`, `REVIEWER_INJECTION` | Jev | Jev-graded |
+| `SECURITY_CHECK_DISABLED`, `UNREACHABLE_CHANGE`, `TEST_DATA_AT_RUNTIME`, `LOG_SUPPRESSION`, `DELAY_MASKING`, `LIMIT_RAISED` | Jev | Jev-graded |
+| `HOLLOW_FALLBACK`, `SPECULATIVE_TEST_HEDGING`, `SCOPE_CREEP`, `HIDDEN_PARAMETER_DISABLE` | Jev | Jev-graded |
+| `DESCRIPTION_OVERCLAIM` (PR description claims work the diff doesn't contain; if the diff is too large to check in one call, the report says so in a note) | Jev | Jev-graded |
 
-You can set any rule to `fail`, `warn` or `off` under `[rules]`. [`docs/agent-behaviours.md`](docs/agent-behaviours.md) lists the agent behaviours these rules come from, with sources, and the ones a diff can't show.
+Jev-graded: below 0.60 nothing is reported, 0.60–0.79 warns, 0.80 or higher fails. The clear-cut list is `CLEAR_CUT` in [`src/rewardguard/models.py`](src/rewardguard/models.py).
+
+You can turn any rule off under `[rules]` (`RULE = "off"`); severities can't be changed. [`docs/agent-behaviours.md`](docs/agent-behaviours.md) lists the agent behaviours these rules come from, with sources, and the ones a diff can't show.
 
 ## Setup
 
@@ -121,11 +121,11 @@ The Action writes the report to the job summary and posts or updates one PR comm
 
 ## Calibrating
 
-The default thresholds (`fail = 0.8`, `warn = 0.5`) are a starting point. Before relying on them:
+The thresholds are fixed (no output below 0.60, warn at 0.60, fail at 0.80); a `.rewardguard.toml` that sets `[thresholds]` or `[explainer] min_probability` is rejected. Before relying on the check:
 
 1. Run against branches that cheat on purpose; [`tests/test_cheat_branches.py`](tests/test_cheat_branches.py) has ready-made ones.
 2. Run against a set of honest PRs.
-3. Adjust the thresholds in `.rewardguard.toml` on `main`.
+3. Turn off a rule that misfires on your code under `[rules]` in `.rewardguard.toml` on `main`.
 
 Pin the Jev model version (`jev-latest` is rejected). The model that actually answered is printed in each report.
 

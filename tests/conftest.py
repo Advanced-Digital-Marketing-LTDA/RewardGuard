@@ -65,10 +65,14 @@ def sample_repo(tmp_path, node_modules) -> SampleRepo:
 
 
 class FakeJev:
-    """Stands in for the Jev HTTP API. `rules` maps (question_key, substring_in_state) -> probability."""
+    """Stands in for the Jev HTTP API. `rules` maps (question_key, substring_in_state) -> probability.
+    `confirm` is the probability given to every confirmation of a static or test-run finding
+    (question keys confirm_N); `confirm_rules` maps a rule name to its own confirmation probability."""
 
-    def __init__(self, rules=None, status=200, raw=None):
+    def __init__(self, rules=None, status=200, raw=None, confirm=0.9, confirm_rules=None):
         self.rules = rules or {}
+        self.confirm = confirm
+        self.confirm_rules = confirm_rules or {}
         self.status = status
         self.raw = raw
         self.calls: list[dict] = []
@@ -85,8 +89,13 @@ class FakeJev:
             payload = self.raw
         else:
             answers = {}
-            for key in body["questions"]:
+            for key, q in body["questions"].items():
                 p = 0.02
+                if key.startswith("confirm_"):
+                    p = self.confirm
+                    for rule, prob in self.confirm_rules.items():
+                        if f"check named {rule} " in q["instructions"]:
+                            p = prob
                 for (k, needle), prob in self.rules.items():
                     if k == key and needle in body["state"]:
                         p = max(p, prob)
