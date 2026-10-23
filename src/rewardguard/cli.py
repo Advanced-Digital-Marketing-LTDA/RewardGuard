@@ -109,6 +109,23 @@ def check(args) -> int:
         rep.notes.append("No changes between base and head.")
         return _finish(rep, args)
 
+    # Content reads only Git objects and trusted-base evidence. Its gate precedes
+    # client construction, so content-only non-content commits need no credentials.
+    from . import content_review
+    try:
+        content = content_review.review(
+            repo, base, head, cfg, changed, _description(args),
+            trusted_base=getattr(args, "config_base", base), log=log,
+        )
+        rep.findings.extend(content.findings)
+        rep.notes.extend(content.notes)
+        rep.content = content.to_dict()
+    except RewardGuardError as e:
+        rep.errors.append(f"Content review: {e}")
+        rep.content = {"status": "error", "coverage": []}
+    if getattr(args, "content_only", False):
+        return _finish(rep, args)
+
     log("rewardguard: static checks")
     found, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
 
@@ -228,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--head", default="HEAD", help="Commit to check (default: HEAD)")
     c.add_argument("--repo", default=".", help="Repository path (default: .)")
     c.add_argument("--staged", action="store_true", help="Check the staged index against HEAD")
+    c.add_argument("--content-only", action="store_true",
+                   help="Run only content review; non-content changes skip without model credentials")
     c.add_argument("--description", help="PR description text, used to judge changed expected values")
     c.add_argument("--description-file", help="File containing the PR description")
     c.add_argument("--markdown", help="Write a Markdown report here")

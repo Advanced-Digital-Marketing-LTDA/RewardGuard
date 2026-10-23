@@ -1,16 +1,93 @@
 # Copy to .github/workflows/rewardguard.yml in the project you want to protect,
 # then make the "rewardguard" job a required status check on your default branch.
 #
-# Two jobs, so the branch's code never runs where the secrets are:
+# Resolve immutable commits first; branch code and secrets stay in separate jobs.
 #   rewardguard-tests  runs the branch's tests. No secrets, read-only token, no saved git credentials.
 #   rewardguard        static checks, Jev and Haiku, plus the test results. Never runs branch code.
 name: rewardguard
 
 on:
   pull_request:
+  push:
 
 jobs:
+  rewardguard-base:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.resolve.outputs.ref }}
+      head: ${{ steps.resolve.outputs.head }}
+    steps:
+      - name: Check out event head
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Resolve review commits
+        id: resolve
+        shell: bash
+        env:
+          BASE_INPUT: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_REF: ${{ github.ref }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*" >&2; exit 2; }
+          head="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve the checked-out head commit."
+          if [ -n "$EXPECTED_HEAD" ] && [ "$head" != "$EXPECTED_HEAD" ]; then
+            fail "Checkout does not match the event head; check out the PR head SHA or github.sha."
+          fi
+          resolve_ref() {
+            local candidate="$1" resolved
+            if resolved="$(git rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
+              printf '%s\n' "$resolved"; return
+            fi
+            if resolved="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
+              printf '%s\n' "$resolved"; return
+            fi
+            git fetch --no-tags --quiet -- origin "$candidate" || return 1
+            git rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
+          }
+          base="${BASE_INPUT:-${PR_BASE_SHA:-${BASE_REF:-}}}"
+          if [ "$EVENT_NAME" = "push" ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
+          if [ -z "$base" ] && [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            base="$PUSH_BEFORE"
+          fi
+          if [ -n "$base" ]; then
+            base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref; set a valid base input."
+          elif [ "$EVENT_NAME" = "push" ]; then
+            # A new branch compares with the default branch. A first default-branch
+            # push compares with its parent, never silently with itself.
+            [ -n "$DEFAULT_BRANCH" ] || fail "No trusted baseline: the repository default branch is unknown; set base explicitly."
+            default_base="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${DEFAULT_BRANCH}^{commit}")" || default_base=""
+            if [ -z "$default_base" ]; then
+              git fetch --no-tags --quiet -- origin "refs/heads/$DEFAULT_BRANCH" &&
+                default_base="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" || default_base=""
+            fi
+            if [ -n "$default_base" ] && { [ "$default_base" != "$head" ] || [ "$EVENT_REF" != "refs/heads/$DEFAULT_BRANCH" ]; }; then
+              base="$default_base"
+            elif [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+              base="$(git rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
+                fail "No trusted baseline for the initial root commit; set base to an existing trusted commit."
+            else
+              fail "No trusted default-branch baseline for this first push; set base explicitly."
+            fi
+          else
+            fail "No base commit/ref. Use a pull_request or push event, or set the base input."
+          fi
+          git merge-base "$base" "$head" >/dev/null ||
+            fail "The selected baseline and head have no common history; set a trusted base explicitly."
+          printf 'ref=%s\nhead=%s\n' "$base" "$head" >> "$GITHUB_OUTPUT"
+
   rewardguard-tests:
+    needs: rewardguard-base
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,7 +95,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.rewardguard-base.outputs.head }}
           persist-credentials: false   # don't leave the token in .git/config for test code to read
 
       - uses: actions/setup-node@v7
@@ -28,12 +105,14 @@ jobs:
       # Only if a suite runs Playwright:
       # - run: npx playwright install --with-deps
 
-      - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
+      # Requires a release containing commit-base support; update this tag on rollout.
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
         with:
           mode: tests            # never pass secrets here
+          base: ${{ needs.rewardguard-base.outputs.base }}
 
   rewardguard:
-    needs: rewardguard-tests
+    needs: [rewardguard-base, rewardguard-tests]
     # Run even if the tests job failed, so the check reports it instead of being skipped
     # (a skipped job would count as passing).
     if: ${{ !cancelled() }}
@@ -42,17 +121,29 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Require resolved baseline
+        env:
+          REVIEW_BASE: ${{ needs.rewardguard-base.outputs.base }}
+          REVIEW_HEAD: ${{ needs.rewardguard-base.outputs.head }}
+        run: |
+          if [ -z "$REVIEW_BASE" ] || [ -z "$REVIEW_HEAD" ]; then
+            echo "::error::Review baseline resolution failed; no trusted comparison is available."
+            exit 2
+          fi
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.rewardguard-base.outputs.head }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
           node-version: 22
 
-      - uses: Advanced-Digital-Marketing-LTDA/reward-hacking-checker@v0.1.0
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
         with:
           mode: check
+          base: ${{ needs.rewardguard-base.outputs.base }}
+          comment: ${{ github.event_name == 'pull_request' }}
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

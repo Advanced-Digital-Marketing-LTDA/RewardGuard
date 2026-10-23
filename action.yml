@@ -1,5 +1,5 @@
 name: rewardguard
-description: Fails a pull request when an AI coding agent may have gamed its tests (Jest, Vitest, Playwright), using static checks, real test runs, the Jev decision model, and Claude Haiku to explain what Jev flags.
+description: Reviews commits for test gaming and content defects using static checks, optional tests, Jev probabilities, and focused Claude Haiku feedback.
 branding:
   icon: shield
   color: red
@@ -27,7 +27,7 @@ inputs:
     required: false
     default: ""
   base:
-    description: Base ref to compare against. Defaults to the PR's base branch.
+    description: Base commit/ref. Defaults to the PR base SHA or push before SHA; first pushes use the default branch or its parent.
     required: false
     default: ""
   comment:
@@ -40,6 +40,12 @@ inputs:
     default: ${{ github.token }}
 
 outputs:
+  base:
+    description: Resolved comparison baseline commit.
+    value: ${{ steps.base.outputs.ref }}
+  head:
+    description: Resolved checked-out head commit.
+    value: ${{ steps.base.outputs.head }}
   result:
     description: '"passed" or "failed" (check mode)'
     value: ${{ steps.check.outputs.result }}
@@ -76,16 +82,61 @@ runs:
       shell: bash
       env:
         BASE_INPUT: ${{ inputs.base }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         BASE_REF: ${{ github.base_ref }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        EVENT_REF: ${{ github.ref }}
+        EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
-        base="${BASE_INPUT:-$BASE_REF}"
-        if [ -z "$base" ]; then
-          echo "::error::No base ref. Run on pull_request events or set the 'base' input."
-          exit 2
+        set -euo pipefail
+        fail() { echo "::error::$*" >&2; exit 2; }
+        head="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve the checked-out head commit."
+        if [ -n "$EXPECTED_HEAD" ] && [ "$head" != "$EXPECTED_HEAD" ]; then
+          fail "Checkout does not match the event head; check out the PR head SHA or github.sha."
         fi
-        # checkout with fetch-depth: 0 already has it; fetch only if missing
-        git rev-parse --verify --quiet "origin/$base" > /dev/null || git fetch --no-tags --quiet origin "$base"
-        echo "ref=origin/$base" >> "$GITHUB_OUTPUT"
+        resolve_ref() {
+          local candidate="$1" resolved
+          if resolved="$(git rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
+            printf '%s\n' "$resolved"; return
+          fi
+          if resolved="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
+            printf '%s\n' "$resolved"; return
+          fi
+          git fetch --no-tags --quiet -- origin "$candidate" || return 1
+          git rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
+        }
+        base="${BASE_INPUT:-${PR_BASE_SHA:-${BASE_REF:-}}}"
+        if [ "$EVENT_NAME" = "push" ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
+        if [ -z "$base" ] && [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+          base="$PUSH_BEFORE"
+        fi
+        if [ -n "$base" ]; then
+          base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref; set a valid base input."
+        elif [ "$EVENT_NAME" = "push" ]; then
+          # A new branch compares with the default branch. A first default-branch
+          # push compares with its parent, never silently with itself.
+          [ -n "$DEFAULT_BRANCH" ] || fail "No trusted baseline: the repository default branch is unknown; set base explicitly."
+          default_base="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${DEFAULT_BRANCH}^{commit}")" || default_base=""
+          if [ -z "$default_base" ]; then
+            git fetch --no-tags --quiet -- origin "refs/heads/$DEFAULT_BRANCH" &&
+              default_base="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" || default_base=""
+          fi
+          if [ -n "$default_base" ] && { [ "$default_base" != "$head" ] || [ "$EVENT_REF" != "refs/heads/$DEFAULT_BRANCH" ]; }; then
+            base="$default_base"
+          elif [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+            base="$(git rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
+              fail "No trusted baseline for the initial root commit; set base to an existing trusted commit."
+          else
+            fail "No trusted default-branch baseline for this first push; set base explicitly."
+          fi
+        else
+          fail "No base commit/ref. Use a pull_request or push event, or set the base input."
+        fi
+        git merge-base "$base" "$head" >/dev/null ||
+          fail "The selected baseline and head have no common history; set a trusted base explicitly."
+        printf 'ref=%s\nhead=%s\n' "$base" "$head" >> "$GITHUB_OUTPUT"
 
     # ---- tests mode: runs branch code, holds no secrets ----
     - name: Run test suites
@@ -93,7 +144,8 @@ runs:
       shell: bash
       env:
         BASE: ${{ steps.base.outputs.ref }}
-      run: rewardguard run-tests --base "$BASE" --head HEAD --out "$RUNNER_TEMP/rewardguard-run.json"
+        REVIEW_HEAD: ${{ steps.base.outputs.head }}
+      run: rewardguard run-tests --base "$BASE" --head "$REVIEW_HEAD" --out "$RUNNER_TEMP/rewardguard-run.json"
 
     - name: Upload run results
       if: inputs.mode == 'tests'
@@ -124,6 +176,7 @@ runs:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
+        REVIEW_HEAD: ${{ steps.base.outputs.head }}
         TESTS: ${{ inputs.tests }}
       run: |
         # --no-local-tests: this job holds the secrets, so it never runs branch code
@@ -132,7 +185,7 @@ runs:
           results=(--run-results "$RUNNER_TEMP/rewardguard-run/rewardguard-run.json")
         fi
         set +e
-        rewardguard check --base "$BASE" --head HEAD --no-local-tests "${results[@]}" \
+        rewardguard check --base "$BASE" --head "$REVIEW_HEAD" --no-local-tests "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e

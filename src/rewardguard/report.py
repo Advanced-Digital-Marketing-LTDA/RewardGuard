@@ -62,6 +62,22 @@ def markdown(report: Report) -> str:
         lines.append("")
     if report.notes:
         lines += [f"<sub>{n}</sub>  " for n in report.notes]
+    if report.content:
+        coverage = report.content.get("coverage", [])
+        gaps = [row for row in coverage if row.get("status") == "not_evaluated"]
+        evaluated = sum(row.get("status") == "evaluated" for row in coverage)
+        lines += ["", "### Content coverage", "",
+                  f"Status: **{report.content.get('status', 'unknown')}** · "
+                  f"{evaluated} proposition(s) evaluated · {len(gaps)} evidence gap(s).",
+                  "Evidence gaps are unverified checks, not violations or a claimed pass."]
+        if gaps:
+            lines += ["", "<details><summary>Content evidence gaps</summary>", ""]
+            for row in gaps[:50]:
+                rule = row.get("rule", row.get("context", row.get("file", "content")))
+                lines.append(f"- `{rule}`: {row.get('reason', 'Required evidence unavailable')}")
+            if len(gaps) > 50:
+                lines.append(f"- {len(gaps) - 50} more gaps; see the JSON report for complete coverage.")
+            lines += ["", "</details>"]
     return "\n".join(lines) + "\n"
 
 
@@ -71,4 +87,5 @@ def as_json(report: Report) -> str:
         "errors": report.errors,
         "findings": [f.to_dict() for f in report.findings],
         "notes": report.notes,
+        "content": report.content,
     }, indent=2)
