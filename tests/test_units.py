@@ -402,11 +402,11 @@ def test_repo_level_confirmation_keeps_diff_evidence(sample_repo):
     assert any("truncated" in n for n in notes), notes
 
 
-def test_marker_literals_in_code_do_not_start_a_key_block():
+def test_code_between_marker_literals_is_not_redacted():
     lines = [' const PEM_HEADER = "-----BEGIN ' + 'PRIVATE KEY-----";', "-  expect(x).toEqual(42);",
              "+  expect(x).toBeDefined();", ' assert pem.startswith("-----END ' + 'PRIVATE KEY-----")']
-    # the marker line itself is still redacted line by line; the code after it is not
-    assert judge._redact_lines(lines) == [" " + judge.REDACTED, *lines[1:]]
+    # the marker lines are redacted; the code between them carries no key material and is kept
+    assert judge._redact_lines(lines) == [" " + judge.REDACTED, *lines[1:3], " " + judge.REDACTED]
 
 
 def test_key_block_inside_a_string_literal_is_redacted():
@@ -431,3 +431,14 @@ def test_key_block_in_concatenated_strings_is_redacted(quote, join, eol):
     assert out[1:5] == ["+" + judge.REDACTED] * 4
     assert out[0] == "+key = (" and out[5] == "+)"
     assert not any(p in "".join(out) for p in payload)
+
+
+@pytest.mark.parametrize("payload", [
+    "QUJDREVGR0hJSktMTU5PUFFSU1RV VldYWVo0123456789abcdefghijklmnopqrstuv",
+    "QUJD REVG R0hJ SktM TU5P UFFS",
+    "QUJDREVGR0hJSktM\tTU5PUFFSU1RVVldYWVo",
+])
+def test_key_payload_with_internal_whitespace_is_redacted(payload):
+    lines = ["+-----BEGIN " + "PRIVATE KEY-----", f"+{payload}", "+QUJDREVGR0hJSktMTU5PUFFS",
+             "+-----END " + "PRIVATE KEY-----", "+done = True"]
+    assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 4 + ["+done = True"]

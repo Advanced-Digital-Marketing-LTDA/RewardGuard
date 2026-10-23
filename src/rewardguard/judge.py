@@ -215,13 +215,19 @@ REDACTED = "[credential redacted]"
 
 _KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 _KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
-# A line of key payload: base64 or a PEM header such as "Proc-Type: 4,ENCRYPTED", bare or inside a quoted,
-# escaped or concatenated string, ending in any escaped line break (\n, \r\n, \x0d\x0a, \u000d\u000a, ...).
-# A block lasts only while its lines look like this, so a marker used as a literal in code, like
-# PEM_HEADER = "-----BEGIN PRIVATE KEY-----", hides no code after it.
-_KEY_PAYLOAD = re.compile(
-    r"""[\s"'`+,(]*(?:[A-Za-z0-9+/=]+|[A-Za-z-]+: [^"'`\\]*)?"""
-    r"""(?:\\(?:[nrt]|x0[9ad]|u000[9ad]))*[\s"'`+,;)\\]*""", re.IGNORECASE)
+# Inside a block (BEGIN marker to END marker or the hunk edge), a line that could carry key material is
+# redacted: a run of 16+ base64 characters, a PEM header such as "Proc-Type: 4,ENCRYPTED", or a line that
+# is all base64 once string quotes, escapes, whitespace and joining punctuation are removed. Code inside a
+# block, like the assertions after PEM_HEADER = "-----BEGIN PRIVATE KEY-----", has no such run and stays.
+_KEY_RUN = re.compile(r"[A-Za-z0-9+/=]{16,}")
+_KEY_HEADER = re.compile(r"[A-Za-z-]+: \S")
+_STRING_SYNTAX = re.compile(r"""\\(?:[nrt]|x0[9ad]|u000[9ad])|[\s"'`+,;()\\]""", re.IGNORECASE)
+_BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
+
+
+def _key_material(text: str) -> bool:
+    return bool(_KEY_RUN.search(text) or _KEY_HEADER.search(text)
+                or _BASE64.fullmatch(_STRING_SYNTAX.sub("", text)))
 
 
 def _redact(line: str) -> str:
@@ -239,13 +245,13 @@ def _redact_lines(lines: list[str]) -> list[str]:
         if _KEY_BEGIN.search(line):
             in_key = not _KEY_END.search(line)
             out.append(line[:1] + REDACTED)
-            continue
-        if in_key and (_KEY_END.search(line) or _KEY_PAYLOAD.fullmatch(line[1:])):
-            in_key = not _KEY_END.search(line)
+        elif in_key and _KEY_END.search(line):
+            in_key = False
             out.append(line[:1] + REDACTED)
-            continue
-        in_key = False
-        out.append(_redact(line))
+        elif in_key and _key_material(line[1:]):
+            out.append(line[:1] + REDACTED)
+        else:
+            out.append(_redact(line))
     return out
 
 
