@@ -1,0 +1,17 @@
+# Read from the trusted base; proposed changes cannot alter their own review.
+run_tests = false
+
+# Python gets semantic code review; JS/TS test-integrity rules remain language-specific.
+[paths]
+judge_include = ["**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts,vue,svelte,py}"]
+
+[judge]
+model = "jev-1.13.0"
+
+[explainer]
+model = "claude-haiku-5-5"
+effort = "low"
+
+[content]
+enabled = true
+
