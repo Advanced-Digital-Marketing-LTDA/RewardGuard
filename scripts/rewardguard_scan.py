@@ -600,6 +600,11 @@ def _pack_synthesis(nodes: list[dict[str, Any]], entries: list[SourceFile], find
     return groups
 
 
+def _made_progress(nodes: list[dict[str, Any]], next_nodes: list[dict[str, Any]]) -> bool:
+    """Fewer summaries or smaller ones. Sizes are positive integers, so synthesis always ends."""
+    return len(next_nodes) < len(nodes) or _json_size(next_nodes) < _json_size(nodes)
+
+
 def _synthesize(
     summaries: list[dict[str, Any]],
     entries: list[SourceFile],
@@ -645,7 +650,7 @@ def _synthesize(
                 })
         if len(groups) == 1:
             break
-        if len(next_nodes) >= len(nodes):
+        if not _made_progress(nodes, next_nodes):
             raise ScanError("synthesis cannot be reduced within the context limit; raise --max-context-bytes")
         nodes = next_nodes
         level += 1

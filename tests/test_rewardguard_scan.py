@@ -157,6 +157,23 @@ print(json.dumps({
         self.assertGreater(len(sizes), 2)
         self.assertTrue(all(size <= 4096 for size in sizes), sizes)
 
+    def test_synthesis_progresses_when_summaries_shrink(self) -> None:
+        entry = scanner._metadata("src/app.py", "safe = 1\n")
+        summaries = [{"unit_id": f"review-{i}", "summary": "s" * 1800, "paths": ["src/app.py"]} for i in range(1, 4)]
+        calls: list[list[str]] = []
+
+        def judge(request, root, timeout, command):
+            calls.append(request["expected_unit_ids"])
+            return {"reviewed_unit_ids": request["expected_unit_ids"], "summary": "merged", "findings": []}
+
+        original = scanner.invoke_judge
+        scanner.invoke_judge = judge
+        try:
+            self.assertEqual(scanner._synthesize(summaries, [entry], [], self.root, 1, ["judge"], 4096, ""), [])
+        finally:
+            scanner.invoke_judge = original
+        self.assertEqual(calls[-1], ["synthesis-1-1", "synthesis-1-2", "synthesis-1-3"])
+
     def test_plan_does_not_invoke_judge(self) -> None:
         write(self.root / "src/app.py", "value = 1\n")
         output = self.root / "findings.csv"
