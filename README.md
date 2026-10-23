@@ -143,6 +143,17 @@ pip install -e ".[dev]"
 python -m pytest -q      # needs Node 22+ and npm; Jev and Haiku APIs are faked in tests
 ```
 
+## Whole-repository scan
+
+Run a standalone, source-backed review across all eligible code, configuration, and documentation files, then export validated findings to CSV:
+
+```bash
+python3 scripts/rewardguard_scan.py --repo-root /path/to/target-repo --output rewardguard-findings.csv --plan
+python3 scripts/rewardguard_scan.py --repo-root /path/to/target-repo --output rewardguard-findings.csv
+```
+
+This complements `rewardguard check`, which reviews branch changes for reward-hacking behavior. See the [whole-repository scan guide](docs/repository-scan.md) for its file boundary, context grouping, judge adapter, and output guarantees.
+
 ## License
 
 Rewardguard is source-available under the [PolyForm Shield License 1.0.0](LICENSE).
