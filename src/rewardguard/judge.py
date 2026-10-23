@@ -213,10 +213,12 @@ JUDGED = (TEST, CONFIG, SOURCE, OTHER)  # CI workflows and .rewardguard.toml are
 REDACTED = "[credential redacted]"
 
 
-# A block's BEGIN marker ends its line and its END marker starts its line (after the diff prefix), so a
-# marker used as a literal in code, like PEM_HEADER = "-----BEGIN PRIVATE KEY-----", starts no block.
-_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----\s*$")
-_KEY_END = re.compile(r"^.\s*-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+_KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+# A line of key payload: base64 or a PEM header such as "Proc-Type: 4,ENCRYPTED", bare or inside a quoted,
+# escaped or concatenated string. A block lasts only while its lines look like this, so a marker used as a
+# literal in code, like PEM_HEADER = "-----BEGIN PRIVATE KEY-----", hides no code after it.
+_KEY_PAYLOAD = re.compile(r"""[\s"'`+,(]*(?:[A-Za-z0-9+/=]+|[A-Za-z-]+: [^"'`]*)?(?:\\n)?[\s"'`+,;)]*""")
 
 
 def _redact(line: str) -> str:
@@ -232,12 +234,15 @@ def _redact_lines(lines: list[str]) -> list[str]:
     out = []
     for line in lines:
         if _KEY_BEGIN.search(line):
-            in_key = True
-        if in_key:
-            out.append(line[:1] + REDACTED)
             in_key = not _KEY_END.search(line)
-        else:
-            out.append(_redact(line))
+            out.append(line[:1] + REDACTED)
+            continue
+        if in_key and (_KEY_END.search(line) or _KEY_PAYLOAD.fullmatch(line[1:])):
+            in_key = not _KEY_END.search(line)
+            out.append(line[:1] + REDACTED)
+            continue
+        in_key = False
+        out.append(_redact(line))
     return out
 
 

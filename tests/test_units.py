@@ -413,3 +413,19 @@ def test_key_block_inside_a_string_literal_is_redacted():
     lines = ['+KEY = """-----BEGIN ' + 'RSA PRIVATE KEY-----', "+QUJDREVGR0hJSktMTU5PUFFS",
              '+-----END ' + 'RSA PRIVATE KEY-----"""', "+after = 1"]
     assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 3 + ["+after = 1"]
+
+
+@pytest.mark.parametrize("quote,join", [('"', ""), ("'", " +"), ("`", ",")])
+def test_key_block_in_concatenated_strings_is_redacted(quote, join):
+    payload = ["QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0123456789abcdefghijklmnopqrstuv", "QUJDREVG=="]
+    lines = [
+        "+key = (",
+        f"+    {quote}-----BEGIN " + f"PRIVATE KEY-----\\n{quote}{join}",
+        *[f"+    {quote}{p}\\n{quote}{join}" for p in payload],
+        f"+    {quote}-----END " + f"PRIVATE KEY-----\\n{quote}",
+        "+)",
+    ]
+    out = judge._redact_lines(lines)
+    assert out[1:5] == ["+" + judge.REDACTED] * 4
+    assert out[0] == "+key = (" and out[5] == "+)"
+    assert not any(p in "".join(out) for p in payload)
