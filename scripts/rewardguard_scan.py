@@ -83,7 +83,7 @@ GENERATED_MARKER = re.compile(
     r"code generated|do not edit|do not modify",
     re.IGNORECASE,
 )
-PRIVATE_KEY_MARKER = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")
+PRIVATE_KEY_MARKER = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 SEVERITIES = {"critical", "high", "medium", "low", "info"}
 SEVERITY_RANK = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 FINDING_FIELDS = {
@@ -182,7 +182,8 @@ def _reason_for_path(path: str, absolute: Path, output: Path) -> str | None:
 
     if Path(os.path.abspath(absolute)) == output:
         return "CSV output path"
-    if absolute.is_symlink():
+    # A tracked path is read through every directory above it, so a symlinked parent counts as well
+    if any((absolute.parents[depth]).is_symlink() for depth in range(len(pure.parts) - 1)) or absolute.is_symlink():
         return "symlink"
     if any(part in EXCLUDED_DIRS for part in parts[:-1]):
         return "generated, dependency, or cache directory"
@@ -281,7 +282,7 @@ def collect_manifest(root: Path, output: Path, max_file_bytes: int) -> tuple[lis
         if GENERATED_MARKER.search(header):
             excluded.append((path, "generated-file marker"))
             continue
-        if PRIVATE_KEY_MARKER.search(text[:4096]):
+        if PRIVATE_KEY_MARKER.search(text):
             excluded.append((path, "private key material"))
             continue
         entries.append(_metadata(path, text))
@@ -379,7 +380,6 @@ def build_review_batches(units: list[ReviewUnit], entries: list[SourceFile], max
 
 def _synthesis_request(nodes: list[dict[str, Any]], entries: list[SourceFile], findings: list[dict[str, Any]]) -> dict[str, Any]:
     paths = {path for node in nodes for path in node["paths"]}
-    node_ids = {node["unit_id"] for node in nodes}
     relevant = [
         {key: finding[key] for key in FINDING_FIELDS}
         for finding in findings
@@ -701,6 +701,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     output = args.output if args.output.is_absolute() else root / args.output
     output = Path(os.path.abspath(output))
+    if output.suffix.casefold() != ".csv" or not any(
+        output.resolve().is_relative_to(base) for base in (root, Path.cwd().resolve())
+    ):
+        _log(f"--output must be a .csv file inside the repository or the current directory: {output}")
+        return 2
     try:
         entries, excluded = collect_manifest(root, output, args.max_file_bytes)
         units = build_units(entries, max(1024, args.max_context_bytes // 2))

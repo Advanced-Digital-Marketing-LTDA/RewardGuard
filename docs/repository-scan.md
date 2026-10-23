@@ -18,6 +18,8 @@ python3 scripts/rewardguard_scan.py --repo-root . --output rewardguard-findings.
 
 The default judge is `codex exec`, using the user's Codex configuration in a read-only sandbox from an empty temporary working directory. The judge receives only the bounded JSON request and is told not to inspect the filesystem. A complete run reviews every included unit, performs a synthesis pass over repository summaries and findings, validates every reported path, line range, and evidence excerpt, then atomically replaces the output CSV. A complete scan with no findings creates a header-only CSV. Failures leave an existing CSV untouched.
 
+`--output` must be a `.csv` file inside the repository or the current directory; any other path is refused before anything is read.
+
 Use `--max-context-bytes` to change the per-call payload limit and `--max-file-bytes` to change the maximum accepted size for one file. If a file or synthesis group cannot fit, the scan fails with a clear error rather than silently dropping content. `--timeout` sets the per-call judge timeout.
 
 ## Judge adapter
@@ -41,6 +43,6 @@ Each finding must contain `severity` (`critical`, `high`, `medium`, `low`, or `i
 
 ## Scan boundary
 
-The scanner uses `git ls-files` to include tracked files and nonignored untracked files. A fail-closed allowlist admits recognized source, test, config, and documentation types. It always excludes CSV, database and model artifacts, secrets and private keys, lockfiles, symlinks, unknown types, generated-file markers, minified bundles, and common dependency, build, cache, and output directories. The requested output path is excluded even if it has a normally reviewable extension. Unreadable allowlisted files or files larger than the configured limit fail the scan; binary or non-UTF-8 files are excluded and listed in `--plan` output.
+The scanner uses `git ls-files` to include tracked files and nonignored untracked files. A fail-closed allowlist admits recognized source, test, config, and documentation types. It always excludes CSV, database and model artifacts, secrets and private keys, lockfiles, symlinks (including files under a symlinked directory), unknown types, generated-file markers, minified bundles, and common dependency, build, cache, and output directories. The requested output path is excluded even if it has a normally reviewable extension. Unreadable allowlisted files or files larger than the configured limit fail the scan; binary or non-UTF-8 files are excluded and listed in `--plan` output.
 
 Review units split at complete line boundaries, and component findings must stay within the lines actually sent to the judge. Python imports and top-level declarations are summarized with the standard-library AST; other languages use path, role, and extension metadata. The synthesis pass uses summaries rather than resending the full repository source.

@@ -91,6 +91,36 @@ print(json.dumps({
         self.assertEqual(reasons["src/message.generated.py"], "generated filename pattern")
         self.assertEqual(reasons["src/link.py"], "symlink")
 
+    def test_private_key_anywhere_in_a_file_excludes_it(self) -> None:
+        marker = "-----BEGIN " + "PRIVATE KEY-----"
+        write(self.root / "src/app.py", "# filler\n" * 500 + marker + "\nQUJDREVG\n")
+        write(self.root / "src/pgp.md", "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\nQUJDREVG\n")
+        write(self.root / "src/enc.toml", "-----BEGIN ENCRYPTED " + "PRIVATE KEY-----\nQUJDREVG\n")
+        entries, excluded = scanner.collect_manifest(self.root, self.root / "findings.csv", 100_000)
+        self.assertEqual([entry.path for entry in entries], [])
+        self.assertEqual(dict(excluded), {path: "private key material"
+                                          for path in ("src/app.py", "src/pgp.md", "src/enc.toml")})
+
+    def test_files_under_a_symlinked_directory_are_excluded(self) -> None:
+        outside = Path(self.judge_temp.name) / "outside"
+        write(outside / "app.py", "secret_logic = 1\n")
+        write(self.root / "src/app.py", "value = 1\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "src/app.py"], check=True)
+        (self.root / "src/app.py").unlink()
+        (self.root / "src").rmdir()
+        (self.root / "src").symlink_to(outside, target_is_directory=True)
+        entries, excluded = scanner.collect_manifest(self.root, self.root / "findings.csv", 100_000)
+        self.assertEqual([entry.path for entry in entries], [])
+        self.assertEqual(dict(excluded)["src/app.py"], "symlink")
+
+    def test_output_must_be_a_csv_inside_the_repository_or_working_directory(self) -> None:
+        write(self.root / "src/app.py", "value = 1\n")
+        elsewhere = Path(self.judge_temp.name) / "findings.csv"
+        for output in (elsewhere, self.root / "findings.txt"):
+            status = scanner.main(["--repo-root", str(self.root), "--output", str(output), "--plan"])
+            self.assertEqual(status, 2)
+            self.assertFalse(output.exists())
+
     def test_plan_does_not_invoke_judge(self) -> None:
         write(self.root / "src/app.py", "value = 1\n")
         output = self.root / "findings.csv"
