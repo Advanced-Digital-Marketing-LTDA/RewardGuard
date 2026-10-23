@@ -189,8 +189,8 @@ def _reason_for_path(path: str, absolute: Path, output: Path) -> str | None:
         return "generated, dependency, or cache directory"
     if name == ".env" or name.startswith(".env."):
         return "environment secret file"
-    if any(part in name for part in SENSITIVE_NAME_PARTS):
-        return "sensitive filename"
+    if any(sensitive in part for part in parts for sensitive in SENSITIVE_NAME_PARTS):
+        return "sensitive file or directory name"
     if name in LOCKFILES:
         return "dependency lockfile"
     if suffix == ".csv":
@@ -605,11 +605,16 @@ def _synthesize(
     synthesis_findings: list[dict[str, Any]] = []
     level = 1
     while nodes:
-        groups = _pack_synthesis(nodes, entries, findings + synthesis_findings, max_context_bytes)
+        # Groups are sized against the findings known when the level starts, so every request in the
+        # level sends those; findings a group adds reach the next level's requests.
+        level_findings = findings + synthesis_findings
+        groups = _pack_synthesis(nodes, entries, level_findings, max_context_bytes)
         next_nodes = []
         for index, group in enumerate(groups, 1):
-            request = _synthesis_request(group, entries, findings + synthesis_findings)
+            request = _synthesis_request(group, entries, level_findings)
             batch_id = f"synthesis-{level}-{index}"
+            if _json_size(request) > max_context_bytes:
+                raise ScanError(f"{batch_id} exceeds --max-context-bytes after serialization")
             summary, raw = _validate_response(
                 invoke_judge(request, root, timeout, command), request["expected_unit_ids"], max_context_bytes
             )

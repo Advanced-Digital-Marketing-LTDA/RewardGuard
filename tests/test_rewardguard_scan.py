@@ -121,6 +121,42 @@ print(json.dumps({
             self.assertEqual(status, 2)
             self.assertFalse(output.exists())
 
+    def test_files_under_sensitive_directories_are_excluded(self) -> None:
+        write(self.root / "secrets/production.yaml", "database_password: do-not-send\n")
+        write(self.root / "config/credentials/app.toml", "token = 'x'\n")
+        write(self.root / "src/app.py", "value = 1\n")
+        entries, excluded = scanner.collect_manifest(self.root, self.root / "findings.csv", 100_000)
+        self.assertEqual([entry.path for entry in entries], ["src/app.py"])
+        reasons = dict(excluded)
+        self.assertEqual(reasons["secrets/production.yaml"], "sensitive file or directory name")
+        self.assertEqual(reasons["config/credentials/app.toml"], "sensitive file or directory name")
+
+    def test_synthesis_requests_stay_within_the_context_limit(self) -> None:
+        entry = scanner._metadata("src/app.py", "BUG = 1\n" + "safe = 2\n" * 10)
+        summaries = [{"unit_id": f"review-{i}", "summary": "s" * 1500, "paths": ["src/app.py"]} for i in range(1, 4)]
+        sizes: list[int] = []
+
+        def judge(request, root, timeout, command):
+            sizes.append(scanner._json_size(request))
+            findings = []
+            if len(sizes) == 1:
+                findings = [{
+                    "severity": "high", "category": "correctness", "confidence": 0.9,
+                    "title": "Bad value " + "x" * 600, "description": "d" * 1200, "file": "src/app.py",
+                    "line_start": 1, "line_end": 1, "evidence": "BUG = 1",
+                    "recommendation": "r" * 300, "related_files": [],
+                }]
+            return {"reviewed_unit_ids": request["expected_unit_ids"], "summary": "merged", "findings": findings}
+
+        original = scanner.invoke_judge
+        scanner.invoke_judge = judge
+        try:
+            scanner._synthesize(summaries, [entry], [], self.root, 1, ["judge"], 4096, "")
+        finally:
+            scanner.invoke_judge = original
+        self.assertGreater(len(sizes), 2)
+        self.assertTrue(all(size <= 4096 for size in sizes), sizes)
+
     def test_plan_does_not_invoke_judge(self) -> None:
         write(self.root / "src/app.py", "value = 1\n")
         output = self.root / "findings.csv"
