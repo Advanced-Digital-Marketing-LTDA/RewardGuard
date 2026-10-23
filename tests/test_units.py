@@ -400,3 +400,16 @@ def test_repo_level_confirmation_keeps_diff_evidence(sample_repo):
     assert "File: src/big.js\n@@" in state and "+export const v0 = 0;" in state
     assert len(state) <= cfg.max_state_chars - 4000
     assert any("truncated" in n for n in notes), notes
+
+
+def test_marker_literals_in_code_do_not_start_a_key_block():
+    lines = [' const PEM_HEADER = "-----BEGIN ' + 'PRIVATE KEY-----";', "-  expect(x).toEqual(42);",
+             "+  expect(x).toBeDefined();", ' assert pem.startswith("-----END ' + 'PRIVATE KEY-----")']
+    # the marker line itself is still redacted line by line; the code after it is not
+    assert judge._redact_lines(lines) == [" " + judge.REDACTED, *lines[1:]]
+
+
+def test_key_block_inside_a_string_literal_is_redacted():
+    lines = ['+KEY = """-----BEGIN ' + 'RSA PRIVATE KEY-----', "+QUJDREVGR0hJSktMTU5PUFFS",
+             '+-----END ' + 'RSA PRIVATE KEY-----"""', "+after = 1"]
+    assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 3 + ["+after = 1"]

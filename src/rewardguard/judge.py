@@ -213,8 +213,10 @@ JUDGED = (TEST, CONFIG, SOURCE, OTHER)  # CI workflows and .rewardguard.toml are
 REDACTED = "[credential redacted]"
 
 
-_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
-_KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
+# A block's BEGIN marker ends its line and its END marker starts its line (after the diff prefix), so a
+# marker used as a literal in code, like PEM_HEADER = "-----BEGIN PRIVATE KEY-----", starts no block.
+_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----\s*$")
+_KEY_END = re.compile(r"^.\s*-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 
 
 def _redact(line: str) -> str:
