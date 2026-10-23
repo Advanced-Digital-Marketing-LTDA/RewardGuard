@@ -415,14 +415,16 @@ def test_key_block_inside_a_string_literal_is_redacted():
     assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 3 + ["+after = 1"]
 
 
-@pytest.mark.parametrize("quote,join", [('"', ""), ("'", " +"), ("`", ",")])
-def test_key_block_in_concatenated_strings_is_redacted(quote, join):
+@pytest.mark.parametrize("quote,join,eol", [('"', "", "\\n"), ("'", " +", "\\n"), ("`", ",", "\\n"),
+                                            ('"', "", "\\r\\n"), ('"', " +", "\\x0d\\x0a"),
+                                            ("'", "", "\\u000d\\u000a")])
+def test_key_block_in_concatenated_strings_is_redacted(quote, join, eol):
     payload = ["QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0123456789abcdefghijklmnopqrstuv", "QUJDREVG=="]
     lines = [
         "+key = (",
-        f"+    {quote}-----BEGIN " + f"PRIVATE KEY-----\\n{quote}{join}",
-        *[f"+    {quote}{p}\\n{quote}{join}" for p in payload],
-        f"+    {quote}-----END " + f"PRIVATE KEY-----\\n{quote}",
+        f"+    {quote}-----BEGIN " + f"PRIVATE KEY-----{eol}{quote}{join}",
+        *[f"+    {quote}{p}{eol}{quote}{join}" for p in payload],
+        f"+    {quote}-----END " + f"PRIVATE KEY-----{eol}{quote}",
         "+)",
     ]
     out = judge._redact_lines(lines)

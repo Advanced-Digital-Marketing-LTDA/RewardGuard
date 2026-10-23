@@ -216,9 +216,12 @@ REDACTED = "[credential redacted]"
 _KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 _KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 # A line of key payload: base64 or a PEM header such as "Proc-Type: 4,ENCRYPTED", bare or inside a quoted,
-# escaped or concatenated string. A block lasts only while its lines look like this, so a marker used as a
-# literal in code, like PEM_HEADER = "-----BEGIN PRIVATE KEY-----", hides no code after it.
-_KEY_PAYLOAD = re.compile(r"""[\s"'`+,(]*(?:[A-Za-z0-9+/=]+|[A-Za-z-]+: [^"'`]*)?(?:\\n)?[\s"'`+,;)]*""")
+# escaped or concatenated string, ending in any escaped line break (\n, \r\n, \x0d\x0a, \u000d\u000a, ...).
+# A block lasts only while its lines look like this, so a marker used as a literal in code, like
+# PEM_HEADER = "-----BEGIN PRIVATE KEY-----", hides no code after it.
+_KEY_PAYLOAD = re.compile(
+    r"""[\s"'`+,(]*(?:[A-Za-z0-9+/=]+|[A-Za-z-]+: [^"'`\\]*)?"""
+    r"""(?:\\(?:[nrt]|x0[9ad]|u000[9ad]))*[\s"'`+,;)\\]*""", re.IGNORECASE)
 
 
 def _redact(line: str) -> str:
