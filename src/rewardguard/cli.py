@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, codex_hook, config, explainer, gitops, judge, report, runner, static_checks
-from .models import FAIL, WARN, Finding, Report, RewardGuardError
+from .models import CLEAR_CUT, FAIL, WARN, Finding, Report, RewardGuardError
 
 
 def _description(args) -> str:
@@ -110,18 +110,7 @@ def check(args) -> int:
         return _finish(rep, args)
 
     log("rewardguard: static checks")
-    findings, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
-    rep.findings.extend(findings)
-
-    log("rewardguard: Jev judge, Haiku explainer")
-    try:
-        client = judge.JevClient(cfg)
-        haiku = explainer.HaikuExplainer(cfg)
-        rep.findings.extend(judge.run(repo, base, head, cfg, changed, kinds, _description(args), client, haiku, log))
-        if client.models_seen:
-            rep.notes.append("Jev model: " + ", ".join(sorted(client.models_seen)))
-    except RewardGuardError as e:
-        rep.errors.append(f"Judge: {e}")
+    found, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
 
     if not cfg.run_tests:
         if getattr(args, "staged", False) and gitops.show_file(
@@ -133,7 +122,7 @@ def check(args) -> int:
         log(f"rewardguard: test results from {args.run_results}")
         try:
             run_findings, run_errors = _load_run_results(args.run_results, base, head)
-            rep.findings.extend(run_findings)
+            found.extend(run_findings)
             rep.errors.extend(run_errors)
         except RewardGuardError as e:
             rep.errors.append(str(e))
@@ -144,9 +133,25 @@ def check(args) -> int:
     else:
         log("rewardguard: test runs")
         try:
-            rep.findings.extend(runner.run(repo, base, head, cfg, log))
+            found.extend(runner.run(repo, base, head, cfg, log))
         except RewardGuardError as e:
             rep.errors.append(f"Test run: {e}")
+
+    # Clear-cut findings keep their fixed severity; Jev grades every other finding and judges every
+    # changed file, and Haiku explains everything Jev reports
+    log("rewardguard: Jev judge, Haiku explainer")
+    try:
+        client = judge.JevClient(cfg)
+        haiku = explainer.HaikuExplainer(cfg)
+        judged, notes = judge.run(repo, base, head, cfg, changed, kinds, _description(args), client, haiku, log,
+                                  to_confirm=found)
+        rep.findings.extend(judged)
+        rep.notes.extend(notes)
+        if client.models_seen:
+            rep.notes.append("Jev model: " + ", ".join(sorted(client.models_seen)))
+    except RewardGuardError as e:
+        rep.findings.extend(f for f in found if f.rule in CLEAR_CUT)
+        rep.errors.append(f"Judge: {e}")
 
     return _finish(rep, args)
 

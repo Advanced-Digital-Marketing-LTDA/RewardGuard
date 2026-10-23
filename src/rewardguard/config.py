@@ -5,7 +5,7 @@ import tomllib
 from dataclasses import dataclass, field
 
 from . import gitops
-from .models import FAIL, WARN, RewardGuardError
+from .models import RewardGuardError
 
 CONFIG_FILE = ".rewardguard.toml"
 
@@ -51,8 +51,6 @@ class Config:
     snapshot_globs: list[str] = field(default_factory=lambda: list(DEFAULT_SNAPSHOT_GLOBS))
     judge_include: list[str] = field(default_factory=lambda: list(DEFAULT_JUDGE_INCLUDE))
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE))
-    fail_threshold: float = 0.8
-    warn_threshold: float = 0.5
     model: str = "jev-1.13.0"
     api_url: str = "https://api.typesafe.ai/v1/systemone"
     max_state_chars: int = 90_000  # ~22k tokens; Jev allows 32k for state + longest question
@@ -62,7 +60,6 @@ class Config:
     explainer_model: str = "claude-haiku-5-5"
     explainer_effort: str = "low"
     explainer_timeout_seconds: int = 300
-    explainer_min_probability: float = 0.6  # Haiku explains only Jev findings at or above this
     test_timeout_seconds: int = 1800
     rule_severity: dict[str, str] = field(default_factory=dict)
 
@@ -96,13 +93,20 @@ def parse(text: str) -> Config:
         suites.append(Suite(name=str(s["name"]), command=str(s["command"])))
 
     paths = data.get("paths", {})
-    th = data.get("thresholds", {})
     judge = data.get("judge", {})
     explainer = data.get("explainer", {})
     rules = data.get("rules", {})
     for rule, sev in rules.items():
-        if sev not in (FAIL, WARN, "off"):
-            raise RewardGuardError(f"{CONFIG_FILE}: rule {rule} severity must be fail, warn or off")
+        if sev != "off":
+            raise RewardGuardError(
+                f"{CONFIG_FILE}: rule {rule} can only be set to \"off\"; severity comes from the Jev probability "
+                "(warn at 0.60, fail at 0.80) or, for clear-cut rules, is fixed")
+    if "thresholds" in data:
+        raise RewardGuardError(f"{CONFIG_FILE}: [thresholds] is no longer configurable "
+                               "(fixed: no output below 0.60, warn at 0.60, fail at 0.80); remove it")
+    if "min_probability" in explainer:
+        raise RewardGuardError(f"{CONFIG_FILE}: [explainer] min_probability is no longer configurable "
+                               "(fixed at 0.60); remove it")
 
     cfg = Config(
         install=data.get("install"),
@@ -113,8 +117,6 @@ def parse(text: str) -> Config:
         snapshot_globs=_list(paths, "snapshot_globs", DEFAULT_SNAPSHOT_GLOBS),
         judge_include=_list(paths, "judge_include", DEFAULT_JUDGE_INCLUDE),
         exclude=_list(paths, "exclude", DEFAULT_EXCLUDE),
-        fail_threshold=float(th.get("fail", 0.8)),
-        warn_threshold=float(th.get("warn", 0.5)),
         model=str(judge.get("model", "jev-1.13.0")),
         api_url=str(judge.get("api_url", "https://api.typesafe.ai/v1/systemone")),
         max_state_chars=int(judge.get("max_state_chars", 90_000)),
@@ -124,7 +126,6 @@ def parse(text: str) -> Config:
         explainer_model=str(explainer.get("model", "claude-haiku-5-5")),
         explainer_effort=str(explainer.get("effort", "low")),
         explainer_timeout_seconds=int(explainer.get("timeout_seconds", 300)),
-        explainer_min_probability=float(explainer.get("min_probability", 0.6)),
         test_timeout_seconds=int(data.get("test_timeout_seconds", 1800)),
         rule_severity=dict(rules),
     )
@@ -133,14 +134,10 @@ def parse(text: str) -> Config:
 
 
 def _validate(cfg: Config) -> None:
-    if not 0 < cfg.warn_threshold <= cfg.fail_threshold <= 1:
-        raise RewardGuardError(f"{CONFIG_FILE}: need 0 < warn <= fail <= 1")
     if cfg.model == "jev-latest":
         raise RewardGuardError(f"{CONFIG_FILE}: pin a versioned Jev model, not jev-latest")
     if cfg.explainer_effort not in ("low", "medium", "high", "xhigh", "max"):
         raise RewardGuardError(f"{CONFIG_FILE}: explainer effort must be low, medium, high, xhigh or max")
-    if not 0 < cfg.explainer_min_probability <= 1:
-        raise RewardGuardError(f"{CONFIG_FILE}: explainer min_probability must be above 0 and at most 1")
 
 
 def load_from_commit(repo: str, commit: str, *, allow_missing: bool = False) -> Config:

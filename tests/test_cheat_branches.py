@@ -113,7 +113,7 @@ def test_cheat_is_caught(name, sample_repo, fake_jev, tmp_path):
 
 
 def test_new_test_that_passes_on_base_is_flagged(sample_repo, fake_jev, tmp_path):
-    fake_jev()
+    fake_jev(confirm=0.7)  # a test-run finding, graded by Jev: 0.60-0.79 warns
     sample_repo.branch("vacuous", {
         SRC: sample_repo.read(SRC) + "\nexport function double(x) {\n  return x * 2;\n}\n",
         TEST: sample_repo.read(TEST) + '\ndescribe("discount again", () => {\n  it("still discounts", () => {\n'
@@ -291,7 +291,7 @@ def test_no_local_tests_fails_when_config_needs_tests(sample_repo, fake_jev, mon
 
 
 def test_warn_rules_on_risky_but_possibly_honest_changes(sample_repo, fake_jev, tmp_path):
-    fake_jev()
+    fake_jev(confirm=0.7)  # LICENSE_HEADER_REMOVED and LARGE_LITERAL_TABLE are graded; the rest are clear-cut
     sh = __import__("conftest").sh
     (sample_repo.path / "src" / "legacy.js").write_text("// Copyright 2024 Sample Ltd.\nexport const OLD = 1;\n")
     (sample_repo.path / "src" / "util.js").write_text("// Copyright 2024 Sample Ltd.\nexport const U = 1;\n")
@@ -344,9 +344,9 @@ def test_app_options_named_strict_are_not_a_gate(sample_repo, fake_jev, tmp_path
     assert "RUNTIME_MONKEYPATCH" not in found, rep["findings"]
 
 
-@pytest.mark.parametrize("p,explained", [(0.55, False), (0.6, True), (0.65, True)])
-def test_haiku_only_explains_findings_at_or_above_min_probability(p, explained, sample_repo, fake_jev,
-                                                                    fake_haiku, tmp_path):
+@pytest.mark.parametrize("p,severity", [(0.59, None), (0.6, "warn"), (0.79, "warn"), (0.8, "fail")])
+def test_jev_probability_sets_severity_and_haiku_explains_everything_reported(p, severity, sample_repo, fake_jev,
+                                                                              fake_haiku, tmp_path):
     fake_jev(rules={("hardcoded", "return 16.99"): p})
     fh = fake_haiku()
     sample_repo.branch("hc", {SRC: sample_repo.read(SRC).replace(
@@ -354,11 +354,74 @@ def test_haiku_only_explains_findings_at_or_above_min_probability(p, explained, 
         "  if (price === 19.99 && percent === 15) return 16.99;\n  return Math.round(price * (100 - percent)) / 100;")})
     code, rep = run_check(sample_repo, tmp_path)
     assert rep["errors"] == [], rep["errors"]
+    found = [f for f in rep["findings"] if f["rule"] == "HARDCODED_OUTPUT"]
+    if severity is None:
+        assert found == [] and fh.calls == []
+        assert "HARDCODED_OUTPUT" not in (tmp_path / "report.json").read_text()
+        return
+    [f] = found
+    assert f["severity"] == severity
+    assert len(fh.calls) == 1
+    assert f["details"][0]["problem"] == "HARDCODED_OUTPUT problem"
+
+
+def _tautology(repo):
+    return {TEST: repo.read(TEST).replace("expect(splitTotal(99, 3)).toEqual([33, 33, 33]);", "expect(true).toBe(true);")}
+
+
+@pytest.mark.parametrize("p,severity", [(0.59, None), (0.7, "warn"), (0.85, "fail")])
+def test_static_findings_that_arent_clear_cut_are_graded_by_jev(p, severity, sample_repo, fake_jev, tmp_path):
+    fj = fake_jev(confirm_rules={"TAUTOLOGICAL_ASSERTION": p})
+    sample_repo.branch("taut", _tautology(sample_repo))
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    assert rules(rep).get("TAUTOLOGICAL_ASSERTION") == severity, rep["findings"]
+    confirms = [q["instructions"] for c in fj.calls for k, q in c["questions"].items() if k.startswith("confirm_")]
+    assert any("check named TAUTOLOGICAL_ASSERTION " in q for q in confirms)
+    if severity:
+        [f] = [f for f in rep["findings"] if f["rule"] == "TAUTOLOGICAL_ASSERTION"]
+        assert f["probability"] == p and f["details"]
+
+
+def test_clear_cut_findings_keep_their_severity_and_skip_jev(sample_repo, fake_jev, tmp_path):
+    fj = fake_jev(confirm=0.0)
+    sample_repo.branch("skip", {TEST: sample_repo.read(TEST).replace('it("splits evenly"', 'it.skip("splits evenly"')})
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    found = rules(rep)
+    assert found.get("SKIP_ADDED") == "fail" and found.get("RUN_SKIPPED_INCREASE") == "fail", rep["findings"]
+    asked = json.dumps([c["questions"] for c in fj.calls])
+    assert "SKIP_ADDED" not in asked and "RUN_SKIPPED_INCREASE" not in asked
+    [f] = [f for f in rep["findings"] if f["rule"] == "SKIP_ADDED"]
+    assert "probability" not in f and "details" not in f
+
+
+def test_every_changed_text_file_is_judged_except_ci_and_checker_config(sample_repo, fake_jev, tmp_path):
+    fj = fake_jev(rules={("hardcoded", "return 42"): 0.9})
+    sample_repo.branch("py", {
+        "tools/answer.py": "def answer(question):\n    return 42\n",
+        "docs/notes.md": "Some notes.\n",
+        ".github/workflows/ci.yml": "on: push\n",
+    })
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    states = [c["state"] for c in fj.calls]
+    assert any("File: tools/answer.py" in s for s in states)
+    assert any("File: docs/notes.md" in s for s in states)
+    assert not any("File: .github/workflows/ci.yml" in s for s in states)
     [f] = [f for f in rep["findings"] if f["rule"] == "HARDCODED_OUTPUT"]
-    assert len(fh.calls) == (1 if explained else 0)
-    if explained:
-        assert f["details"]
-        assert f["details"][0]["problem"] == "HARDCODED_OUTPUT problem"
-    else:
-        assert f.get("details") is None
-        assert "not sent to Haiku" in f["message"]
+    assert f["file"] == "tools/answer.py" and f["severity"] == "fail"
+
+
+def test_credentials_are_redacted_before_jev_and_haiku(sample_repo, fake_jev, fake_haiku, tmp_path):
+    fj = fake_jev(rules={("hardcoded", "export const"): 0.9})
+    fh = fake_haiku()
+    password = "hunter" + "22xyz"
+    sample_repo.branch("env", {"config/settings.py": f'DB = "mysql://root:{password}@prod/db"\nexport const X = 1\n'})
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rep["errors"] == [], rep["errors"]
+    assert rules(rep).get("SECRET_ADDED") == "fail"
+    assert fj.calls and fh.calls
+    assert password not in json.dumps(fj.calls)
+    assert all(password not in (c["input"] or "") for c in fh.calls)
+    assert any("[credential redacted]" in c["state"] for c in fj.calls)

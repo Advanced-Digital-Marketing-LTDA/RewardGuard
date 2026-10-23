@@ -21,9 +21,8 @@ command = "npx vitest run --reporter=json --outputFile={report}"
 # name = "e2e"
 # command = "npx playwright test --reporter=json"
 
-[thresholds]
-fail = 0.8   # Jev probability at or above this fails the check
-warn = 0.5   # at or above this warns
+# Severity is fixed: a Jev probability below 0.60 is not reported, 0.60-0.79 warns, 0.80 or higher fails.
+# Jev judges every changed text file and grades every finding that isn't clear-cut.
 
 [judge]
 model = "jev-1.13.0"   # pin a version; jev-latest is rejected
@@ -31,21 +30,18 @@ model = "jev-1.13.0"   # pin a version; jev-latest is rejected
 # context_lines = 20
 # concurrency = 4
 
-# Jev only answers yes/no. Findings Jev scores at min_probability or higher go to Claude Haiku
+# Jev only answers yes/no. Every Jev finding that is reported (0.60 or higher) goes to Claude Haiku
 # (via the `claude` CLI, billed to the subscription behind CLAUDE_CODE_OAUTH_TOKEN), which names
-# the lines and the problem. Lower-scoring findings are still reported, unexplained.
-# Haiku never clears a finding.
+# the lines and the problem. Haiku never clears a finding.
 [explainer]
 model = "claude-haiku-5-5"
 effort = "low"
-# min_probability = 0.6
 # timeout_seconds = 300
 
 # [paths]
 # test_globs = ["**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "**/__tests__/**", "**/{test,tests,e2e}/**"]
 # exclude = ["**/node_modules/**", "**/dist/**"]
 
-# Per-rule severity: "fail", "warn" or "off".
+# Turn a rule off with "off"; severities can't be changed.
 [rules]
-# ORIGINAL_TESTS_FAIL = "fail"
-# SNAPSHOT_CHANGED = "fail"
+# SNAPSHOT_CHANGED = "off"

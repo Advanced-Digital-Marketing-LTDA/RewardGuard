@@ -27,11 +27,12 @@ def test_glob_matching():
     ("", "at least one"),
     ('[[suites]]\nname = "u"\n', "'name' and 'command'"),
     (BASE_TOML + '[judge]\nmodel = "jev-latest"\n', "pin a versioned"),
-    (BASE_TOML + "[thresholds]\nfail = 0.4\nwarn = 0.6\n", "warn <= fail"),
-    (BASE_TOML + '[rules]\nX = "maybe"\n', "severity"),
+    (BASE_TOML + "[thresholds]\nfail = 0.8\nwarn = 0.5\n", r"\[thresholds\] is no longer configurable"),
+    (BASE_TOML + '[rules]\nX = "maybe"\n', 'can only be set to "off"'),
+    (BASE_TOML + '[rules]\nWEAKENED_ASSERTION = "fail"\n', 'can only be set to "off"'),
+    (BASE_TOML + '[rules]\nWEAKENED_ASSERTION = "warn"\n', 'can only be set to "off"'),
     (BASE_TOML + '[explainer]\neffort = "huge"\n', "explainer effort"),
-    (BASE_TOML + '[explainer]\nmin_probability = 0\n', "min_probability"),
-    (BASE_TOML + '[explainer]\nmin_probability = 1.5\n', "min_probability"),
+    (BASE_TOML + '[explainer]\nmin_probability = 0.6\n', "min_probability is no longer configurable"),
 ])
 def test_config_validation(text, err):
     with pytest.raises(RewardGuardError, match=err):
@@ -270,15 +271,15 @@ def test_deleted_source_file_is_judged(sample_repo):
 
 
 @pytest.mark.parametrize("rules,p,expected", [
-    ("", 0.6, "warn"),                                  # thresholds decide
-    ('WEAKENED_ASSERTION = "fail"\n', 0.6, "fail"),     # explicit fail wins below the fail threshold
-    ('WEAKENED_ASSERTION = "warn"\n', 0.95, "warn"),
+    ("", 0.59, None),                                   # below 0.60: no output
+    ("", 0.6, "warn"),
+    ("", 0.79, "warn"),
+    ("", 0.8, "fail"),
     ('WEAKENED_ASSERTION = "off"\n', 0.95, None),
 ])
-def test_rule_severity_overrides_thresholds(rules, p, expected):
+def test_fixed_severity_tiers(rules, p, expected):
     cfg = config.parse(BASE_TOML + "[rules]\n" + rules)
-    sev = judge.FAIL if p >= cfg.fail_threshold else judge.WARN
-    f = judge._finding(cfg, "WEAKENED_ASSERTION", sev, "m")
+    f = judge._finding(cfg, "WEAKENED_ASSERTION", p, "m")
     assert (f.severity if f else None) == expected
 
 
