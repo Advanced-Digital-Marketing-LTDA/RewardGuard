@@ -375,13 +375,14 @@ def test_private_key_payload_is_redacted_with_its_markers(sample_repo):
     text = "".join(c.text for c in chunks)
     assert not any(p in text for p in payload)
     assert "+after" in text
+    assert sum(c.key_lines for c in chunks) == 22  # both markers and the 20 payload lines
 
 
 def test_redaction_covers_a_key_block_cut_by_the_hunk_edge():
     tail = ["+QUJDREVGR0hJSktMTU5PUFFS", "+-----END " + "PRIVATE KEY-----", " after"]
     head = ["+before", "+-----BEGIN " + "PRIVATE KEY-----", "+QUJDREVGR0hJSktMTU5PUFFS"]
-    assert judge._redact_lines(tail) == ["+" + judge.REDACTED, "+" + judge.REDACTED, " after"]
-    assert judge._redact_lines(head) == ["+before", "+" + judge.REDACTED, "+" + judge.REDACTED]
+    assert judge._redact_lines(tail)[0] == ["+" + judge.REDACTED, "+" + judge.REDACTED, " after"]
+    assert judge._redact_lines(head)[0] == ["+before", "+" + judge.REDACTED, "+" + judge.REDACTED]
 
 
 def test_repo_level_confirmation_keeps_diff_evidence(sample_repo):
@@ -400,3 +401,67 @@ def test_repo_level_confirmation_keeps_diff_evidence(sample_repo):
     assert "File: src/big.js\n@@" in state and "+export const v0 = 0;" in state
     assert len(state) <= cfg.max_state_chars - 4000
     assert any("truncated" in n for n in notes), notes
+
+
+def test_code_between_marker_literals_is_redacted_and_counted():
+    lines = [' const PEM_HEADER = "-----BEGIN ' + 'PRIVATE KEY-----";', "-  expect(x).toEqual(42);",
+             "+  expect(x).toBeDefined();", ' assert pem.startswith("-----END ' + 'PRIVATE KEY-----")', " done()"]
+    # key material can hide in any line shape, so a block is redacted in full and the hidden lines counted
+    assert judge._redact_lines(lines) == ([" " + judge.REDACTED, "-" + judge.REDACTED, "+" + judge.REDACTED,
+                                          " " + judge.REDACTED, " done()"], 4)
+
+
+def test_key_built_by_statements_is_redacted():
+    lines = ['+$key = "-----BEGIN ' + 'PRIVATE KEY-----\\n";', '+$key .= "QUJDREVG==\\n";',
+             '+$key .= "-----END ' + 'PRIVATE KEY-----\\n";', "+return $key;"]
+    assert judge._redact_lines(lines) == (["+" + judge.REDACTED] * 3 + ["+return $key;"], 3)
+
+
+def test_files_with_hidden_key_block_lines_get_a_note():
+    chunks = [judge.Chunk("a.py", "source", "", 1, key_lines=2), judge.Chunk("a.py", "source", "", 9, key_lines=3),
+              judge.Chunk("b.py", "source", "", 1)]
+    assert judge.key_block_notes(chunks) == [
+        "a.py: 5 line(s) inside a private-key block were redacted and not judged; review them by hand"]
+
+
+def test_key_block_inside_a_string_literal_is_redacted():
+    lines = ['+KEY = """-----BEGIN ' + 'RSA PRIVATE KEY-----', "+QUJDREVGR0hJSktMTU5PUFFS",
+             '+-----END ' + 'RSA PRIVATE KEY-----"""', "+after = 1"]
+    assert judge._redact_lines(lines)[0] == ["+" + judge.REDACTED] * 3 + ["+after = 1"]
+
+
+@pytest.mark.parametrize("quote,join,eol", [('"', "", "\\n"), ("'", " +", "\\n"), ("`", ",", "\\n"),
+                                            ('"', "", "\\r\\n"), ('"', " +", "\\x0d\\x0a"),
+                                            ("'", "", "\\u000d\\u000a")])
+def test_key_block_in_concatenated_strings_is_redacted(quote, join, eol):
+    payload = ["QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0123456789abcdefghijklmnopqrstuv", "QUJDREVG=="]
+    lines = [
+        "+key = (",
+        f"+    {quote}-----BEGIN " + f"PRIVATE KEY-----{eol}{quote}{join}",
+        *[f"+    {quote}{p}{eol}{quote}{join}" for p in payload],
+        f"+    {quote}-----END " + f"PRIVATE KEY-----{eol}{quote}",
+        "+)",
+    ]
+    out = judge._redact_lines(lines)[0]
+    assert out[1:5] == ["+" + judge.REDACTED] * 4
+    assert out[0] == "+key = ("
+    assert out[5] == "+)"
+    assert not any(p in "".join(out) for p in payload)
+
+
+@pytest.mark.parametrize("payload", [
+    "QUJDREVGR0hJSktMTU5PUFFSU1RV VldYWVo0123456789abcdefghijklmnopqrstuv",
+    "QUJD REVG R0hJ SktM TU5P UFFS",
+    "QUJDREVGR0hJSktM\tTU5PUFFSU1RVVldYWVo",
+])
+def test_key_payload_with_internal_whitespace_is_redacted(payload):
+    lines = ["+-----BEGIN " + "PRIVATE KEY-----", f"+{payload}", "+QUJDREVGR0hJSktMTU5PUFFS",
+             "+-----END " + "PRIVATE KEY-----", "+done = True"]
+    assert judge._redact_lines(lines)[0] == ["+" + judge.REDACTED] * 4 + ["+done = True"]
+
+
+@pytest.mark.parametrize("prefix", ["# ", "// ", " * ", "-- ", "; "])
+def test_commented_out_key_block_is_redacted_in_full(prefix):
+    lines = [f"+{prefix}-----BEGIN " + "PRIVATE KEY-----", f"+{prefix}QUJDREVG", f"+{prefix}SktMTU5P",
+             f"+{prefix}QUJDREVG==", f"+{prefix}-----END " + "PRIVATE KEY-----", "+run()"]
+    assert judge._redact_lines(lines)[0] == ["+" + judge.REDACTED] * 5 + ["+run()"]

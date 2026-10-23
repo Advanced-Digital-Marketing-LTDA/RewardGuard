@@ -64,7 +64,8 @@ class ContentResult:
 
 def _safe(text: str) -> str:
     text = re.sub(r'(https?://)[^/\s@]+@', r'\1[credential redacted]@', text)
-    return '\n'.join(judge._redact_lines(text.splitlines()))
+    lines, _hidden = judge._redact_lines(text.splitlines())
+    return '\n'.join(lines)
 
 
 def _ask(client, state, questions):
