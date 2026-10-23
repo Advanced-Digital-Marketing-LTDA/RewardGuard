@@ -144,7 +144,7 @@ def _parse_content(section: object) -> ContentConfig:
     allowed = {"enabled", "include", "source_include", "exclude", "context", "packs"}
     unknown = set(section) - allowed
     if unknown:
-        raise RewardGuardError(f"{CONFIG_FILE}: unknown content setting '{sorted(unknown)[0]}'")
+        raise RewardGuardError(f"{CONFIG_FILE}: unknown content setting '{min(unknown)}'")
     enabled = section.get("enabled", True)
     if not isinstance(enabled, bool):
         raise RewardGuardError(f"{CONFIG_FILE}: content.enabled must be true or false")

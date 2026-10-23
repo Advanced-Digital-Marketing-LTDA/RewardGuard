@@ -88,7 +88,8 @@ def candidates(repo, base, head, cfg, changed):
     selected = []
     for cf in changed:
         paths = [cf.path] + ([cf.old_path] if cf.old_path else [])
-        if any(globs.match(path, cfg.content.exclude) for path in paths):
+        # A surviving file is judged where it now lives: moving copy out of an excluded directory publishes it
+        if globs.match(cf.path, cfg.content.exclude):
             continue
         direct = any(globs.match(path, cfg.content.include) for path in paths)
         source = any(globs.match(path, cfg.content.source_include) for path in paths)
@@ -121,6 +122,20 @@ def _context(repo, trusted_base, cfg, result):
             available.add(code)
             size += len(piece)
     return '\n'.join(pieces), available
+
+
+def _gap_questions(batch, available):
+    """For a rule whose evidence contract names conditional evidence that is not supplied, ask whether the
+    instance falls under that condition; if it does, the instance is not evaluated."""
+    questions = {}
+    for key, rule, instance, _skill, _statement in batch:
+        missing = sorted(rule.conditional - available)
+        if missing:
+            questions[key + '__gap'] = (
+                f'The changed instance of this check falls under a condition of its evidence contract that needs '
+                f'evidence {", ".join(missing)}, which was not supplied. Check: {rule.statement}'
+                + (f' Instance: {instance}.' if instance else '') + f' Evidence contract: {rule.evidence}.' + BOUNDARY)
+    return questions
 
 
 def _specialist(rule, packs, state, variants):
@@ -169,9 +184,13 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
     if unknown:
         raise RewardGuardError('Unknown content pack(s): ' + ', '.join(sorted(unknown)))
     allowed = set(cfg.content.packs) or set(routes)
-    rules = [r for r in content_rules.all_rules() if r.pack in allowed and cfg.severity(r.id, 'warn') != 'off']
-    context, evidence = _context(repo, trusted_base or base, cfg, result)
     cat = content_rules.catalog()
+    # A selected pack also needs the shared rules its cross-pack routes import from other packs
+    imported = {rule_id for route in cat.get('cross_pack_routes', [])
+                if route['from'] in allowed or route['from'] == 'all content artifacts' for rule_id in route['use']}
+    rules = [r for r in content_rules.all_rules()
+             if (r.pack in allowed or r.id in imported) and cfg.severity(r.id, 'warn') != 'off']
+    context, evidence = _context(repo, trusted_base or base, cfg, result)
     variant_specs = cat.get('artifact_contract_variants', [])
     seen = {}
     for cf in selected:
@@ -231,13 +250,21 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                     for prop in FIELDS.get(rule.id, ('',)):
                         instance = ':'.join(filter(None, (variant, prop)))
                         question = (rule.statement + (f' Evaluate only the named field/mechanism: {prop}.' if prop else '') +
-                                    (f' Artifact contract: {scope}.' if scope else '') + BOUNDARY)
+                                    (f' Artifact contract: {scope}.' if scope else '') +
+                                    f' Evidence contract: {rule.evidence}.' + BOUNDARY)
                         key = rule.id + ('__' + str(len(jobs)) if instance else '')
                         jobs.append((key, rule, instance, skill, question))
             log(f'content review: {cf.path}: {len(active)} pack(s), {len(jobs)} evidenced proposition(s)')
             for batch in _batches(jobs):
-                answers = _ask(client, state, {j[0]: j[4] for j in batch})
+                questions = {j[0]: j[4] for j in batch}
+                questions.update(_gap_questions(batch, available))
+                answers = _ask(client, state, questions)
                 for key, rule, instance, skill, statement in batch:
+                    if answers.get(key + '__gap', 0) >= WARN_AT:
+                        result.coverage.append({'file': cf.path, 'rule': rule.id, 'instance': instance,
+                                                'status': 'not_evaluated', 'reason': 'Missing conditional evidence',
+                                                'requires': sorted(rule.conditional - available)})
+                        continue
                     probability = answers[key]
                     severity = grade(probability)
                     result.coverage.append({'file': cf.path, 'rule': rule.id, 'instance': instance,

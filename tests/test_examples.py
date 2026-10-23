@@ -48,7 +48,8 @@ def test_no_tests_workflow():
     assert job["permissions"] == {"contents": "read", "pull-requests": "write"}
 
     checkout = _step(job, "actions/checkout")["with"]
-    assert checkout["ref"] == RESOLVED_HEAD and checkout["fetch-depth"] == 0
+    assert checkout["ref"] == RESOLVED_HEAD
+    assert checkout["fetch-depth"] == 0
     assert checkout["persist-credentials"] is False
 
     guard = _guard(job)["with"]
@@ -69,7 +70,8 @@ def test_two_job_workflow_keeps_secrets_away_from_branch_code():
     assert tests_job["permissions"] == {"contents": "read"}
     assert "secrets." not in yaml.safe_dump(tests_job)
     checkout = _step(tests_job, "actions/checkout")["with"]
-    assert checkout["ref"] == RESOLVED_HEAD and checkout["persist-credentials"] is False
+    assert checkout["ref"] == RESOLVED_HEAD
+    assert checkout["persist-credentials"] is False
     assert _guard(tests_job)["with"]["mode"] == "tests"
     assert _guard(tests_job)["with"]["base"] == RESOLVED_BASE
 

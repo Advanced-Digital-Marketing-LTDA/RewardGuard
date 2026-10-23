@@ -19,6 +19,8 @@ class ContentRule:
     source: str
     rubric: str
     evidence_paths: tuple[frozenset[str], ...]
+    evidence: str = ""  # the exact authored evidence contract
+    conditional: frozenset[str] = frozenset()  # codes the contract names that no evidence path requires
 
 
 _EVIDENCE = {
@@ -150,15 +152,20 @@ def catalog() -> dict:
     try:
         raw = resources.files("rewardguard").joinpath("content_data/catalog.json").read_text(encoding="utf-8")
         data = json.loads(raw)
-    except (OSError, UnicodeError, ValueError) as exc:
+    except (OSError, ValueError) as exc:  # UnicodeError is a ValueError
         raise _error(f"cannot load packaged JSON: {exc}") from exc
     return _validate(data)
+
+
+def _mentioned(rule: dict) -> set[str]:
+    """Evidence codes the authored contract names, including conditional ones no path requires."""
+    return {code for code in _EVIDENCE if re.search(rf"\b{code}\b", rule["evidence"])}
 
 
 def _rubric(data: dict, pack: dict, rule: dict, paths: tuple[frozenset[str], ...]) -> str:
     used = set().union(*paths)
     # Preserve conditional requirements from the authored evidence prose too.
-    used.update(code for code in _EVIDENCE if re.search(rf"\b{code}\b", rule["evidence"]))
+    used.update(_mentioned(rule))
     definitions = "\n".join(f"- {code}: {_EVIDENCE[code]}" for code in _EVIDENCE if code in used)
     alternatives = " OR ".join("+".join(code for code in _EVIDENCE if code in path) for path in paths)
     exclusions = "\n".join(f"- {item}" for item in rule["rubric_exclusions"])
@@ -210,6 +217,8 @@ def all_rules() -> list[ContentRule]:
                 source=item["haiku_skill_source"],
                 rubric=_rubric(data, pack, item, paths),
                 evidence_paths=paths,
+                evidence=item["evidence"],
+                conditional=frozenset(_mentioned(item)) - frozenset().union(*paths),
             ))
     return result
 

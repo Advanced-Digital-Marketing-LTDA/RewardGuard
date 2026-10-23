@@ -134,7 +134,8 @@ def test_metadata_only_change_enters_classification(repo):
     changed = commit(repo, 'src/metadata.ts', 'export const title = "New search title";\n')
     client = Jev(content=.1)
     run(repo, changed, client, Haiku())
-    assert client.calls and 'content_task' in client.calls[0][1]
+    assert client.calls
+    assert 'content_task' in client.calls[0][1]
 
 
 def test_staged_snapshot_excludes_unstaged_copy(repo):
@@ -153,8 +154,9 @@ def test_staged_snapshot_excludes_unstaged_copy(repo):
 
 def test_malformed_probability_fails_closed(repo):
     changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
+    client, haiku = Jev(content=float('nan')), Haiku()
     with pytest.raises(RewardGuardError, match='probability'):
-        run(repo, changed, Jev(content=float('nan')), Haiku())
+        run(repo, changed, client, haiku)
 
 
 def test_content_only_cli_allows_code_only_commit_without_credentials(repo, tmp_path, monkeypatch):
@@ -220,9 +222,10 @@ def test_large_diff_classifies_every_chunk_including_last_change(repo):
 def test_oversize_changed_line_is_an_error_not_silently_skipped(repo):
     changed = commit(repo, 'page.md', 'Reader facing ' * 2000)
     cfg = config.Config(install=None, suites=[], run_tests=False, max_state_chars=12000)
+    review, base, head = engine().review, git(repo, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD')
+    client, haiku = Jev(content=.1), Haiku()
     with pytest.raises(RewardGuardError, match='oversized'):
-        engine().review(str(repo), git(repo, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD'), cfg, changed,
-                        client=Jev(content=.1), haiku=Haiku(), log=lambda _: None)
+        review(str(repo), base, head, cfg, changed, client=client, haiku=haiku, log=lambda _: None)
 
 
 @pytest.mark.parametrize('path,text', [
@@ -235,7 +238,8 @@ def test_short_and_non_ascii_content_reaches_classifier(repo, path, text):
     changed = commit(repo, path, text)
     client = Jev(content=.1)
     run(repo, changed, client, Haiku())
-    assert client.calls and set(client.calls[0][1]) == {'content_task'}
+    assert client.calls
+    assert set(client.calls[0][1]) == {'content_task'}
 
 
 def test_empty_or_invented_haiku_quotes_do_not_create_locations():
@@ -249,3 +253,55 @@ def test_real_provider_rejects_boolean_probability():
     client.models_seen = set()
     with pytest.raises(RewardGuardError, match='not a probability'):
         client._validate({'answers': {'q': {'type': 'noul', 'noul': True}}}, {'q': 'A defect exists.'})
+
+
+def test_selected_pack_keeps_its_shared_cross_pack_rules(repo):
+    changed = commit(repo, 'page.md', '# Product\nCreate your account in two steps.\n')
+    result = run(repo, changed, Jev(pack='activation'), Haiku(), ['activation'])
+    reviewed = {c.get('rule') for c in result.coverage}
+    assert {'CG_FORM_LABEL_INSTRUCTION', 'CG_FORM_ERROR_RECOVERY'} <= reviewed
+
+
+def test_rename_out_of_an_excluded_directory_is_still_a_candidate(repo):
+    (repo / 'tests/fixtures').mkdir(parents=True)
+    (repo / 'tests/fixtures/landing.html').write_text('<h1>Old fixture copy</h1>\n' * 5)
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'fixture')
+    base = git(repo, 'rev-parse', 'HEAD')
+    (repo / 'public').mkdir()
+    git(repo, 'mv', 'tests/fixtures/landing.html', 'public/landing.html')
+    (repo / 'public/landing.html').write_text('<h1>New public copy</h1>\n' + '<h1>Old fixture copy</h1>\n' * 4)
+    git(repo, 'commit', '-qam', 'publish')
+    changed = gitops.changed_files(str(repo), base, 'HEAD')
+    assert [cf.path for cf in changed] == ['public/landing.html']
+    cfg = config.Config(install=None, suites=[], run_tests=False)
+    selected = engine().candidates(str(repo), base, git(repo, 'rev-parse', 'HEAD'), cfg, changed)
+    assert [cf.path for cf in selected] == ['public/landing.html']
+
+
+class GapJev(Jev):
+    """Grades every rule as a defect, and says the instance needs the missing conditional evidence."""
+
+    def ask(self, state, questions):
+        self.calls.append((state, questions))
+        return {key: (.9 if key in ('content_task', 'pack_sales') or key.endswith('__gap') or not key.startswith('pack_')
+                      else .01) for key in questions}
+
+
+def test_missing_conditional_evidence_is_not_evaluated(repo):
+    from rewardguard import content_rules
+    rule = next(r for r in content_rules.all_rules() if r.id == 'CG_ADVISOR_SIMULATION_TRUTH')
+    assert rule.conditional == frozenset({'S'})
+    changed = commit(repo, 'page.md', '# Product\n"I endorse this," said our adviser.\n')
+    cfg = config.Config(install=None, suites=[], run_tests=False)
+    cfg.content.packs = ['sales']
+    cfg.content.context = {'B': ['facts.md']}
+    client = GapJev()
+    result = engine().review(str(repo), git(repo, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD'),
+                             cfg, changed, client=client, haiku=Haiku(), log=lambda _: None)
+    rows = [c for c in result.coverage if c.get('rule') == 'CG_ADVISOR_SIMULATION_TRUTH']
+    assert rows and all(r['status'] == 'not_evaluated' for r in rows), rows
+    assert not any(f.rule == 'CG_ADVISOR_SIMULATION_TRUTH' for f in result.findings)
+    graded = [q for _, qs in client.calls for k, q in qs.items() if k.startswith('CG_ADVISOR_SIMULATION_TRUTH')
+              and not k.endswith('__gap')]
+    assert graded and all('S when judging an attributed quotation' in q for q in graded)

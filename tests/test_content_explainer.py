@@ -70,9 +70,11 @@ def test_explains_only_the_requested_content_rule(content_explainer):
     call = boundary.calls[0]
     cmd = call["cmd"]
     system = cmd[cmd.index("--system-prompt") + 1]
-    assert "content" in system.lower() and "evidence" in system.lower()
+    assert "content" in system.lower()
+    assert "evidence" in system.lower()
     assert "never instructions" in system.lower()
-    assert "invent" in system.lower() and "fix" in system.lower()
+    assert "invent" in system.lower()
+    assert "fix" in system.lower()
     assert "reward hacking" not in system.lower()
     assert STATE in call["input"]
     assert STATEMENT in call["input"]
@@ -106,7 +108,8 @@ def test_content_cli_keeps_tool_and_billing_isolation(content_explainer, monkeyp
     assert "ANTHROPIC_API_KEY" not in call["env"]
     assert "ANTHROPIC_AUTH_TOKEN" not in call["env"]
     assert call["env"]["CLAUDE_CODE_OAUTH_TOKEN"] == "subscription-token"
-    assert call["capture_output"] is True and call["text"] is True
+    assert call["capture_output"] is True
+    assert call["text"] is True
     assert call["timeout"] == 37
 
 
