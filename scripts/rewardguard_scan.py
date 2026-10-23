@@ -174,6 +174,11 @@ def _is_utf8(value: str) -> bool:
         return False
 
 
+def _through_symlink(absolute: Path, depth: int) -> bool:
+    """A tracked path is read through every directory above it, so a symlinked parent counts as well."""
+    return absolute.is_symlink() or any(absolute.parents[level].is_symlink() for level in range(depth - 1))
+
+
 def _reason_for_path(path: str, absolute: Path, output: Path) -> str | None:
     pure = PurePosixPath(path)
     parts = [part.casefold() for part in pure.parts]
@@ -182,8 +187,7 @@ def _reason_for_path(path: str, absolute: Path, output: Path) -> str | None:
 
     if Path(os.path.abspath(absolute)) == output:
         return "CSV output path"
-    # A tracked path is read through every directory above it, so a symlinked parent counts as well
-    if any((absolute.parents[depth]).is_symlink() for depth in range(len(pure.parts) - 1)) or absolute.is_symlink():
+    if _through_symlink(absolute, len(pure.parts)):
         return "symlink"
     if any(part in EXCLUDED_DIRS for part in parts[:-1]):
         return "generated, dependency, or cache directory"
@@ -404,6 +408,11 @@ def _synthesis_request(nodes: list[dict[str, Any]], entries: list[SourceFile], f
     }
 
 
+def _check_size(request: dict[str, Any], batch_id: str, max_context_bytes: int) -> None:
+    if _json_size(request) > max_context_bytes:
+        raise ScanError(f"{batch_id} exceeds --max-context-bytes after serialization")
+
+
 def _json_size(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
@@ -613,8 +622,7 @@ def _synthesize(
         for index, group in enumerate(groups, 1):
             request = _synthesis_request(group, entries, level_findings)
             batch_id = f"synthesis-{level}-{index}"
-            if _json_size(request) > max_context_bytes:
-                raise ScanError(f"{batch_id} exceeds --max-context-bytes after serialization")
+            _check_size(request, batch_id, max_context_bytes)
             summary, raw = _validate_response(
                 invoke_judge(request, root, timeout, command), request["expected_unit_ids"], max_context_bytes
             )
@@ -738,8 +746,7 @@ def main(argv: list[str] | None = None) -> int:
         for index, batch in enumerate(batches, 1):
             batch_id = f"review-{index}"
             request = _review_request(batch, entries)
-            if _json_size(request) > args.max_context_bytes:
-                raise ScanError(f"{batch_id} exceeds --max-context-bytes after serialization")
+            _check_size(request, batch_id, args.max_context_bytes)
             summary, raw = _validate_response(
                 invoke_judge(request, root, args.timeout, command), request["expected_unit_ids"], args.max_context_bytes
             )
