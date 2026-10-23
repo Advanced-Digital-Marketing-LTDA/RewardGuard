@@ -5,9 +5,13 @@ A pre-commit and pre-merge check for reward hacking behavior in AI coding agents
 
 The same tool runs locally and as a GitHub Action.
 
+This branch also adds content review to the existing `rewardguard check` path: **243 rule signatures in 37 focused packs**, derived from 80 inspected writing, SEO, conversion, channel and research guides. Eligible changes go through a deterministic content gate, a Jev task classifier, and applicable independent checks. Metadata, schema and publication controls are included alongside prose. See [Content checks](docs/content-checks.md) for the catalog, evidence requirements, source audits and configuration.
+
+Live-provider precision has not been verified. CI rollout needs the published action commit SHA containing this change; a local checkout does not update existing pinned callers.
+
 ## How it works
 
-Every run has three layers. Configuration is always read from the **base** commit, so a branch can't loosen its own check.
+The code review path has the layers below. Configuration is always read from the **base** commit, so a branch can't loosen its own check. Content review uses the same Jev grades and Haiku explainer, with separate routing and focused rubrics.
 
 1. **Static checks.** Pattern and count rules on the diff. Counting is done in code because Jev counts unreliably.
 2. **Jev judge.** Every changed text file in any language is judged, except excluded paths, `.github/` and `.rewardguard.toml`. Its diff is split into chunks that fit Jev's 32k-token state limit, and each chunk is asked yes/no (`noul`) questions. When a PR description is available, Jev is also asked whether it claims work the whole diff doesn't contain. Jev also grades every static and test-run finding that isn't clear-cut (see the table below): it is asked whether the finding is a real problem, given that file's diff. Lines that hold a credential are redacted before anything is sent to Jev or Haiku.
@@ -54,6 +58,22 @@ Jev-graded: below 0.60 nothing is reported, 0.60–0.79 warns, 0.80 or higher fa
 
 You can turn any rule off under `[rules]` (`RULE = "off"`); severities can't be changed. [`docs/agent-behaviours.md`](docs/agent-behaviours.md) lists the agent behaviours these rules come from, with sources, and the ones a diff can't show.
 
+## Content review
+
+The normal `check` command includes content review. Its deterministic gate skips changes without eligible content before making content-model calls. For eligible changes, Jev classifies the task: **exactly 0.60 enters review**, and a result below 0.60 skips the content path. Jev then selects applicable packs and independently grades each evidenced claim, field or requirement. Individual findings warn at **0.60 through below 0.80** and fail at **0.80 or higher**. A pack never receives one aggregate quality score.
+
+```bash
+rewardguard check --base main
+rewardguard check --base main --content-only
+rewardguard check --base main --staged --content-only
+```
+
+`--content-only` selects content review without the coding/test-review layers and returns success for a no-content skip. In a normal run, a content skip leaves the existing code checks in control of the overall result. Missing factual, rendered, measurement or policy evidence is reported as `not_evaluated`, with a coverage reason. It is neither a defect nor a claimed pass. Required reviews still fail closed on provider or configuration errors.
+
+Use `[content]` in trusted-base `.rewardguard.toml` for `enabled`, `include`, `source_include`, `exclude`, and `packs`. Empty `packs = []` makes all packs eligible; artifact applicability and evidence still filter them. `[content.context]` maps B/P/I/S/R/M/H to arrays of trusted-base file paths for product context, adopted policies, inventories, sources, observations, measurements and history. See the [example config](examples/.rewardguard.toml) and [full guide](docs/content-checks.md#configure-content-review).
+
+Haiku receives only the relevant rule rubric, inline exclusions, changed evidence and necessary trusted context. Artifact variants select their matching specialist. Source-audit candidates, rigid style preferences and optional marketing tactics do not automatically become enabled checks. Dates are required only when material to the particular claim. The content judge does not execute branch code to collect missing evidence.
+
 ## Setup
 
 1. Copy [`examples/.rewardguard.toml`](examples/.rewardguard.toml) to your project root, set your test command, and commit it to `main`.
@@ -68,6 +88,9 @@ export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
 git commit -am "wip"              # it checks committed history only
 rewardguard check --base main
 rewardguard check --base main --description "PR text" --markdown report.md --json report.json
+
+# Content review alone, including a successful no-content skip
+rewardguard check --base main --content-only
 
 # The same split CI uses: run the tests without secrets, then judge
 rewardguard run-tests --base main --out run.json
@@ -98,11 +121,25 @@ To check staged changes before commits Codex makes in any repository, add this h
 }
 ```
 
-Install RewardGuard globally using the command above, make sure `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` are available to the Codex process, then review and trust the hook in Codex's `/hooks` view. It runs Jev and Claude Haiku for each non-empty staged change; provider rate limits apply. RewardGuard reads an existing project config from the merge base with `origin/HEAD`, `origin/main`, `origin/master`, local `main` or local `master`, in that order; staged config edits do not affect the check. If none of those refs exist, it uses `HEAD`. When the trusted base has no `.rewardguard.toml`, built-in global defaults run static and model checks with test execution off. Otherwise it uses the trusted base config, including its test suites. The staged index is checked; unstaged edits are excluded. Stage changes in one Codex Bash call, then commit in a separate call. The hook blocks combined staging-and-commit commands, `git commit -a`, pathspec or interactive commit forms that can select content outside the checked index, and explicit `--git-dir`/`--work-tree` overrides that target another repository. Commits issued from a repository subdirectory are checked from the worktree root.
+Install RewardGuard globally using the command above, make sure `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` are available to the Codex process, then review and trust the hook in Codex's `/hooks` view. The existing hook calls the normal `check` path on the staged snapshot, including the content gate; no second Codex hook is needed. Code checks continue normally, while content-model calls depend on content eligibility and classification. Provider rate limits apply. RewardGuard reads an existing project config from the merge base with `origin/HEAD`, `origin/main`, `origin/master`, local `main` or local `master`, in that order; staged config edits do not affect the check. If none of those refs exist, it uses `HEAD`. When the trusted base has no `.rewardguard.toml`, built-in global defaults run static and model checks with test execution off. Otherwise it uses the trusted base config, including its test suites. The staged index is checked; unstaged edits are excluded. Stage changes in one Codex Bash call, then commit in a separate call. The hook blocks combined staging-and-commit commands, `git commit -a`, pathspec or interactive commit forms that can select content outside the checked index, and explicit `--git-dir`/`--work-tree` overrides that target another repository. Commits issued from a repository subdirectory are checked from the worktree root.
 
 This is a Codex local-shell hook. It applies across repositories without adding files to each one. It doesn't intercept Git commands you run outside Codex or every possible way a shell script could invoke Git. See [Codex hook coverage](https://developers.openai.com/codex/hooks).
 
 Locally, `rewardguard check` runs the tests in the same process as the keys. That's fine on your own machine, but don't run it on code you don't trust with those keys.
+
+### Optional pre-commit content hook
+
+The [pre-commit hook](.pre-commit-hooks.yaml) checks the staged snapshot through `rewardguard check --staged --content-only`. Add this to `.pre-commit-config.yaml`, replacing the placeholder with the published commit SHA containing the hook and content feature:
+
+```yaml
+repos:
+  - repo: https://github.com/Advanced-Digital-Marketing-LTDA/RewardGuard
+    rev: REPLACE_WITH_PUBLISHED_COMMIT_SHA
+    hooks:
+      - id: rewardguard-content
+```
+
+Run `pre-commit install` after installing pre-commit. The hook needs the same provider credentials when review is required and succeeds when no eligible content changed. It runs for the repository's pre-commit stage with no filename arguments; the staged index determines the reviewed content. Keep Codex's existing normal hook when you also want its code checks.
 
 ### GitHub Action
 
@@ -118,6 +155,8 @@ Locally, `rewardguard check` runs the tests in the same process as the keys. Tha
 4. Add a `CODEOWNERS` rule that requires your review for `/.github/` and `/.rewardguard.toml`. A `pull_request` workflow runs from the PR's own copy of the workflow file, so this review requirement is what stops an agent from editing the check away. Rewardguard itself doesn't flag changes to these files, because CI sometimes has to change; `.rewardguard.toml` edits only take effect once merged.
 
 The Action writes the report to the job summary and posts or updates one PR comment.
+
+Content review uses the same Action check mode. Publish this change and pin the Action or reusable-workflow consumer to the resulting published action SHA before rollout. Preserve the separate test and judge jobs: the secret-bearing content judge never executes proposed branch code. Live-provider precision remains unverified; registry coverage and mocked checks do not establish real model accuracy.
 
 ## Calibrating
 

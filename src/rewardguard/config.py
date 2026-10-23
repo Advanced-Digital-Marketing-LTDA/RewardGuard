@@ -1,8 +1,10 @@
 """Configuration, always read from the base commit so a branch cannot loosen its own check."""
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, field
+from pathlib import PureWindowsPath
 
 from . import gitops
 from .models import RewardGuardError
@@ -33,6 +35,51 @@ DEFAULT_EXCLUDE = [
     "**/*.min.js",
     "**/{package-lock.json,yarn.lock,pnpm-lock.yaml}",
 ]
+DEFAULT_CONTENT_INCLUDE = [
+    "**/*.{md,mdx,html,htm,astro,vue,svelte,jsx,tsx}",
+    "**/{content,contents,copy,data,locales,locale,i18n,translations,messages}/**/*.{json,jsonc,yaml,yml,txt,text}",
+    "**/*.{content,copy,locale,locales,i18n,translations,messages}.{json,jsonc,yaml,yml,txt,text}",
+    "**/robots.{txt,js,ts,mjs,cjs,mts,cts}",
+    "**/sitemap*.{xml,txt,json,js,ts,mjs,cjs,mts,cts}",
+    "**/{metadata,seo}.{json,jsonc,yaml,yml,js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+    "**/*.{metadata,seo}.{json,jsonc,yaml,yml,js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+    "**/{metadata,seo}/**/*.{json,jsonc,yaml,yml,js,ts,mjs,cjs,mts,cts}",
+    "**/{redirects,_redirects}",
+    "**/redirects.{json,jsonc,yaml,yml,toml,js,ts,mjs,cjs,mts,cts}",
+]
+DEFAULT_CONTENT_SOURCE_INCLUDE = ["**/*.{js,ts,mjs,cjs,mts,cts}"]
+DEFAULT_CONTENT_EXCLUDE = [
+    *DEFAULT_EXCLUDE,
+    "**/{vendor,.git,.venv,venv,.next,.nuxt,.svelte-kit,.astro,out,.output}/**",
+    "**/{test,tests,e2e,__tests__,__snapshots__,test-results}/**",
+    "**/*.{test,spec}.*",
+    "**/*.snap",
+    "**/*.lock",
+    "**/{bun.lockb,Pipfile.lock}",
+]
+DEFAULT_CONTENT_CONTEXT = {
+    "B": [".agents/product-marketing.md", ".rewardguard/content-context.md"],
+    "P": [".rewardguard/content-policy.md", ".rewardguard/content-policy.json"],
+    "I": [".rewardguard/content-inventory.md", ".rewardguard/content-inventory.json"],
+    "S": [".rewardguard/content-sources.md", ".rewardguard/content-sources.json"],
+    "R": [".rewardguard/content-rendered.md", ".rewardguard/content-rendered.json"],
+    "M": [".rewardguard/content-measurements.md", ".rewardguard/content-measurements.json"],
+    "H": [".rewardguard/content-history.md", ".rewardguard/content-history.json"],
+}
+
+
+def _default_content_context() -> dict[str, list[str]]:
+    return {code: list(paths) for code, paths in DEFAULT_CONTENT_CONTEXT.items()}
+
+
+@dataclass
+class ContentConfig:
+    enabled: bool = True
+    include: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_INCLUDE))
+    source_include: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_SOURCE_INCLUDE))
+    exclude: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_EXCLUDE))
+    context: dict[str, list[str]] = field(default_factory=_default_content_context)
+    packs: list[str] = field(default_factory=list)  # Empty selects all supported packs.
 
 
 @dataclass
@@ -62,6 +109,7 @@ class Config:
     explainer_timeout_seconds: int = 300
     test_timeout_seconds: int = 1800
     rule_severity: dict[str, str] = field(default_factory=dict)
+    content: ContentConfig = field(default_factory=ContentConfig)
 
     def severity(self, rule: str, default: str) -> str:
         return self.rule_severity.get(rule, default)
@@ -72,6 +120,52 @@ def _list(section: dict, key: str, default: list[str]) -> list[str]:
     if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
         raise RewardGuardError(f"{CONFIG_FILE}: '{key}' must be a list of strings")
     return v
+
+
+def _content_list(section: dict, key: str, default: list[str], *, scope: str = "content",
+                  paths: bool = True) -> list[str]:
+    values = section.get(key, default)
+    label = f"{scope}.{key}"
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        raise RewardGuardError(f"{CONFIG_FILE}: '{label}' must be a list of strings")
+    if paths:
+        for path in values:
+            if (not path.strip() or "\0" in path or PureWindowsPath(path).anchor
+                    or ".." in re.split(r"[/\\{},]", path)):
+                raise RewardGuardError(
+                    f"{CONFIG_FILE}: '{label}' must contain relative repository paths "
+                    "without absolute paths or '..' components")
+    return list(values)
+
+
+def _parse_content(section: object) -> ContentConfig:
+    if not isinstance(section, dict):
+        raise RewardGuardError(f"{CONFIG_FILE}: [content] must be a table")
+    allowed = {"enabled", "include", "source_include", "exclude", "context", "packs"}
+    unknown = set(section) - allowed
+    if unknown:
+        raise RewardGuardError(f"{CONFIG_FILE}: unknown content setting '{sorted(unknown)[0]}'")
+    enabled = section.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise RewardGuardError(f"{CONFIG_FILE}: content.enabled must be true or false")
+
+    context_raw = section.get("context", {})
+    if not isinstance(context_raw, dict):
+        raise RewardGuardError(f"{CONFIG_FILE}: [content.context] must be a table")
+    context = _default_content_context()
+    for code in context_raw:
+        if code not in context:
+            raise RewardGuardError(f"{CONFIG_FILE}: unknown content.context code '{code}'")
+        context[code] = _content_list(context_raw, code, [], scope="content.context")
+
+    return ContentConfig(
+        enabled=enabled,
+        include=_content_list(section, "include", DEFAULT_CONTENT_INCLUDE),
+        source_include=_content_list(section, "source_include", DEFAULT_CONTENT_SOURCE_INCLUDE),
+        exclude=_content_list(section, "exclude", DEFAULT_CONTENT_EXCLUDE),
+        context=context,
+        packs=_content_list(section, "packs", [], paths=False),
+    )
 
 
 def parse(text: str) -> Config:
@@ -128,6 +222,7 @@ def parse(text: str) -> Config:
         explainer_timeout_seconds=int(explainer.get("timeout_seconds", 300)),
         test_timeout_seconds=int(data.get("test_timeout_seconds", 1800)),
         rule_severity=dict(rules),
+        content=_parse_content(data.get("content", {})),
     )
     _validate(cfg)
     return cfg

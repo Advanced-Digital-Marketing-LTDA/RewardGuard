@@ -1,0 +1,8 @@
+- id: rewardguard-content
+  name: RewardGuard content review
+  description: Review staged content with Jev and focused Claude Haiku skills.
+  entry: rewardguard check --staged --content-only
+  language: python
+  pass_filenames: false
+  always_run: true
+  stages: [pre-commit]

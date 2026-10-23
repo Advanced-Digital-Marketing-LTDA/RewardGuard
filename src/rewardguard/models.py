@@ -40,7 +40,7 @@ class Finding:
     message: str
     file: str | None = None
     line: int | None = None
-    source: str = "static"  # static | run | judge
+    source: str = "static"  # static | run | judge | content
     probability: float | None = None
     evidence: str | None = None
     details: list[dict] | None = None  # Haiku's explanation of a Jev finding
@@ -54,6 +54,7 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    content: dict = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:

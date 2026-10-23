@@ -1,0 +1,873 @@
+{
+  "date": "2026-10-23",
+  "skills": [
+    {
+      "name": "data-analytics:analyze-data-quality",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/analyze-data-quality/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:build-dashboard",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/build-dashboard/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:build-report",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/build-report/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "data-analytics:create-data-context",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/create-data-context/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:design-kpis",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/design-kpis/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:gather-business-context",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/gather-business-context/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:index",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/index/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:jupyter-notebooks",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/jupyter-notebooks/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:kpi-reporting",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/kpi-reporting/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "data-analytics:market-sizing",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/market-sizing/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:metric-diagnostics",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/metric-diagnostics/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:product-business-analysis",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/product-business-analysis/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:publish-artifact-to-sites",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/publish-artifact-to-sites/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "data-analytics:validate-data",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/validate-data/SKILL.md",
+      "audit_group": "supplementary",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "data-analytics:visualize-data",
+      "source": "skill://Plugin_fc9843a6fb34819195d6c7802398a8a7/visualize-data/SKILL.md",
+      "audit_group": "supplementary",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:competitive-landscape",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/competitive-landscape/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:competitor-analysis",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/competitor-analysis/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:keyword-clustering",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/keyword-clustering/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:keyword-research",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/keyword-research/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:link-prospecting",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/link-prospecting/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:local-seo",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/local-seo/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:seo-audit",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/seo-audit/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:seo-coach",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/seo-coach/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:seo-project-setup",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/seo-project-setup/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "openseo:seo-report",
+      "source": "skill://plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3/seo-report/SKILL.md",
+      "audit_group": "openseo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "pages:maintain-space",
+      "source": "skill://plugin_connector_1p_4a72ddeef4c481918f92d8e8df18fb2c/maintain-space/SKILL.md",
+      "audit_group": "supplementary",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "pages:manage-schedules",
+      "source": "skill://plugin_connector_1p_4a72ddeef4c481918f92d8e8df18fb2c/manage-schedules/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "pages:organize-space",
+      "source": "skill://plugin_connector_1p_4a72ddeef4c481918f92d8e8df18fb2c/organize-space/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "pages:write-page",
+      "source": "skill://plugin_connector_1p_4a72ddeef4c481918f92d8e8df18fb2c/write-page/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "sites:sites",
+      "source": "skill://plugin_connector_1p_689987207de08191979cf68eca2941c6/sites/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "sites:sites-remix",
+      "source": "skill://plugin_connector_1p_689987207de08191979cf68eca2941c6/sites-remix/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "write-like-me:write-like-me",
+      "source": "skill://plugin_connector_1p_8ad8b138a8dc8191a1087a834cb737cd/write-like-me/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "google-drive:google-docs",
+      "source": "skill://plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7/google-docs/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "google-drive:google-drive",
+      "source": "skill://plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7/google-drive/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "google-drive:google-drive-comments",
+      "source": "skill://plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7/google-drive-comments/SKILL.md",
+      "audit_group": "supplementary",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "google-drive:google-sheets",
+      "source": "skill://plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7/google-sheets/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "google-drive:google-slides",
+      "source": "skill://plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7/google-slides/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "plugin-management:plugin-management",
+      "source": "skill://plugin_connector_1p_b3438d6beb9081918fba3625bc988128/plugin-management/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "work-pets:create-pet",
+      "source": "skill://plugin_connector_1p_bccf6c8660c08191ae4470d9ae4877fa/create-pet/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "work-pets:pets",
+      "source": "skill://plugin_connector_1p_bccf6c8660c08191ae4470d9ae4877fa/pets/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "work-pets:update-pet",
+      "source": "skill://plugin_connector_1p_bccf6c8660c08191ae4470d9ae4877fa/update-pet/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "cloud-environment:cloud-environment-runtime",
+      "source": "skill://plugin_connector_1p_c5b7d5df5d7081918f2c4be5a633ed5d/cloud-environment-runtime/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "plugin-creator:create-plugin",
+      "source": "skill://plugin_connector_1p_e1a10c53223481918a42f1510ec46c1e/create-plugin/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "plugin-creator:prepare-plugin-submission",
+      "source": "skill://plugin_connector_1p_e1a10c53223481918a42f1510ec46c1e/prepare-plugin-submission/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "plugin-creator:update-plugin",
+      "source": "skill://plugin_connector_1p_e1a10c53223481918a42f1510ec46c1e/update-plugin/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "tubecue:tubecue",
+      "source": "skill://plugins_6ab4b3cdb3dc8191b4679cb619ae967e/tubecue/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "moderaty:moderaty-guide",
+      "source": "skill://plugins_6abfc52a6a1081919bf8a95c51221c04/moderaty-guide/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "moderaty:moderaty-manage",
+      "source": "skill://plugins_6abfc52a6a1081919bf8a95c51221c04/moderaty-manage/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "lippincott-catalog-updater:refresh-featured-catalog",
+      "source": "skill://plugins_6ac7ae7cbdf88191ba59bee0898f73a3/refresh-featured-catalog/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:brainstorming",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/brainstorming/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:diagnosing-superpowers",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/diagnosing-superpowers/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:dispatching-parallel-agents",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/dispatching-parallel-agents/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:executing-plans",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/executing-plans/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:finishing-a-development-branch",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/finishing-a-development-branch/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:receiving-code-review",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/receiving-code-review/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:requesting-code-review",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/requesting-code-review/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:subagent-driven-development",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/subagent-driven-development/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:systematic-debugging",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/systematic-debugging/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:test-driven-development",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/test-driven-development/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:using-git-worktrees",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/using-git-worktrees/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:using-superpowers",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/using-superpowers/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:verification-before-completion",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/verification-before-completion/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:writing-plans",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/writing-plans/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "superpowers:writing-skills",
+      "source": "skill://plugins~Plugin_60aea7460bd4819199fd97a9553a5e12/writing-skills/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "review-cross-border-contracts",
+      "source": "skill://user/6a8227a4ce4c8191979e611f92676dbe/review-cross-border-contracts/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "plan-seo-geo-growth",
+      "source": "skill://user/6ac4f4934c608191a85711765895945d/plan-seo-geo-growth/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "grow-ecommerce-seo-geo",
+      "source": "skill://user/6ac4f7c9b1c0819193568de0cda345e3/grow-ecommerce-seo-geo/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "humanizer",
+      "source": "skill://user/6ac51dbd56d48191a3ab648c72f18925/humanizer/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "stop-slop",
+      "source": "skill://user/6ac51def43788191a23bbd711e400272/stop-slop/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "rank-one-page-emd",
+      "source": "skill://user/6ac51fd16b00819194f1b75ec1116c6d/rank-one-page-emd/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "site-bootstrap-adm",
+      "source": "skill://user/6ac5314b40a08191b208994ce42f7184/site-bootstrap-adm/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "app-bootstrap-adm",
+      "source": "skill://user/6ac532efa6688191954b8f80754d89b0/app-bootstrap-adm/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "create-simple-seo-content-brief",
+      "source": "skill://user/6ac67cdc96508191858afceaf5ce573f/create-simple-seo-content-brief/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "coolify-mcp-connection",
+      "source": "skill://user/6ac6a19918cc8191adcf12049c0a2851/coolify-mcp-connection/SKILL.md",
+      "audit_group": null,
+      "status": "excluded",
+      "reason": "Development workflow, infrastructure, account management, non-content data operation, legal-contract specialty, or unrelated domain; no additional writing/SEO/landing-page review rubric."
+    },
+    {
+      "name": "ab-testing",
+      "source": "skill://user/6ac92f6d05608191931e7369ea914646/ab-testing/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "ad-creative",
+      "source": "skill://user/6ac92f6d05708191839917ac4e4c7e2e/ad-creative/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "ads",
+      "source": "skill://user/6ac92f6d05788191bb1b8f8d54b14963/ads/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "ai-seo",
+      "source": "skill://user/6ac92f6d05808191abb1d6c36eeb07cd/ai-seo/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "analytics",
+      "source": "skill://user/6ac92f6d05888191bba99f9cc56c8834/analytics/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "aso",
+      "source": "skill://user/6ac92f6d05908191912a506bb94f6de2/aso/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "attribution",
+      "source": "skill://user/6ac92f6d059881918f8a8a3a27844332/attribution/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "churn-prevention",
+      "source": "skill://user/6ac92f6d05a48191877b7a1bc46c738b/churn-prevention/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "co-marketing",
+      "source": "skill://user/6ac92f6d05ac819194b5c9a3f19ffb9d/co-marketing/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "cold-email",
+      "source": "skill://user/6ac92f6d05b88191969b0e6e18bd495b/cold-email/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "community-marketing",
+      "source": "skill://user/6ac92f6d05c0819183842e5c26dfc015/community-marketing/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "competitor-profiling",
+      "source": "skill://user/6ac92f6d05c481918ca71b0e9807e29e/competitor-profiling/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "competitors",
+      "source": "skill://user/6ac92f6d05d08191b3cf17811e21d4f5/competitors/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "content-strategy",
+      "source": "skill://user/6ac92f6d05d88191a81cc1d397f47b27/content-strategy/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "copy-editing",
+      "source": "skill://user/6ac92f6d05dc8191b2ec44f6e4435ea5/copy-editing/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "copywriting",
+      "source": "skill://user/6ac92f6d05e48191a0b97c34de1c79db/copywriting/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "cro",
+      "source": "skill://user/6ac92f6d05e88191808f56a57d298392/cro/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "customer-research",
+      "source": "skill://user/6ac92f6d05f481918e771c1b62087599/customer-research/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "directory-submissions",
+      "source": "skill://user/6ac92f6d05f88191abfab38debb6e471/directory-submissions/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "emails",
+      "source": "skill://user/6ac92f6d060081919dca24f9a7f1682a/emails/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "events",
+      "source": "skill://user/6ac92f6d06088191b214b2492a4bf944/events/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "free-tools",
+      "source": "skill://user/6ac92f6d060c81918fc1b4b65ff1eb6f/free-tools/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "image",
+      "source": "skill://user/6ac92f6d061881919e52840dd5fdaf58/image/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "influencer-marketing",
+      "source": "skill://user/6ac92f6d061c8191981d2952b6d87589/influencer-marketing/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "launch",
+      "source": "skill://user/6ac92f6d06248191b4437f032adae6ea/launch/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "lead-magnets",
+      "source": "skill://user/6ac92f6d062c819182aac4bc0df136d6/lead-magnets/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "marketing-council",
+      "source": "skill://user/6ac92f6d06308191b397c5c5f2744ea5/marketing-council/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "marketing-ideas",
+      "source": "skill://user/6ac92f6d063c819196dea95e74071cca/marketing-ideas/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "marketing-loops",
+      "source": "skill://user/6ac92f6d06448191b20abe8f474b5bfb/marketing-loops/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "marketing-plan",
+      "source": "skill://user/6ac92f6d06488191a25a2fe0dbe72483/marketing-plan/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "marketing-psychology",
+      "source": "skill://user/6ac92f6d06508191b403cc55c6af023c/marketing-psychology/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "offers",
+      "source": "skill://user/6ac92f6d06588191879719e67d61295d/offers/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "onboarding",
+      "source": "skill://user/6ac92f6d06648191b89c264a0d981b73/onboarding/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "paywalls",
+      "source": "skill://user/6ac92f6d066c81919088c1b326b82a02/paywalls/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "popups",
+      "source": "skill://user/6ac92f6d06748191a3384d8ca4875940/popups/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "pricing",
+      "source": "skill://user/6ac92f6d067c8191b52695d83fd028ec/pricing/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "product-marketing",
+      "source": "skill://user/6ac92f6d06848191ae8b3ec7bb83c57b/product-marketing/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "programmatic-seo",
+      "source": "skill://user/6ac92f6d068c8191bbc7ba9b1573d221/programmatic-seo/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "prospecting",
+      "source": "skill://user/6ac92f6d06948191bd8207fff83c6a23/prospecting/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "public-relations",
+      "source": "skill://user/6ac92f6d069c8191984eaa96a8725d69/public-relations/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "referrals",
+      "source": "skill://user/6ac92f6d06a481919c3032b7e5322a62/referrals/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "revops",
+      "source": "skill://user/6ac92f6d06ac81919e1641825637e6c6/revops/SKILL.md",
+      "audit_group": "adjacent",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "sales-enablement",
+      "source": "skill://user/6ac92f6d06b481918425a8c5f250e872/sales-enablement/SKILL.md",
+      "audit_group": "writing",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "schema",
+      "source": "skill://user/6ac92f6d06b88191aa3b24acc3c35935/schema/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "seo-audit",
+      "source": "skill://user/6ac92f6d06c08191a0135dbb12324cda/seo-audit/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "signup",
+      "source": "skill://user/6ac92f6d06c88191b731160f2e93814a/signup/SKILL.md",
+      "audit_group": "conversion",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "site-architecture",
+      "source": "skill://user/6ac92f6d06d08191bed2dcae98137742/site-architecture/SKILL.md",
+      "audit_group": "seo",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "sms",
+      "source": "skill://user/6ac92f6d06d88191b4db8366dd2a9848/sms/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "social",
+      "source": "skill://user/6ac92f6d06dc819183254fe0d83e7224/social/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    },
+    {
+      "name": "video",
+      "source": "skill://user/6ac92f6d06e48191b91d6c16406597d3/video/SKILL.md",
+      "audit_group": "channels",
+      "status": "main_skill_review",
+      "reason": "Content, writing, SEO, conversion or adjacent artifact guidance"
+    }
+  ]
+}

@@ -345,7 +345,7 @@ class JevClient:
             if not isinstance(ans, dict) or ans.get("type") != "noul":
                 raise RewardGuardError(f"Jev gave no usable answer for '{key}': {str(ans)[:200]}")
             p = ans.get("noul")
-            if not isinstance(p, (int, float)) or not 0 <= p <= 1:
+            if isinstance(p, bool) or not isinstance(p, (int, float)) or not 0 <= p <= 1:
                 raise RewardGuardError(f"Jev answer for '{key}' is not a probability: {p!r}")
             out[key] = float(p)
         return out
