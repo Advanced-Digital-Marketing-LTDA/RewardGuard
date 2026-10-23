@@ -196,6 +196,7 @@ class Chunk:
     text: str
     first_line: int | None
     body: str = ""  # the diff part of text, without the header
+    key_lines: int = 0  # lines hidden because they sit inside a private-key block
 
 
 def _questions_for(kind: str) -> dict[str, tuple[str, str]]:
@@ -215,41 +216,30 @@ REDACTED = "[credential redacted]"
 
 _KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 _KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
-# Inside a block (BEGIN marker to END marker or the hunk edge) every line is redacted unless it is clearly
-# code: it has a character that never occurs in key payload, PEM headers, comment prefixes or the quoting
-# and joining around them, and no run of 16+ base64 characters. A wrong guess hides code, never key
-# material; the assertions after PEM_HEADER = "-----BEGIN PRIVATE KEY-----" still stay visible.
-_KEY_RUN = re.compile(r"[A-Za-z0-9+/=]{16,}")
-_CODE_ONLY = re.compile(r"[.{}\[\]<>!?&|%@$^~]")
-
-
-def _clearly_code(text: str) -> bool:
-    return bool(_CODE_ONLY.search(text)) and not _KEY_RUN.search(text)
-
-
 def _redact(line: str) -> str:
     """Credential lines never leave the machine, not to Jev and not to Haiku."""
     return line[:1] + REDACTED if find_secret(line) else line
 
 
-def _redact_lines(lines: list[str]) -> list[str]:
-    """Like _redact, and every line of a private-key block is redacted, markers and payload alike. A block
-    cut by the hunk edge is redacted up to its END marker or from its BEGIN marker."""
+def _redact_lines(lines: list[str]) -> tuple[list[str], int]:
+    """Like _redact, and every line of a private-key block (BEGIN marker to END marker) is redacted, markers
+    included. A block cut by the hunk edge is redacted up to its END marker or from its BEGIN marker. Key
+    material can hide in any line shape, so nothing inside a block is kept; returns the lines and how many
+    of them were inside a block, so the report can say what Jev did not see."""
     first = next((l for l in lines if _KEY_BEGIN.search(l) or _KEY_END.search(l)), None)
     in_key = first is not None and not _KEY_BEGIN.search(first)  # the hunk starts inside a block
-    out = []
+    out, hidden = [], 0
     for line in lines:
         if _KEY_BEGIN.search(line):
             in_key = not _KEY_END.search(line)
-            out.append(line[:1] + REDACTED)
         elif in_key and _KEY_END.search(line):
             in_key = False
-            out.append(line[:1] + REDACTED)
-        elif in_key and not _clearly_code(line[1:]):
-            out.append(line[:1] + REDACTED)
-        else:
+        elif not in_key:
             out.append(_redact(line))
-    return out
+            continue
+        out.append(line[:1] + REDACTED)
+        hidden += 1
+    return out, hidden
 
 
 def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.ChangedFile, kind: str,
@@ -267,30 +257,32 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     chunks: list[Chunk] = []
     buf, first = "", None
     hunks = gitops.file_hunks(repo, base, head, cf.path, cfg.context_lines, cf.old_path)
-    pieces: list[tuple[str, int]] = []
+    pieces: list[tuple[str, int, int]] = []  # (text, first line, key-block lines hidden)
     for h in hunks:
-        lines = _redact_lines(h.lines)
+        lines, hidden = _redact_lines(h.lines)
         text = "\n".join([h.header, *lines])
         if len(text) <= budget:
-            pieces.append((text, h.new_start))
+            pieces.append((text, h.new_start, hidden))
             continue
         part, start, n = h.header + "\n", h.new_start, h.new_start
         for line in lines:
             if len(part) + len(line) + 1 > budget:
-                pieces.append((part, start))
-                part, start = h.header + " (continued)\n", n  # a continuation starts at its own line
+                pieces.append((part, start, hidden))
+                part, start, hidden = h.header + " (continued)\n", n, 0  # a continuation starts at its own line
             part += line + "\n"
             if not line.startswith("-"):
                 n += 1
-        pieces.append((part, start))
-    for text, start in pieces:
+        pieces.append((part, start, hidden))
+    hidden_in_buf = 0
+    for text, start, hidden in pieces:
         if buf and len(buf) + len(text) + 1 > budget:
-            chunks.append(Chunk(cf.path, kind, header + buf, first, buf))
-            buf, first = "", None
+            chunks.append(Chunk(cf.path, kind, header + buf, first, buf, hidden_in_buf))
+            buf, first, hidden_in_buf = "", None, 0
         buf += text + "\n"
         first = first if first is not None else start
+        hidden_in_buf += hidden
     if buf:
-        chunks.append(Chunk(cf.path, kind, header + buf, first, buf))
+        chunks.append(Chunk(cf.path, kind, header + buf, first, buf, hidden_in_buf))
     return chunks
 
 
@@ -307,6 +299,17 @@ def build_chunks(repo: str, base: str, head: str, cfg: Config, changed: list[git
             continue  # deleted files are judged too: removing a file is removing its contents
         chunks.extend(_file_chunks(repo, base, head, cfg, cf, kind, _desc(description)))
     return chunks
+
+
+def key_block_notes(chunks: list[Chunk]) -> list[str]:
+    """One note per file whose diff had lines hidden inside a private-key block, so a reviewer checks
+    them by hand: Jev and Haiku never saw them."""
+    hidden: dict[str, int] = {}
+    for c in chunks:
+        if c.key_lines:
+            hidden[c.path] = hidden.get(c.path, 0) + c.key_lines
+    return [f"{path}: {n} line(s) inside a private-key block were redacted and not judged; review them by hand"
+            for path, n in hidden.items()]
 
 
 class JevClient:
@@ -491,6 +494,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
     clear = [f for f in to_confirm if f.rule in CLEAR_CUT]
     graded = [f for f in to_confirm if f.rule not in CLEAR_CUT]
     chunks = build_chunks(repo, base, head, cfg, changed, kinds, description)
+    notes.extend(key_block_notes(chunks))
     log(f"  {len(chunks)} chunk(s) to judge, {len(graded)} finding(s) to confirm")
     any_source_changed = any(k == SOURCE for k in kinds.values())
 

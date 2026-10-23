@@ -425,3 +425,13 @@ def test_credentials_are_redacted_before_jev_and_haiku(sample_repo, fake_jev, fa
     assert password not in json.dumps(fj.calls)
     assert all(password not in (c["input"] or "") for c in fh.calls)
     assert any("[credential redacted]" in c["state"] for c in fj.calls)
+
+
+def test_hidden_key_block_lines_are_reported(sample_repo, fake_jev, tmp_path):
+    fake_jev()
+    key = "\n".join(["-----BEGIN " + "PRIVATE KEY-----", "QUJDREVGR0hJSktMTU5PUFFS", "-----END " + "PRIVATE KEY-----"])
+    sample_repo.branch("key", {"certs/dev.pem": key + "\n"})
+    code, rep = run_check(sample_repo, tmp_path)
+    assert rules(rep).get("SECRET_ADDED") == "fail"
+    assert ("certs/dev.pem: 3 line(s) inside a private-key block were redacted and not judged; "
+            "review them by hand") in rep["notes"]
