@@ -442,3 +442,10 @@ def test_key_payload_with_internal_whitespace_is_redacted(payload):
     lines = ["+-----BEGIN " + "PRIVATE KEY-----", f"+{payload}", "+QUJDREVGR0hJSktMTU5PUFFS",
              "+-----END " + "PRIVATE KEY-----", "+done = True"]
     assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 4 + ["+done = True"]
+
+
+@pytest.mark.parametrize("prefix", ["# ", "// ", " * ", "-- ", "; "])
+def test_commented_out_key_block_is_redacted_in_full(prefix):
+    lines = [f"+{prefix}-----BEGIN " + "PRIVATE KEY-----", f"+{prefix}QUJDREVG", f"+{prefix}SktMTU5P",
+             f"+{prefix}QUJDREVG==", f"+{prefix}-----END " + "PRIVATE KEY-----", "+run()"]
+    assert judge._redact_lines(lines) == ["+" + judge.REDACTED] * 5 + ["+run()"]

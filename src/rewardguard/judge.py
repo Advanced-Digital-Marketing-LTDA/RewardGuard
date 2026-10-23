@@ -215,19 +215,16 @@ REDACTED = "[credential redacted]"
 
 _KEY_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
 _KEY_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")
-# Inside a block (BEGIN marker to END marker or the hunk edge), a line that could carry key material is
-# redacted: a run of 16+ base64 characters, a PEM header such as "Proc-Type: 4,ENCRYPTED", or a line that
-# is all base64 once string quotes, escapes, whitespace and joining punctuation are removed. Code inside a
-# block, like the assertions after PEM_HEADER = "-----BEGIN PRIVATE KEY-----", has no such run and stays.
+# Inside a block (BEGIN marker to END marker or the hunk edge) every line is redacted unless it is clearly
+# code: it has a character that never occurs in key payload, PEM headers, comment prefixes or the quoting
+# and joining around them, and no run of 16+ base64 characters. A wrong guess hides code, never key
+# material; the assertions after PEM_HEADER = "-----BEGIN PRIVATE KEY-----" still stay visible.
 _KEY_RUN = re.compile(r"[A-Za-z0-9+/=]{16,}")
-_KEY_HEADER = re.compile(r"[A-Za-z-]+: \S")
-_STRING_SYNTAX = re.compile(r"""\\(?:[nrt]|x0[9ad]|u000[9ad])|[\s"'`+,;()\\]""", re.IGNORECASE)
-_BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
+_CODE_ONLY = re.compile(r"[.{}\[\]<>!?&|%@$^~]")
 
 
-def _key_material(text: str) -> bool:
-    return bool(_KEY_RUN.search(text) or _KEY_HEADER.search(text)
-                or _BASE64.fullmatch(_STRING_SYNTAX.sub("", text)))
+def _clearly_code(text: str) -> bool:
+    return bool(_CODE_ONLY.search(text)) and not _KEY_RUN.search(text)
 
 
 def _redact(line: str) -> str:
@@ -248,7 +245,7 @@ def _redact_lines(lines: list[str]) -> list[str]:
         elif in_key and _KEY_END.search(line):
             in_key = False
             out.append(line[:1] + REDACTED)
-        elif in_key and _key_material(line[1:]):
+        elif in_key and not _clearly_code(line[1:]):
             out.append(line[:1] + REDACTED)
         else:
             out.append(_redact(line))
