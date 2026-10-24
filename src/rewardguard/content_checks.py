@@ -36,10 +36,14 @@ def safe(value: object, limit: int = 2000) -> str:
 
 def source_records(value: object) -> list[dict]:
     """Keep report provenance readable without exposing its internal dictionary layout."""
-    return [row for row in value if isinstance(row, dict) and row.get("role") != "boundary"] if isinstance(value, list) else []
+    if not isinstance(value, list) or not all(isinstance(row, dict) for row in value):
+        raise ValueError("source provenance must be an array of objects")
+    return [row for row in value if row.get("role") != "boundary"]
 
 
 def source_summary(value: object) -> str:
+    if value is None:
+        return "Source provenance not supplied"
     rows = source_records(value)
     paths = sorted({str(row.get("path", row.get("file", "unspecified"))) for row in rows})
     examples = ", ".join(safe(path, 250) for path in paths[:5])
@@ -48,15 +52,17 @@ def source_summary(value: object) -> str:
 
 
 def omission_groups(value: object) -> list[tuple[str, list[str], int]]:
+    if not isinstance(value, list) or not all(isinstance(row, dict) for row in value):
+        raise ValueError("collection omissions must be an array of objects")
     groups = defaultdict(list)
-    if isinstance(value, list):
-        for row in value:
-            if isinstance(row, dict):
-                groups[str(row.get("reason", "Evidence unavailable"))].append(str(row.get("path", row.get("file", "unspecified"))))
+    for row in value:
+        groups[str(row.get("reason", "Evidence unavailable"))].append(str(row.get("path", row.get("file", "unspecified"))))
     return [(reason, sorted(set(paths)), len(paths)) for reason, paths in sorted(groups.items())]
 
 
 def omission_summary(value: object) -> str:
+    if value is None:
+        return "Collection omission metadata not supplied"
     groups = omission_groups(value)
     parts = [f"{safe(reason, 300)} ({count})" for reason, _, count in groups[:6]]
     if len(groups) > 6:
@@ -97,6 +103,10 @@ def build_checks(report: dict) -> list[dict]:
         raise ValueError("findings must be an array of objects")
     if not isinstance(notes, list) or not all(isinstance(note, str) for note in notes):
         raise ValueError("notes must be an array of strings")
+    for field in ("provenance", "omissions"):
+        if field in content and (not isinstance(content[field], list) or
+                                 not all(isinstance(row, dict) for row in content[field])):
+            raise ValueError(f"{field} must be an array of objects")
     for row in coverage:
         row_status = row.get("status")
         if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable"}:
