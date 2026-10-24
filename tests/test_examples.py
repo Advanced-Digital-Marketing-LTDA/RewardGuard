@@ -45,7 +45,7 @@ def test_no_tests_workflow():
     assert "push" in _triggers(wf)
     assert list(wf["jobs"]) == ["rewardguard-base", "rewardguard"]
     job = wf["jobs"]["rewardguard"]
-    assert job["permissions"] == {"contents": "read", "pull-requests": "write"}
+    assert job["permissions"] == {"contents": "read", "pull-requests": "write", "checks": "write"}
 
     checkout = _step(job, "actions/checkout")["with"]
     assert checkout["ref"] == RESOLVED_HEAD
@@ -78,7 +78,7 @@ def test_two_job_workflow_keeps_secrets_away_from_branch_code():
     # check job holds the secrets and must still report when the tests job fails
     assert check_job["needs"] == ["rewardguard-base", "rewardguard-tests"]
     assert "!cancelled()" in check_job["if"]
-    assert check_job["permissions"] == {"contents": "read", "pull-requests": "write"}
+    assert check_job["permissions"] == {"contents": "read", "pull-requests": "write", "checks": "write"}
     assert _step(check_job, "actions/checkout")["with"]["ref"] == RESOLVED_HEAD
     assert _step(check_job, "actions/checkout")["with"]["persist-credentials"] is False
     guard = _guard(check_job)["with"]
