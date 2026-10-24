@@ -207,11 +207,14 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
              if (r.pack in allowed or r.id in imported) and cfg.severity(r.id, 'warn') != 'off']
     variant_specs = cat.get('artifact_contract_variants', [])
     seen, source_seen = {}, set()
+    context = judge._desc(description, max(256, cfg.max_state_chars - 8000))
+    # Preserve the actual task requirements first; evidence omissions are explicit.
+    evidence_allowance = max(1024, (cfg.max_state_chars - len(context) - 8000) // 2)
     for cf in selected:
         # Sources are discovered per affected artifact. This keeps adjacent source,
         # policies and product facts focused rather than loading all installed skills.
         bundle = content_evidence.collect(repo, trusted_base or base, head, cf.path, cfg,
-                                          max_chars=min(24000, cfg.max_state_chars // 3))
+                                          max_chars=min(24000, cfg.max_state_chars // 3, evidence_allowance))
         for source in bundle.provenance:
             identity = tuple(str(source.get(k, '')) for k in ('path', 'commit', 'role', 'start_line', 'end_line'))
             if identity not in source_seen:
@@ -219,14 +222,14 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                 source_seen.add(identity)
         result.omissions.extend({'file': cf.path, **item} for item in bundle.omissions)
         full = gitops.show_file(repo, head, cf.path)
-        complete = full is not None and len(full) <= min(32000, cfg.max_state_chars // 3)
+        complete = full is not None and len(full) <= min(32000, cfg.max_state_chars // 3, evidence_allowance)
         suffix = ('\n--- complete proposed source artifact (not a runtime observation) ---\n' + _safe(full)) if complete else ''
         suffix += '\n--- automatically collected repository evidence (scoped claims and source data) ---\n' + bundle.text
         budget = cfg.max_state_chars - len(suffix) - 3000
         if budget < 4000:
             raise RewardGuardError('Content state budget is too small for the required evidence')
         chunks = judge._file_chunks(repo, base, head, replace(cfg, max_state_chars=budget), cf, OTHER,
-                                    _safe(description[:2000]))
+                                    context)
         if not chunks:
             result.coverage.append({'file': cf.path, 'status': 'not_evaluated',
                                     'reason': 'No textual source; binary/visual evidence is unavailable'})

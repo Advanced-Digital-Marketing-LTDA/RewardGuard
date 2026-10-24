@@ -180,6 +180,7 @@ runs:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
+        GH_TOKEN: ${{ inputs.github-token }}
         REVIEW_HEAD: ${{ steps.base.outputs.head }}
         TESTS: ${{ inputs.tests }}
       run: |

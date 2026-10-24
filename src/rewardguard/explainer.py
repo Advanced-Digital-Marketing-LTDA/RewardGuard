@@ -83,7 +83,7 @@ class HaikuExplainer:
             raise RewardGuardError("The `claude` CLI is not installed (npm install -g @anthropic-ai/claude-code)")
 
     def _env(self) -> dict[str, str]:
-        env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+        env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")}
         env["CLAUDE_CODE_OAUTH_TOKEN"] = self.token
         return env
 
