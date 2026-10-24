@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections import Counter, defaultdict
+
+from .content_checks import safe, source_records, source_summary, omission_groups
 
 from .models import FAIL, Report
 
@@ -36,48 +39,102 @@ def terminal(report: Report) -> str:
     return "\n".join(out)
 
 
+def _content_markdown(content: dict) -> list[str]:
+    if not content:
+        return []
+    coverage = content.get("coverage", [])
+    gaps = [r for r in coverage if r.get("status") == "not_evaluated"]
+    evaluated = sum(r.get("status") == "evaluated" for r in coverage)
+    omitted = sum(r.get("status") == "not_applicable" for r in coverage)
+    classified = [r for r in coverage if r.get("stage") == "classification"]
+    lines = ["### Content review and coverage", "",
+             f"Status: **{safe(content.get('status', 'unknown'))}** · {evaluated} proposition(s) evaluated · "
+             f"{len(gaps)} evidence gap(s) · {omitted} not applicable.",
+             f"Classification: {len(classified)} chunk(s), "
+             f"{sum(r.get('status') == 'eligible' for r in classified)} eligible, "
+             f"{sum(r.get('status') == 'skipped' for r in classified)} skipped. "
+             "Exactly **0.60** enters review. Defects warn at **0.60 ≤ p < 0.80** and fail at **p ≥ 0.80**.",
+             "Skipped scopes and missing evidence are unverified; they do not claim a clean content review.", ""]
+    packs = defaultdict(Counter)
+    for row in coverage:
+        if row.get("rule") and row.get("status") in ("evaluated", "not_evaluated"):
+            packs[row.get("pack") or "unspecified"][row["status"]] += 1
+    if packs:
+        lines += ["| Content pack | Evaluated propositions | Evidence gaps |", "|---|---:|---:|"]
+        for pack, counts in sorted(packs.items()):
+            lines.append(f"| {safe(pack)} | {counts['evaluated']} | {counts['not_evaluated']} |")
+        lines.append("")
+    provenance = source_records(content.get("provenance", []))
+    lines += ["**Repository sources:** " + source_summary(content.get("provenance", [])) + ".", ""]
+    if provenance:
+        lines += ["<details><summary>Scoped repository evidence</summary>", "",
+                  "Repository assertions and source observations are not independent verification. Full provenance is retained in JSON.", "",
+                  "| Path | Revision | Scope | Evidence codes |", "|---|---|---|---|"]
+        for source in provenance[:12]:
+            revision = str(source.get("commit", source.get("revision", "unspecified")))[:12]
+            scope = str(source.get("scope", "file"))
+            if source.get("start_line") is not None:
+                scope += f"; lines {source['start_line']}–{source.get('end_line', source['start_line'])}"
+            codes = source.get("codes", [])
+            code_text = ", ".join(map(str, codes)) if isinstance(codes, list) else str(codes)
+            lines.append(f"| {safe(source.get('path', source.get('file', 'unspecified')), 250)} | {safe(revision)} | {safe(scope, 250)} | {safe(code_text, 100) or '—'} |")
+        if len(provenance) > 12:
+            lines += ["", f"{len(provenance) - 12} additional evidence unit(s); see JSON for full scope and provenance."]
+        lines += ["", "</details>", ""]
+    omission_rows = omission_groups(content.get("omissions", []))
+    if omission_rows:
+        lines += ["<details><summary>Evidence collection limits and unavailable sources</summary>", "",
+                  "Missing automatically probed conventional files do not require repository setup. Applicable rules still need their stated evidence.", "",
+                  "| Reason | Occurrences | Example paths |", "|---|---:|---|"]
+        for reason, paths, count in omission_rows[:8]:
+            examples = ", ".join(safe(path, 250) for path in paths[:3])
+            if len(paths) > 3:
+                examples += f"; {len(paths) - 3} more paths"
+            lines.append(f"| {safe(reason, 300)} | {count} | {examples} |")
+        if len(omission_rows) > 8:
+            lines += ["", f"{len(omission_rows) - 8} additional reason(s); see JSON."]
+        lines += ["", "</details>", ""]
+    for key in ("sources", "missing_sources", "eligibility", "reason"):
+        if content.get(key) is not None:
+            lines += [f"**{safe(key)}:** {safe(content[key])}", ""]
+    if gaps:
+        lines += ["<details><summary>Content evidence gaps (scoped, unverified)</summary>", ""]
+        for row in gaps[:15]:
+            scope = "; ".join(f"{key}: {source_summary(row[key]) if key == 'provenance' else safe(row[key])}" for key in
+                              ("file", "rule", "instance", "context", "reason", "requires", "missing_sources", "provenance")
+                              if row.get(key) is not None)
+            lines.append(f"- {scope or 'Required evidence unavailable'}")
+        if len(gaps) > 15:
+            lines.append(f"- {len(gaps) - 15} additional scoped gaps; see the JSON report and individual content checks.")
+        lines += ["", "</details>", ""]
+    return lines
+
+
 def markdown(report: Report) -> str:
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
     head = "❌ **Failed**" if report.failed else "✅ **Passed**"
     lines = [MARKER, f"## rewardguard: {head}", "",
              f"{fails} fail · {warns} warn · {len(report.errors)} error", ""]
+    lines += _content_markdown(report.content)
     if report.errors:
-        lines += ["### Errors", ""] + [f"- `{e.splitlines()[0][:300]}`" for e in report.errors] + [""]
+        lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
         lines += ["| Severity | Rule | Where | Detail |", "|---|---|---|---|"]
-        for f in sorted(report.findings, key=lambda x: (x.severity != FAIL, x.file or "", x.line or 0)):
-            p = f" (p={f.probability:.2f})" if f.probability is not None else ""
-            detail = f.message.replace("|", "\\|").replace("\n", " ")
+        for f in sorted(report.findings, key=lambda x: (x.source != "content", x.severity != FAIL, x.file or "", x.line or 0)):
+            p = f" (p={f.probability!r})" if f.probability is not None else ""
+            detail = safe(f.message)
             if f.evidence:
-                ev = f.evidence.splitlines()[0][:120].replace("|", "\\|").replace("`", "'")
-                detail += f"<br>`{ev}`"
+                detail += "<br>" + safe(f.evidence, 160)
             for d in f.details or []:
-                problem = f"line {d['line']}: {d['problem']} Fix: {d['fix']}".replace("|", "\\|").replace("\n", " ")
-                detail += f"<br>{problem}"
+                detail += f"<br>line {safe(d['line'])}: {safe(d['problem'])} Fix: {safe(d['fix'])}"
             if f.details == []:
                 detail += "<br>Haiku found no specific lines; review this chunk by hand"
-            where = f"`{_loc(f)}`" if f.file else "—"
-            lines.append(f"| {f.severity} | `{f.rule}`{p} | {where} | {detail} |")
+            where = safe(_loc(f)) if f.file else "—"
+            lines.append(f"| {safe(f.severity)} | {safe(f.rule)}{p} | {where} | {detail} |")
         lines.append("")
     if report.notes:
-        lines += [f"<sub>{n}</sub>  " for n in report.notes]
-    if report.content:
-        coverage = report.content.get("coverage", [])
-        gaps = [row for row in coverage if row.get("status") == "not_evaluated"]
-        evaluated = sum(row.get("status") == "evaluated" for row in coverage)
-        lines += ["", "### Content coverage", "",
-                  f"Status: **{report.content.get('status', 'unknown')}** · "
-                  f"{evaluated} proposition(s) evaluated · {len(gaps)} evidence gap(s).",
-                  "Evidence gaps are unverified checks, not violations or a claimed pass."]
-        if gaps:
-            lines += ["", "<details><summary>Content evidence gaps</summary>", ""]
-            for row in gaps[:50]:
-                rule = row.get("rule", row.get("context", row.get("file", "content")))
-                lines.append(f"- `{rule}`: {row.get('reason', 'Required evidence unavailable')}")
-            if len(gaps) > 50:
-                lines.append(f"- {len(gaps) - 50} more gaps; see the JSON report for complete coverage.")
-            lines += ["", "</details>"]
+        lines += [safe(n) + "  " for n in report.notes]
     return "\n".join(lines) + "\n"
 
 
