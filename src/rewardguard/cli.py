@@ -10,17 +10,9 @@ from . import __version__, codex_hook, config, explainer, gitops, judge, report,
 from .models import CLEAR_CUT, FAIL, WARN, Finding, Report, RewardGuardError
 
 
-def _description(args) -> str:
-    if args.description:
-        return args.description
-    if args.description_file:
-        return Path(args.description_file).read_text()
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path and Path(event_path).exists():
-        event = json.loads(Path(event_path).read_text())
-        pr = event.get("pull_request") or {}
-        return f"{pr.get('title', '')}\n\n{pr.get('body') or ''}".strip()
-    return ""
+def _description(args, *, head=None, notes=None) -> str:
+    from . import pr_context
+    return pr_context.resolve(args, head=head, notes=notes).text
 
 
 def _resolve(repo: str, args):
@@ -111,12 +103,18 @@ def check(args) -> int:
         rep.content = {"status": "skipped", "coverage": [], "reason": "No changes between base and head."}
         return _finish(rep, args)
 
+    # Resolve once so code/content classification, justification, confirmation,
+    # and Haiku all see the same task context and provenance.
+    from . import pr_context
+    task_context = pr_context.resolve(args, repo=repo, base=base, head=head, notes=rep.notes)
+    description = task_context.text
+
     # Content reads only Git objects and trusted-base evidence. Its gate precedes
     # client construction, so content-only non-content commits need no credentials.
     from . import content_review
     try:
         content = content_review.review(
-            repo, base, head, cfg, changed, _description(args),
+            repo, base, head, cfg, changed, description,
             trusted_base=getattr(args, "config_base", base), log=log,
         )
         rep.findings.extend(content.findings)
@@ -162,8 +160,9 @@ def check(args) -> int:
     try:
         client = judge.JevClient(cfg)
         haiku = explainer.HaikuExplainer(cfg)
-        judged, notes = judge.run(repo, base, head, cfg, changed, kinds, _description(args), client, haiku, log,
-                                  to_confirm=found)
+        judged, notes = judge.run(repo, base, head, cfg, changed, kinds, description, client, haiku, log,
+                                  to_confirm=found, task_context_complete=task_context.scope_complete,
+                                  full_task_diff=task_context.full_pr_diff)
         rep.findings.extend(judged)
         rep.notes.extend(notes)
         if client.models_seen:
@@ -249,7 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--staged", action="store_true", help="Check the staged index against HEAD")
     c.add_argument("--content-only", action="store_true",
                    help="Run only content review; non-content changes skip without model credentials")
-    c.add_argument("--description", help="PR description text, used to judge changed expected values")
+    c.add_argument("--title", help="PR title or task summary; combined with the description as review context")
+    c.add_argument("--description", help="PR description or task requirements, used by code and content review")
     c.add_argument("--description-file", help="File containing the PR description")
     c.add_argument("--markdown", help="Write a Markdown report here")
     c.add_argument("--json", help="Write a JSON report here")

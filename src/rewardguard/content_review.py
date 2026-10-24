@@ -225,8 +225,13 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
         budget = cfg.max_state_chars - len(suffix) - 3000
         if budget < 4000:
             raise RewardGuardError('Content state budget is too small for the required evidence')
+        context_limit = min(judge.PR_CONTEXT_CHARS, max(256, budget // 4))
+        if description and len(description.strip()) > context_limit:
+            note = "PR context was shortened for content review with an explicit omission marker; opening and closing sections are retained."
+            if note not in result.notes:
+                result.notes.append(note)
         chunks = judge._file_chunks(repo, base, head, replace(cfg, max_state_chars=budget), cf, OTHER,
-                                    _safe(description[:2000]))
+                                    judge._desc(description, context_limit))
         if not chunks:
             result.coverage.append({'file': cf.path, 'status': 'not_evaluated',
                                     'reason': 'No textual source; binary/visual evidence is unavailable'})
