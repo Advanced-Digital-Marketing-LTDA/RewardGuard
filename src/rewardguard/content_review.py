@@ -122,8 +122,8 @@ def _gap_questions(batch, available):
         if missing:
             questions[key + '__gap'] = (
                 f'The changed instance of this check falls under a condition of its evidence contract that needs '
-                f'evidence {", ".join(missing)}, which was not supplied. Check: {rule.statement}'
-                + (f' Instance: {instance}.' if instance else '') + f' Evidence contract: {rule.evidence}.' + BOUNDARY)
+                f'evidence {", ".join(missing)}, which was not supplied. Subject: {rule.applies_when}'
+                + (f' Instance: {instance}.' if instance else '') + f' Evidence contract: {rule.evidence}.' + ROUTING_BOUNDARY)
     return questions
 
 
