@@ -43,15 +43,22 @@ coverage is unknown. It does not establish sitemap completeness, public routes,
 canonical URLs, crawl state, deployment state, or rendered navigation.
 
 The affected file's base and proposed source are included when available. Each
-counterpart has a 3,000-character source budget. Git diff line ranges select whole
-Markdown sections or complete literal semantic source containers containing the
-change when they fit. Otherwise an explicitly partial line window surrounds the
-first changed line; a leading excerpt is used only when no changed line is known.
-Every excerpt retains its line range and incomplete-artifact provenance.
+counterpart has a source budget of up to 6,500 characters, also constrained by the
+remaining total budget. Whole files are preferred. Git diff line ranges select
+whole Markdown sections or complete literal semantic source containers containing
+the change when a whole file does not fit. If no whole changed unit fits, the
+collector records an omission. The primary diff is supplied independently by the
+review engine. Scoped sections retain their exact line ranges and incomplete
+artifact provenance; they do not grant complete-artifact evidence.
+
 Relative static imports, conventional `$lib/` to `src/lib/` and `@/` to `src/`
-aliases with existing safe Git targets, and ancestor layout, metadata, content, product,
-and pricing definitions provide related source, up to six files and 1,800
-characters per counterpart. These sources establish source-level facts only.
+aliases with existing safe Git targets, and ancestor layout, metadata, content,
+product, and pricing definitions provide related source, up to six files. Related
+files are supplied whole when they fit the per-file and total budgets. Otherwise,
+only whole fitting Markdown or semantic source sections defining symbols actually
+referenced in the affected artifact are admitted. Other related material is
+omitted. Leading snippets and partial line windows are never supplied as
+replacement evidence.
 Other import aliases, dynamic imports, transitive dependencies, route execution,
 framework rendering, and runtime behavior are not resolved.
 

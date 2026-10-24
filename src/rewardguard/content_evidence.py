@@ -326,7 +326,7 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
     add(inventory_text, file='[Git file inventory]', commit=proposed, role='file_inventory', codes={'I'},
         scope='eligible_text_files', complete=len(inventory) == len(shown))
 
-    # Locate changed claims in both revisions; line windows are explicitly partial.
+    # Locate changed claims in both revisions; only whole fitting units are supplied.
     changed_lines = {base: set(), proposed: set()}
     diff = gitops.git(repo, 'diff', '--no-ext-diff', '--no-textconv', '--no-color',
                       '--unified=0', base, proposed, '--', path).stdout
@@ -341,7 +341,7 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         text = read(commit, files, path)
         if not text:
             continue
-        source_limit = min(3000, per_file)
+        source_limit = per_file
         complete_source = len(text) <= source_limit
         if complete_source:
             admitted = add(text, file=path, commit=commit, role=role)
@@ -366,20 +366,9 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
                         admitted = True
                     break
             if not admitted:
-                lines = text.splitlines()
-                anchor = min(changed_lines[commit], default=1)
-                first = max(1, anchor - 8) if changed_lines[commit] else 1
-                excerpt_lines = []
-                used_chars = 0
-                for line in lines[first - 1:]:
-                    if used_chars + len(line) + 1 > source_limit or len(excerpt_lines) >= 30:
-                        break
-                    excerpt_lines.append(line)
-                    used_chars += len(line) + 1
-                admitted = add('\n'.join(excerpt_lines), file=path, commit=commit, role=role,
-                               scope='changed_line_context' if changed_lines[commit] else 'leading_lines',
-                               start=first, complete=False)
-            omit(path, 'Full artifact exceeds source budget; only scoped sections or partial line context supplied',
+                omit(path, 'No whole changed source section fits the evidence budget; primary diff is supplied independently',
+                     commit=commit)
+            omit(path, 'Full artifact exceeds source budget; only admitted whole sections are supplied',
                  commit=commit)
         if admitted and complete_source and role == 'proposed_artifact' and PurePosixPath(path).suffix.lower() in {'.html', '.htm'}:
             parser = _LiteralHTML()
@@ -413,18 +402,30 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         for commit, files, role in ((base, base_files, 'base_related_source'), (proposed, head_files, 'proposed_related_source')):
             text = read(commit, files, file)
             if text:
-                excerpt_lines = []
-                used_chars = 0
-                for line in text.splitlines():
-                    if used_chars + len(line) + 1 > 1800:
-                        break
-                    excerpt_lines.append(line)
-                    used_chars += len(line) + 1
-                complete_source = len(excerpt_lines) == len(text.splitlines())
-                if not complete_source:
-                    omit(file, 'Related source limited to leading 1800 characters at line boundaries', commit=commit)
-                add('\n'.join(excerpt_lines), file=file, commit=commit, role=role,
-                    scope='file' if complete_source else 'leading_lines', complete=complete_source)
+                # Whole related files are source evidence. Leading snippets are not
+                # substitutes for an omitted definition or its surrounding contract.
+                if len(text) <= per_file:
+                    add(text, file=file, commit=commit, role=role)
+                    continue
+                sections = (_sections(text) if PurePosixPath(file).suffix.lower() in {'.md', '.mdx'}
+                            else _semantic_sections(text))
+                # A scoped related unit must define a symbol actually referenced
+                # by this artifact; shared ordinary prose is insufficient.
+                artifact = cache.get((commit, path)) or ''
+                source_identifiers = set(re.findall(r'\b[A-Za-z_$][A-Za-z0-9_$]*\b', artifact))
+                supplied = False
+                spent = 0
+                for first, last, section in sections:
+                    identifiers = set(re.findall(
+                        r'\b(?:const|let|function|class|interface|type)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b', section))
+                    if not (identifiers & source_identifiers) or spent + len(section) > per_file:
+                        continue
+                    if add(section, file=file, commit=commit, role=role,
+                           scope='related_complete_section', start=first, end=last, complete=False):
+                        spent += len(section)
+                        supplied = True
+                omit(file, 'Full related source exceeds per-file budget; only whole sections defining referenced symbols may be supplied',
+                     commit=commit, relevant_sections_supplied=supplied)
     if len(related) > 6:
         omit(path, 'Related-source collection capped at 6 files', omitted_count=len(related) - 6)
 
