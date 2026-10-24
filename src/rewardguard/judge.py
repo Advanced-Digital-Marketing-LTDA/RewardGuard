@@ -304,7 +304,7 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     if buf:
         chunks.append(Chunk(cf.path, kind, header + buf, first, buf, hidden_in_buf))
     if any(len(chunk.text) > cfg.max_state_chars for chunk in chunks):
-        raise RewardGuardError("A complete diff line plus PR context exceeds the review state budget; "
+        raise RewardGuardError("An oversized complete diff line plus PR context exceeds the review state budget; "
                                "supply concise context or increase judge.max_state_chars.")
     return chunks
 
