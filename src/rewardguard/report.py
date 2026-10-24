@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter, defaultdict
 
-from .content_checks import safe
+from .content_checks import safe, source_records, source_summary, omission_groups
 
 from .models import FAIL, Report
 
@@ -64,13 +64,43 @@ def _content_markdown(content: dict) -> list[str]:
         for pack, counts in sorted(packs.items()):
             lines.append(f"| {safe(pack)} | {counts['evaluated']} | {counts['not_evaluated']} |")
         lines.append("")
-    for key in ("provenance", "omissions", "sources", "missing_sources", "eligibility", "reason"):
+    provenance = source_records(content.get("provenance", []))
+    lines += ["**Repository sources:** " + source_summary(content.get("provenance", [])) + ".", ""]
+    if provenance:
+        lines += ["<details><summary>Scoped repository evidence</summary>", "",
+                  "Repository assertions and source observations are not independent verification. Full provenance is retained in JSON.", "",
+                  "| Path | Revision | Scope | Evidence codes |", "|---|---|---|---|"]
+        for source in provenance[:12]:
+            revision = str(source.get("commit", source.get("revision", "unspecified")))[:12]
+            scope = str(source.get("scope", "file"))
+            if source.get("start_line") is not None:
+                scope += f"; lines {source['start_line']}–{source.get('end_line', source['start_line'])}"
+            codes = source.get("codes", [])
+            code_text = ", ".join(map(str, codes)) if isinstance(codes, list) else str(codes)
+            lines.append(f"| {safe(str(source.get('path', source.get('file', 'unspecified')))[:250])} | {safe(revision)} | {safe(scope[:250])} | {safe(code_text[:100]) or '—'} |")
+        if len(provenance) > 12:
+            lines += ["", f"{len(provenance) - 12} additional evidence unit(s); see JSON for full scope and provenance."]
+        lines += ["", "</details>", ""]
+    omission_rows = omission_groups(content.get("omissions", []))
+    if omission_rows:
+        lines += ["<details><summary>Evidence collection limits and unavailable sources</summary>", "",
+                  "Missing automatically probed conventional files do not require repository setup. Applicable rules still need their stated evidence.", "",
+                  "| Reason | Occurrences | Example paths |", "|---|---:|---|"]
+        for reason, paths, count in omission_rows[:8]:
+            examples = ", ".join(safe(path[:250]) for path in paths[:3])
+            if len(paths) > 3:
+                examples += f"; {len(paths) - 3} more paths"
+            lines.append(f"| {safe(reason[:300])} | {count} | {examples} |")
+        if len(omission_rows) > 8:
+            lines += ["", f"{len(omission_rows) - 8} additional reason(s); see JSON."]
+        lines += ["", "</details>", ""]
+    for key in ("sources", "missing_sources", "eligibility", "reason"):
         if content.get(key) is not None:
             lines += [f"**{safe(key)}:** {safe(content[key])}", ""]
     if gaps:
         lines += ["<details><summary>Content evidence gaps (scoped, unverified)</summary>", ""]
         for row in gaps[:15]:
-            scope = "; ".join(f"{key}: {safe(row[key])}" for key in
+            scope = "; ".join(f"{key}: {source_summary(row[key]) if key == 'provenance' else safe(row[key])}" for key in
                               ("file", "rule", "instance", "context", "reason", "requires", "missing_sources", "provenance")
                               if row.get(key) is not None)
             lines.append(f"- {scope or 'Required evidence unavailable'}")

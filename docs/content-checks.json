@@ -852,7 +852,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing prose contains referents, named actors, conditions, or clauses whose meaning can be assessed in context."
         },
         {
           "id": "CG_AUDIENCE_TERM_GAP",
@@ -881,7 +882,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a changed use that contradicts an explicit glossary/definition in the same complete source unit; audience familiarity and unstated glossary requirements still require B."
+          "source_evidence": "Only a changed use that contradicts an explicit glossary/definition in the same complete source unit; audience familiarity and unstated glossary requirements still require B.",
+          "applies_when": "The changed explanatory prose uses specialist terms for an identified audience or uses terms governed by an explicitly adopted glossary.",
+          "source_when": "The complete literal source unit contains changed terminology and an explicit same-unit glossary or definition for comparison."
         },
         {
           "id": "CG_INSTRUCTION_GAP",
@@ -910,7 +913,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an instruction whose required actor, dependency or step is explicitly established by the same complete source unit and whose omission prevents that stated task; do not infer an undocumented product flow."
+          "source_evidence": "Only an instruction whose required actor, dependency or step is explicitly established by the same complete source unit and whose omission prevents that stated task; do not infer an undocumented product flow.",
+          "applies_when": "The changed reader-facing content gives instructions for completing a stated task with actors, prerequisites, or ordered steps.",
+          "source_when": "The complete literal source unit contains instructions for a stated task and explicitly establishes its actors, dependencies, or steps."
         },
         {
           "id": "CG_INTERNAL_CONTRADICTION",
@@ -923,7 +928,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing content makes factual statements or gives instructions that can be compared with other statements about the same subject and scope in its enclosing source."
         },
         {
           "id": "CG_SECTION_PROMISE_MISMATCH",
@@ -936,7 +942,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content includes a heading or explicit content promise and its associated section or answer unit."
         },
         {
           "id": "CG_VALUE_EXPLANATION_GAP",
@@ -965,7 +972,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete, literal promotional unit whose own explicit introduction/promise establishes the product or task it must explain; infer no product facts, audience requirements or unseen content."
+          "source_evidence": "Only a complete, literal promotional unit whose own explicit introduction/promise establishes the product or task it must explain; infer no product facts, audience requirements or unseen content.",
+          "applies_when": "The changed content is a promotional unit introducing or explaining a product, service, task, or customer outcome.",
+          "source_when": "The changed source supplies a complete literal promotional unit with its own introduction or promise establishing the product or task to explain."
         }
       ]
     },
@@ -991,7 +1000,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed prose is governed by a concrete voice, vocabulary, punctuation, or formatting requirement explicitly adopted in trusted context."
         },
         {
           "id": "CG_REDUNDANT_STAGING",
@@ -1004,7 +1014,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing prose includes introductory staging, repeated claims, or a direct answer whose clarity and concision can be assessed."
         },
         {
           "id": "CG_PUBLIC_DRAFT_RESIDUE",
@@ -1033,7 +1044,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal production placeholders or commissioning wrappers in an explicitly publish-target source unit; exclude deliberate examples, templates, quoted instructions and private draft comments. Final publication state is not inferred."
+          "source_evidence": "Only literal production placeholders or commissioning wrappers in an explicitly publish-target source unit; exclude deliberate examples, templates, quoted instructions and private draft comments. Final publication state is not inferred.",
+          "applies_when": "The changed content is intended as publish-target reader-facing material, including its production wording and publication placeholders.",
+          "source_when": "The changed source supplies literal reader-facing wording in a source unit explicitly intended for publication, with its template, example, and private-comment roles identifiable."
         }
       ]
     },
@@ -1077,7 +1090,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicitly bounded style-only edit with a supplied base counterpart and trusted preservation instruction, where a newly asserted material fact is absent from that complete original and all supplied support. This establishes an unsupported addition under that edit contract, never that the fact is false."
+          "source_evidence": "Only an explicitly bounded style-only edit with a supplied base counterpart and trusted preservation instruction, where a newly asserted material fact is absent from that complete original and all supplied support. This establishes an unsupported addition under that edit contract, never that the fact is false.",
+          "applies_when": "The change edits existing prose under a trusted style-only or factual-preservation instruction, with the original text supplied for comparison.",
+          "source_when": "The supplied source contains the complete original and edited prose under a trusted style-only or factual-preservation instruction, together with the supplied support inventory."
         },
         {
           "id": "CG_EDIT_DETAIL_LOSS",
@@ -1107,7 +1122,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a supplied before/after edit with an explicit source-local preservation instruction and the supported detail visible in the base counterpart; do not infer that all removed content had to be retained."
+          "source_evidence": "Only a supplied before/after edit with an explicit source-local preservation instruction and the supported detail visible in the base counterpart; do not infer that all removed content had to be retained.",
+          "applies_when": "The change edits existing prose under a trusted requirement to retain identified supported details, with the original supplied for comparison.",
+          "source_when": "The supplied source contains original and edited prose and identifies the supported original details covered by a trusted preservation instruction."
         },
         {
           "id": "CG_EDIT_QUALIFIER_LOSS",
@@ -1136,7 +1153,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a supplied before/after edit that removes a literal material condition, exception, uncertainty or scope qualifier from the same otherwise retained assertion; do not infer the truth of the underlying claim."
+          "source_evidence": "Only a supplied before/after edit that removes a literal material condition, exception, uncertainty or scope qualifier from the same otherwise retained assertion; do not infer the truth of the underlying claim.",
+          "applies_when": "The change edits an existing assertion containing conditions, exceptions, uncertainty, or scope qualifiers, with its original supplied for comparison.",
+          "source_when": "The supplied original and edited source contain the same retained assertion, and its original conditions, exceptions, uncertainty, or scope qualifiers are available for comparison."
         },
         {
           "id": "CG_STYLE_SAMPLE_FACT_LEAK",
@@ -1149,7 +1168,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The writing task supplies a style example distinct from the current subject and the changed copy makes material factual assertions about the current subject."
         },
         {
           "id": "CG_PROTECTED_LITERAL_CHANGE",
@@ -1179,7 +1199,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a supplied before/after edit with an explicit trusted prose-only/preserve-literals instruction, where the exact protected command, literal, value or destination is visible in both versions."
+          "source_evidence": "Only a supplied before/after edit with an explicit trusted prose-only/preserve-literals instruction, where the exact protected command, literal, value or destination is visible in both versions.",
+          "applies_when": "The change edits prose under a trusted instruction protecting commands, code literals, data values, or destinations in the original material.",
+          "source_when": "The supplied source contains before and after text with identifiable commands, code literals, values, or destinations covered by a trusted prose-only or literal-preservation instruction."
         },
         {
           "id": "CG_DOCUMENT_WORDING_PRESERVATION",
@@ -1209,7 +1231,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only supplied before/after artifact text under an explicit trusted formatting-only/preserve-wording instruction; source markup changes alone do not prove native-document wording changed."
+          "source_evidence": "Only supplied before/after artifact text under an explicit trusted formatting-only/preserve-wording instruction; source markup changes alone do not prove native-document wording changed.",
+          "applies_when": "The change formats a native document under a trusted instruction to preserve its wording, with before and after artifact text available.",
+          "source_when": "The supplied material contains before and after artifact text under a trusted formatting-only or wording-preservation instruction."
         }
       ]
     },
@@ -1235,7 +1259,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed copy makes factual assertions about a product, service, intended audience, or integration that can be compared with trusted same-version product facts."
         },
         {
           "id": "CG_QUOTE_FIDELITY",
@@ -1264,7 +1289,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an attributed/verbatim quotation and its complete explicitly identified literal source excerpt both supplied in the enclosing source/base counterpart, where their meanings/speakers directly differ; do not infer source authenticity, unseen quotations or unsupported external attribution."
+          "source_evidence": "Only an attributed/verbatim quotation and its complete explicitly identified literal source excerpt both supplied in the enclosing source/base counterpart, where their meanings/speakers directly differ; do not infer source authenticity, unseen quotations or unsupported external attribution.",
+          "applies_when": "The changed content contains an attributed or explicitly verbatim quotation with an identified source passage or speaker.",
+          "source_when": "The enclosing source or supplied base contains an attributed or verbatim quotation together with its complete explicitly identified literal source excerpt."
         },
         {
           "id": "CG_ENDORSEMENT_RELATIONSHIP",
@@ -1277,7 +1304,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content presents a named customer, person, logo, organization, or outlet as supporting or endorsing the subject."
         },
         {
           "id": "CG_CERTIFICATION_SCOPE",
@@ -1290,7 +1318,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content makes a certification, security-badge, license, award, or insurance claim for an identified entity or activity."
         },
         {
           "id": "CG_QUANTIFIED_PROOF_BASIS",
@@ -1318,7 +1347,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content presents a quantitative assertion as proof, a measured result, or evidence supporting a product or recommendation."
         },
         {
           "id": "CG_SUPERLATIVE_BASIS",
@@ -1347,7 +1377,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal, testable superiority assertion whose comparison measure or scope is necessary to interpret the assertion but absent from its complete claim/support unit; exclude subjective puffery and do not infer that a superiority claim is false or that unseen proof is absent."
+          "source_evidence": "Only a complete literal, testable superiority assertion whose comparison measure or scope is necessary to interpret the assertion but absent from its complete claim/support unit; exclude subjective puffery and do not infer that a superiority claim is false or that unseen proof is absent.",
+          "applies_when": "The changed content makes a testable superiority assertion with a comparison measure or scope, such as a numeric leadership or performance comparison.",
+          "source_when": "The enclosing source supplies a complete literal testable superiority assertion and its complete claim/support unit, so the assertion's comparison measure and scope can be inspected."
         },
         {
           "id": "CG_EXPERIENCE_AUTHENTICITY",
@@ -1360,7 +1392,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content represents firsthand use, customer status, an interview, or an attained result as real experience."
         }
       ]
     },
@@ -1387,7 +1420,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed artifact contains an evidence record governed by an explicitly adopted source, date, or context-field contract supplied in trusted context."
         },
         {
           "id": "CG_SOURCE_SCOPE_EXPANSION",
@@ -1417,7 +1451,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a source passage or evidence table supplied in full in the same source unit whose explicitly stated population, market, period, segment or version is exceeded by the changed conclusion; do not treat unsupplied linked sources as inspected."
+          "source_evidence": "Only a source passage or evidence table supplied in full in the same source unit whose explicitly stated population, market, period, segment or version is exceeded by the changed conclusion; do not treat unsupplied linked sources as inspected.",
+          "applies_when": "The changed research or synthesis draws a conclusion from an identified source with a population, market, period, segment, or version.",
+          "source_when": "The source supplies a conclusion together with the full literal source passage or evidence table it summarizes, including the source's explicit population, market, period, segment, or version."
         },
         {
           "id": "CG_INFERENCE_OVERSTATEMENT",
@@ -1447,7 +1483,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a changed conclusion that expressly turns a source-local, explicitly labeled hypothesis, correlation, hypothetical result or unobserved result into established fact/causality; the limiting evidence and the conclusion must both be supplied."
+          "source_evidence": "Only a changed conclusion that expressly turns a source-local, explicitly labeled hypothesis, correlation, hypothetical result or unobserved result into established fact/causality; the limiting evidence and the conclusion must both be supplied.",
+          "applies_when": "The changed analysis draws factual or causal conclusions from a hypothesis, correlation, hypothetical result, source silence, or recorded observation.",
+          "source_when": "The source supplies a factual or causal conclusion together with the literal hypothesis, correlation, hypothetical result, source-silence statement, or observation it interprets."
         },
         {
           "id": "CG_SOURCE_CURRENTNESS",
@@ -1461,7 +1499,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed content makes a freshness or verification-date assertion about an identified source or observation."
         },
         {
           "id": "CG_SOURCE_INDEPENDENCE_COUNT",
@@ -1492,7 +1531,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only arithmetic or duplicate counting from the complete literal observations and explicitly supplied counting unit/denominator; independence not demonstrable from those records still requires S and M."
+          "source_evidence": "Only arithmetic or duplicate counting from the complete literal observations and explicitly supplied counting unit/denominator; independence not demonstrable from those records still requires S and M.",
+          "applies_when": "The changed research counts observations as support or states a denominator, with observation identities or counting definitions relevant to that calculation.",
+          "source_when": "The source supplies a complete literal set of counted observations, their identifiers, and the explicit counting unit or denominator used for a stated total."
         },
         {
           "id": "CG_PERSONA_PROVENANCE",
@@ -1506,7 +1547,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed artifact presents a customer or audience persona and attributes its characteristics to observed, inferred, proxy, or unknown information."
         },
         {
           "id": "CG_MATERIAL_CONTRADICTION_SUPPRESSED",
@@ -1536,7 +1578,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a synthesis claiming agreement while the complete same-scope source-local evidence it summarizes explicitly contains a contrary result; no claim about unseen research or its authenticity."
+          "source_evidence": "Only a synthesis claiming agreement while the complete same-scope source-local evidence it summarizes explicitly contains a contrary result; no claim about unseen research or its authenticity.",
+          "applies_when": "The changed synthesis summarizes agreement or disagreement across supplied evidence concerning the same question and scope.",
+          "source_when": "The source supplies a synthesis about agreement and the complete same-scope literal evidence it summarizes."
         },
         {
           "id": "CG_RESEARCH_DENOMINATOR_MISSING",
@@ -1568,7 +1612,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal research claim whose own explicitly adopted source-local evidence contract requires a named denominator/counting unit; an ordinary marketing claim has no inferred reporting contract."
+          "source_evidence": "Only a complete literal research claim whose own explicitly adopted source-local evidence contract requires a named denominator/counting unit; an ordinary marketing claim has no inferred reporting contract.",
+          "applies_when": "The changed research or win-loss claim is governed by an explicitly adopted evidence contract requiring a denominator or counting unit.",
+          "source_when": "The source supplies a complete literal research or win-loss claim under an explicitly adopted source-local evidence contract requiring a named denominator or counting unit."
         },
         {
           "id": "CG_CONTACT_FACT_CONFLICT",
@@ -1598,7 +1644,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a contact record that explicitly labels a detail guessed/invented in its supplied provenance while the changed assertion labels that same detail observed; absence of an external source alone is not evidence of fabrication."
+          "source_evidence": "Only a contact record that explicitly labels a detail guessed/invented in its supplied provenance while the changed assertion labels that same detail observed; absence of an external source alone is not evidence of fabrication.",
+          "applies_when": "The changed prospect or contact record states a name, email, handle, phone number, or other factual contact detail with source provenance.",
+          "source_when": "The source supplies a literal contact detail, a provenance record explicitly characterizing that detail as guessed or invented, and wording characterizing how the detail was obtained."
         }
       ]
     },
@@ -1623,7 +1671,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed artifact is a writer brief assigning a topic or subject within a supplied content assignment or multi-brief plan."
         },
         {
           "id": "CG_BRIEF_FIELD_CONTRACT",
@@ -1636,7 +1685,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed writer brief is governed by an explicitly adopted handoff contract specifying fields, section order, CTA directives, or permitted modules."
         },
         {
           "id": "CG_BRIEF_OUTLINE_ACTIONABILITY",
@@ -1665,7 +1715,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal brief explicitly requesting an actionable outline where a named outline item lacks its requested instruction/question; do not invent a writer requirement."
+          "source_evidence": "Only a complete literal brief explicitly requesting an actionable outline where a named outline item lacks its requested instruction/question; do not invent a writer requirement.",
+          "applies_when": "The changed writer brief includes or expressly requests an actionable outline for a writer to execute.",
+          "source_when": "The source supplies a complete literal writer brief explicitly requesting an actionable outline and its named outline items."
         },
         {
           "id": "CG_KEYWORD_VALIDATION_OVERCLAIM",
@@ -1694,7 +1746,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a changed validation claim contradicting an explicit same-unit record labeling those exact terms/metrics provisional, guessed or unvalidated; absence of external research alone does not establish fabrication."
+          "source_evidence": "Only a changed validation claim contradicting an explicit same-unit record labeling those exact terms/metrics provisional, guessed or unvalidated; absence of external research alone does not establish fabrication.",
+          "applies_when": "The changed keyword-research artifact characterizes terms or keyword metrics as researched, validated, provisional, or guessed.",
+          "source_when": "The source supplies a literal keyword-validation claim and an explicit same-unit record characterizing those exact terms or metrics as provisional, guessed, or unvalidated."
         },
         {
           "id": "CG_STRATEGY_PAGE_MAPPING",
@@ -1707,7 +1761,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed SEO content strategy retains target terms or clusters for assignment to existing pages, proposed pages, or another explicit disposition."
         },
         {
           "id": "CG_STRATEGY_SCORE_ARITHMETIC",
@@ -1736,7 +1791,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only arithmetic/ranking derived from all necessary literal weights, inputs, tie rules and formula in the supplied source; do not assume missing weights or validate underlying research."
+          "source_evidence": "Only arithmetic/ranking derived from all necessary literal weights, inputs, tie rules and formula in the supplied source; do not assume missing weights or validate underlying research.",
+          "applies_when": "The changed strategy computes priority totals or rankings from stated inputs and weights.",
+          "source_when": "The source supplies literal priority totals or rankings together with all necessary weights, inputs, tie rules, and calculation formulas."
         },
         {
           "id": "CG_STRATEGY_RESEARCH_TRACE",
@@ -1749,7 +1806,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed strategy asserts research-based priorities under an explicitly adopted contract requiring a trace to supporting research."
         },
         {
           "id": "CG_DISTRIBUTION_HANDOFF",
@@ -1762,7 +1820,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed deliverable includes a specifically requested distribution plan for owned destinations and a final destination or next action."
         }
       ]
     },
@@ -1789,7 +1848,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The change updates a reusable product or business context artifact containing previously confirmed material facts."
         },
         {
           "id": "CG_CONTEXT_HISTORY_CONTRACT",
@@ -1803,7 +1863,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed context-management artifact is governed by an explicitly adopted version, update-date, changelog, or history-preservation contract."
         },
         {
           "id": "CG_PUBLICATION_MODULE_CONTRACT",
@@ -1836,7 +1897,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal static publication with no generated/inherited content, checked against its supplied adopted required/prohibited module contract; template/module absence is not effective-page absence."
+          "source_evidence": "Only a complete literal static publication with no generated/inherited content, checked against its supplied adopted required/prohibited module contract; template/module absence is not effective-page absence.",
+          "applies_when": "The changed publication is governed by an explicitly adopted contract specifying required or prohibited author, bio, summary, FAQ, or similar publication modules.",
+          "source_when": "The source supplies a complete literal static publication with its adopted module contract; the entire relevant publication is present without inherited or generated content."
         },
         {
           "id": "CG_PUBLICATION_DATE_INTEGRITY",
@@ -1850,7 +1913,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed publication displays or describes a publication or update date in relation to a substantive revision or known publication history."
         },
         {
           "id": "CG_READING_TIME_CONTRACT",
@@ -1882,7 +1946,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only complete final literal reader text and a literal displayed reading time, using the supplied adopted word-count/rate/rounding contract; dynamically included text and effective output remain unavailable."
+          "source_evidence": "Only complete final literal reader text and a literal displayed reading time, using the supplied adopted word-count/rate/rounding contract; dynamically included text and effective output remain unavailable.",
+          "applies_when": "The changed publication displays reading time under an explicitly adopted calculation and rounding contract.",
+          "source_when": "The source supplies complete final literal reader text, a literal reading-time display, and the adopted word-count, rate, and rounding contract."
         },
         {
           "id": "CG_EXTERNAL_LINK_POLICY",
@@ -1914,7 +1980,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal external anchor whose target/rel attributes and actual relationship are explicit in source, evaluated against a supplied adopted policy. No redirect, destination availability or runtime attribute changes are inferred."
+          "source_evidence": "Only a complete literal external anchor whose target/rel attributes and actual relationship are explicit in source, evaluated against a supplied adopted policy. No redirect, destination availability or runtime attribute changes are inferred.",
+          "applies_when": "The changed content includes an external link governed by an explicitly adopted target or rel policy for that link relationship.",
+          "source_when": "The source supplies a complete literal external anchor with explicit target and rel attributes and link relationship, together with the adopted link policy."
         }
       ]
     },
@@ -1949,7 +2017,8 @@
                 "B"
               ]
             }
-          ]
+          ],
+          "applies_when": "The changed page answers a search task or targets an audience or market whose primary intent is established by a trusted brief or supplied intent research."
         },
         {
           "id": "CG_SEARCH_ANSWER_COVERAGE",
@@ -1980,7 +2049,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit question/stated task in the same complete literal answer unit whose necessary answer component is demonstrably absent; external search intent and product requirements are outside this alternative."
+          "source_evidence": "Only an explicit question/stated task in the same complete literal answer unit whose necessary answer component is demonstrably absent; external search intent and product requirements are outside this alternative.",
+          "applies_when": "The changed page or answer unit addresses an explicit question or stated reader task.",
+          "source_when": "The source supplies a complete literal answer unit and the explicit question or stated reader task it addresses."
         },
         {
           "id": "CG_SEARCH_KEYWORD_STUFFING",
@@ -1994,7 +2065,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed reader-facing copy uses repeated keywords, entities, place names, or service terms in its explanations or coverage statements."
         },
         {
           "id": "CG_ANSWER_QUALIFIER_LOSS",
@@ -2024,7 +2096,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal extractable answer and its complete surrounding source/base assertion where a necessary subject, unit, condition or referent is explicitly present but omitted from that extract; do not infer unseen search extraction."
+          "source_evidence": "Only a literal extractable answer and its complete surrounding source/base assertion where a necessary subject, unit, condition or referent is explicitly present but omitted from that extract; do not infer unseen search extraction.",
+          "applies_when": "The changed content includes a standalone or extractable answer derived from a surrounding assertion with a subject, unit, condition, or referent.",
+          "source_when": "The source supplies a literal standalone or extractable answer together with its complete surrounding or base assertion, including that assertion's subject, unit, conditions, and referents."
         },
         {
           "id": "CG_ONEPAGE_URL_SCOPE",
@@ -2038,7 +2112,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed content belongs to an explicitly one-URL project and describes page URLs, fragment anchors, or indexable scope."
         }
       ]
     },
@@ -2081,7 +2156,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete static HTML document with an explicit adopted title requirement and no generated/inherited head, where its literal title is absent/empty; component/template source alone cannot establish effective title absence."
+          "source_evidence": "Only a complete static HTML document with an explicit adopted title requirement and no generated/inherited head, where its literal title is absent/empty; component/template source alone cannot establish effective title absence.",
+          "applies_when": "The change affects the search-title declaration or its containing public-page head under an explicitly adopted title requirement.",
+          "source_when": "The source supplies a complete static HTML document and its adopted title requirement, with its complete head available without inherited or generated declarations."
         },
         {
           "id": "CG_META_PROMISE_CONFLICT",
@@ -2111,7 +2188,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal title/description/H1/social-preview text that contradicts literal page copy or a literal offer in the same enclosing source; no dynamic interpolation, layout override or external product truth is resolved."
+          "source_evidence": "Only literal title/description/H1/social-preview text that contradicts literal page copy or a literal offer in the same enclosing source; no dynamic interpolation, layout override or external product truth is resolved.",
+          "applies_when": "The change affects a search title, description, H1, or social-preview statement describing the associated page or offer.",
+          "source_when": "The source supplies literal title, description, H1, or preview text and literal associated page or offer copy in the same enclosing unit, without dynamic interpolation or head overrides."
         },
         {
           "id": "CG_META_TEMPLATE_RECORD",
@@ -2141,7 +2220,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal metadata label that visibly names a different record/locale than an explicit same-unit record identifier, or a literal unresolved production token in an explicitly final metadata field; do not evaluate generated record sets or framework interpolation as output."
+          "source_evidence": "Only a literal metadata label that visibly names a different record/locale than an explicit same-unit record identifier, or a literal unresolved production token in an explicitly final metadata field; do not evaluate generated record sets or framework interpolation as output.",
+          "applies_when": "The change affects metadata labels, tokens, locale selection, or record-specific metadata in a page or metadata template.",
+          "source_when": "The source supplies a literal metadata label and explicit same-unit record or locale identifiers, or an explicitly final literal metadata field whose tokens can be inspected without evaluating framework expressions."
         },
         {
           "id": "CG_META_PREVIEW_CONTRACT",
@@ -2172,7 +2253,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit literal metadata field/value in a complete static metadata unit, checked against the supplied adopted field contract; absence across inherited/generated heads and actual preview usability require R."
+          "source_evidence": "Only an explicit literal metadata field/value in a complete static metadata unit, checked against the supplied adopted field contract; absence across inherited/generated heads and actual preview usability require R.",
+          "applies_when": "The change affects a public-page metadata or social-preview field governed by an explicitly adopted field contract.",
+          "source_when": "The source supplies an explicit literal metadata field or value in a complete static metadata unit, together with the adopted field contract."
         }
       ]
     },
@@ -2197,7 +2280,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing content includes a navigable content link with an identified destination."
         },
         {
           "id": "CG_LINK_FRAGMENT",
@@ -2226,7 +2310,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal same-document fragment in a complete static HTML artifact with the entire target document supplied and no injected/generated target IDs; framework templates and partial components do not establish target absence."
+          "source_evidence": "Only a literal same-document fragment in a complete static HTML artifact with the entire target document supplied and no injected/generated target IDs; framework templates and partial components do not establish target absence.",
+          "applies_when": "The changed reader-facing content includes a fragment link or an anchor target used by a fragment link.",
+          "source_when": "The source supplies a complete static HTML document containing a literal same-document fragment link, with the entire target-ID space available without generated or injected IDs."
         },
         {
           "id": "CG_LINK_ACCESSIBLE_NAME",
@@ -2255,7 +2341,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal meaningful anchor whose visible purpose is established in the enclosing source and which has no literal text, accessible label, labelled-by target or named image child; components, spreads, interpolation, CSS-generated content, and externally supplied names make this alternative unavailable."
+          "source_evidence": "Only a complete literal meaningful anchor whose visible purpose is established in the enclosing source and which has no literal text, accessible label, labelled-by target or named image child; components, spreads, interpolation, CSS-generated content, and externally supplied names make this alternative unavailable.",
+          "applies_when": "The changed reader-facing source contains a meaningful navigable link or its label, named image, or accessible-name attributes.",
+          "source_when": "The source supplies a complete literal meaningful native anchor and its naming context, including text, accessible-name attributes, referenced labels, and image children, without components, spreads, interpolation, CSS-generated names, or externally supplied names."
         },
         {
           "id": "CG_REDIRECT_INTENT",
@@ -2268,7 +2356,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change moves or redirects a route with an agreed equivalent destination or reader task."
         },
         {
           "id": "CG_NAV_REQUIRED_PATH",
@@ -2281,7 +2370,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects navigation serving an agreed required page or function."
         },
         {
           "id": "CG_PAGE_ORPHANED",
@@ -2294,7 +2384,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change publishes or changes discovery links to a page within a sufficiently defined page-discovery graph."
         },
         {
           "id": "CG_BREADCRUMB_HIERARCHY",
@@ -2307,7 +2398,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing source contains breadcrumbs representing a page hierarchy and ancestor destinations."
         },
         {
           "id": "CG_URL_POLICY_CONFLICT",
@@ -2320,7 +2412,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects generated URLs under an explicitly adopted origin, path, locale, case, or trailing-slash policy."
         }
       ]
     },
@@ -2346,7 +2439,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects index directives for content governed by an explicitly adopted inclusion or exclusion policy."
         },
         {
           "id": "CG_CRAWLER_POLICY_BLOCK",
@@ -2359,7 +2453,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects robots, CDN, or WAF rules under an explicitly adopted discovery-consumer access policy."
         },
         {
           "id": "CG_PUBLIC_CONTENT_ACCESS",
@@ -2372,7 +2467,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects access to content expressly intended to be public, including access-wall or response representations."
         },
         {
           "id": "CG_PRIMARY_CONTENT_RENDERING",
@@ -2385,7 +2481,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects primary text or links and the representation expressly required for a target discovery or reading consumer."
         },
         {
           "id": "CG_MOBILE_CONTENT_PARITY",
@@ -2398,7 +2495,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects mobile content or actions intended to correspond to another supplied page representation."
         },
         {
           "id": "CG_PAGINATION_DISCOVERY",
@@ -2411,7 +2509,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a paginated listing and its agreed path for discovering known deeper records."
         },
         {
           "id": "CG_FACET_DISCOVERY_POLICY",
@@ -2424,7 +2523,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects parameters or facets generating URL spaces under an explicitly adopted discovery policy."
         }
       ]
     },
@@ -2449,7 +2549,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a canonical target representing a known page within an established page or URL inventory."
         },
         {
           "id": "CG_CANONICAL_CONFLICT",
@@ -2478,7 +2579,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only two or more contradictory literal canonical declarations in the same source head/unit that are unconditionally co-present; exclude conditional branches, inherited layouts, generator output and declarations across different documents."
+          "source_evidence": "Only two or more contradictory literal canonical declarations in the same source head/unit that are unconditionally co-present; exclude conditional branches, inherited layouts, generator output and declarations across different documents.",
+          "applies_when": "The changed page head or source unit contains canonical declarations, including more than one declaration for the same page.",
+          "source_when": "The source supplies literal canonical declarations in the same complete head or source unit whose unconditional co-presence can be inspected without combining layouts, branches, generators, or separate documents."
         },
         {
           "id": "CG_SITEMAP_SYNTAX",
@@ -2507,7 +2610,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal XML sitemap artifact with a directly visible serialization error or literal unresolved production location; template/generator source and dynamically constructed values still require R."
+          "source_evidence": "Only a complete literal XML sitemap artifact with a directly visible serialization error or literal unresolved production location; template/generator source and dynamically constructed values still require R.",
+          "applies_when": "The change affects a sitemap artifact, its serialization, or its location entries.",
+          "source_when": "The source supplies a complete literal XML sitemap artifact and its location values, without template or generator evaluation."
         },
         {
           "id": "CG_SITEMAP_ELIGIBILITY",
@@ -2520,7 +2625,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects sitemap URL entries under an explicitly adopted publication-eligibility policy."
         },
         {
           "id": "CG_SITEMAP_REQUIRED_RECORD",
@@ -2533,7 +2639,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects sitemap generation for publications expressly required by an adopted sitemap contract."
         },
         {
           "id": "CG_CANONICAL_OUTPUT_INVALID",
@@ -2562,7 +2669,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal canonical href in an unconditional source head declaration that is empty, malformed or a literal unresolved production placeholder. Framework expressions are not literal output, and consumer-dependent validity still requires P."
+          "source_evidence": "Only a literal canonical href in an unconditional source head declaration that is empty, malformed or a literal unresolved production placeholder. Framework expressions are not literal output, and consumer-dependent validity still requires P.",
+          "applies_when": "The changed page head or source unit contains a canonical declaration or canonical href value.",
+          "source_when": "The source supplies an unconditional literal canonical declaration with an inspectable literal href in a page head, without evaluating framework expressions or generated values."
         },
         {
           "id": "CG_CANONICAL_REQUIRED_PRESENCE",
@@ -2594,7 +2703,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete static HTML document with no inherited/generated head, checked against its supplied adopted canonical-presence strategy; component/template source does not establish effective declaration absence."
+          "source_evidence": "Only a complete static HTML document with no inherited/generated head, checked against its supplied adopted canonical-presence strategy; component/template source does not establish effective declaration absence.",
+          "applies_when": "The change affects a page head under an explicitly adopted duplicate-URL or publication strategy requiring a canonical.",
+          "source_when": "The source supplies a complete static HTML document and an adopted canonical-presence strategy, with the entire head available without inherited or generated declarations."
         }
       ]
     },
@@ -2638,7 +2749,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal language/region code in a source declaration, evaluated against the supplied current adopted code profile; dynamic output and actual language/destination are outside this alternative."
+          "source_evidence": "Only a literal language/region code in a source declaration, evaluated against the supplied current adopted code profile; dynamic output and actual language/destination are outside this alternative.",
+          "applies_when": "The change affects a language or region code under an explicitly adopted current locale-code profile.",
+          "source_when": "The source supplies a literal language or region declaration and the adopted current locale-code profile, without resolving generated output or destination content."
         },
         {
           "id": "CG_LOCALE_CLUSTER",
@@ -2652,7 +2765,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The change affects alternate, self, or reciprocal locale mappings under an explicitly adopted locale-cluster contract."
         },
         {
           "id": "CG_LOCALE_DESTINATION",
@@ -2666,7 +2780,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The change affects a locale alternate or language selector with identified language destinations."
         },
         {
           "id": "CG_LOCALE_CANONICAL_POLICY",
@@ -2680,7 +2795,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The change affects locale canonicalization or redirection under an explicit independent-locale discovery strategy."
         },
         {
           "id": "CG_LOCALIZED_FACT_CONFLICT",
@@ -2694,7 +2810,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed localized content states language, currency, units, contact details, or offers for an identified market with approved market data."
         }
       ]
     },
@@ -2736,7 +2853,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only malformed literal JSON inside a literal application/ld+json script or a complete static structured-data file. Exclude interpolation, serialized objects, generator functions and framework expressions; source syntax does not establish generated output validity."
+          "source_evidence": "Only malformed literal JSON inside a literal application/ld+json script or a complete static structured-data file. Exclude interpolation, serialized objects, generator functions and framework expressions; source syntax does not establish generated output validity.",
+          "applies_when": "The change affects structured-data serialization, such as a JSON-LD script, schema data file, or structured-data serializer.",
+          "source_when": "The source supplies literal application/ld+json script text or a complete static structured-data file, with serialization inspectable independently of interpolation, generated objects, serializer calls, or framework expressions."
         },
         {
           "id": "CG_SCHEMA_PROFILE",
@@ -2768,7 +2887,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal structured-data record whose explicit types/properties/values can be checked against a supplied current adopted schema/consumer profile; exclude generated/interpolated values and runtime visibility/eligibility."
+          "source_evidence": "Only a complete literal structured-data record whose explicit types/properties/values can be checked against a supplied current adopted schema/consumer profile; exclude generated/interpolated values and runtime visibility/eligibility.",
+          "applies_when": "The change affects structured-data properties, vocabulary, types, or values under an explicitly adopted current schema or consumer profile.",
+          "source_when": "The source supplies a complete literal structured-data record with explicit types, properties, and values, together with the adopted current schema or consumer profile, without generated or interpolated fields."
         },
         {
           "id": "CG_SCHEMA_FACT_CONFLICT",
@@ -2799,7 +2920,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal structured-data fact that contradicts an explicit literal fact about the same entity/offer in the same enclosing source unit; truth of external product/proof claims and generated markup still requires the original evidence."
+          "source_evidence": "Only a literal structured-data fact that contradicts an explicit literal fact about the same entity/offer in the same enclosing source unit; truth of external product/proof claims and generated markup still requires the original evidence.",
+          "applies_when": "The change affects structured-data facts about an identifiable entity or offer represented in associated page copy or supplied factual records.",
+          "source_when": "The source supplies literal structured-data facts and explicit literal page or offer facts concerning the same identified entity in the same enclosing unit."
         },
         {
           "id": "CG_SCHEMA_GRAPH_IDENTITY",
@@ -2830,7 +2953,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal graph IDs/references in a complete same-unit static graph where explicit entity identifiers establish an incompatible merge or a required relationship points to an absent local graph node; external references and generated graphs remain unavailable."
+          "source_evidence": "Only literal graph IDs/references in a complete same-unit static graph where explicit entity identifiers establish an incompatible merge or a required relationship points to an absent local graph node; external references and generated graphs remain unavailable.",
+          "applies_when": "The change affects structured-data graph identities or relationship references between named entities.",
+          "source_when": "The source supplies a complete static same-unit structured-data graph with literal entity identifiers and references, and identifies the required local relationships without relying on external graph nodes or generated values."
         },
         {
           "id": "CG_SCHEMA_GENERATOR_CONFLICT",
@@ -2861,7 +2986,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only contradictory literal material facts about an explicitly identical entity in two unconditionally co-present structured-data blocks in the same source unit; do not infer invocation, combined generator output or external entity truth."
+          "source_evidence": "Only contradictory literal material facts about an explicitly identical entity in two unconditionally co-present structured-data blocks in the same source unit; do not infer invocation, combined generator output or external entity truth.",
+          "applies_when": "The change affects multiple structured-data blocks or generators representing the same identified entity.",
+          "source_when": "The source supplies multiple unconditionally co-present literal structured-data blocks explicitly representing the same entity in one enclosing unit."
         },
         {
           "id": "CG_SCHEMA_APPEARANCE_CLAIM",
@@ -2875,7 +3002,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed recommendation makes a claim about search or consumer appearances available from structured data under an adopted current feature profile."
         },
         {
           "id": "CG_SCHEMA_VISIBLE_CONTENT_REQUIREMENT",
@@ -2908,7 +3036,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete static literal page and static literal markup with no generated/inherited page content, checked against the supplied adopted current visible-content requirement; do not infer CSS visibility, dynamic output or actual consumer eligibility."
+          "source_evidence": "Only a complete static literal page and static literal markup with no generated/inherited page content, checked against the supplied adopted current visible-content requirement; do not infer CSS visibility, dynamic output or actual consumer eligibility.",
+          "applies_when": "The change affects markup describing page content under an adopted current consumer profile requiring that content to be visible.",
+          "source_when": "The source supplies a complete static literal page, its static literal markup, and an adopted current visible-content requirement, with page content available without inherited or generated sections."
         }
       ]
     },
@@ -2951,7 +3081,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only conflicting literal facts/units/source identity/locale about the same explicitly identified product in a complete maintained knowledge/pricing file and its supplied same-unit/base factual record; infer no current external product facts or freshness."
+          "source_evidence": "Only conflicting literal facts/units/source identity/locale about the same explicitly identified product in a complete maintained knowledge/pricing file and its supplied same-unit/base factual record; infer no current external product facts or freshness.",
+          "applies_when": "The change affects a maintained AI knowledge or pricing file containing product facts, units, source identity, locale, or freshness fields.",
+          "source_when": "The source supplies a complete literal maintained knowledge or pricing file and a supplied same-unit or base factual record explicitly identifying the same product, units, source identity, or locale."
         },
         {
           "id": "CG_AI_BOT_PURPOSE_CONFUSION",
@@ -2965,7 +3097,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed claim or configuration concerns training permissions, search discovery, or user retrieval under an explicitly adopted bot policy."
         },
         {
           "id": "CG_AI_PROTOCOL_REQUIREMENT_CLAIM",
@@ -2979,7 +3112,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "No universal word/keyword quotas, mandatory FAQ/schema/llms files, guaranteed uplift, x-default/self-canonical strategy or raw source platform claims; use only the verified applicable profile and intended consumer."
-          ]
+          ],
+          "applies_when": "The changed advice presents an experimental AI file, protocol, or formatting tactic as a search ranking or citation requirement."
         },
         {
           "id": "CG_AI_VISIBILITY_LABEL",
@@ -3009,7 +3143,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a claimed retrieval/citation/mention/recommendation/purchase label inconsistent with the complete response/provenance record explicitly supplied in the same source unit; no inference about external platforms or unseen responses."
+          "source_evidence": "Only a claimed retrieval/citation/mention/recommendation/purchase label inconsistent with the complete response/provenance record explicitly supplied in the same source unit; no inference about external platforms or unseen responses.",
+          "applies_when": "The changed AI-visibility analysis classifies recorded responses as retrievals, citations, mentions, recommendations, or purchases.",
+          "source_when": "The source supplies a complete literal AI response or provenance record and the result label assigned to that same recorded response."
         },
         {
           "id": "CG_AI_VISIBILITY_SCOPE",
@@ -3040,7 +3176,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only arithmetic or scope generalization contradicted by the complete literal prompts/platforms/sample/market/denominator explicitly supplied in the same source unit; external AI visibility remains unverified."
+          "source_evidence": "Only arithmetic or scope generalization contradicted by the complete literal prompts/platforms/sample/market/denominator explicitly supplied in the same source unit; external AI visibility remains unverified.",
+          "applies_when": "The changed AI-visibility analysis states a rate or comparison across recorded prompts, platforms, samples, markets, or denominators.",
+          "source_when": "The source supplies literal AI-visibility rates or comparisons and their complete explicit prompts, platforms, sample, market, and denominator definitions."
         }
       ]
     },
@@ -3084,7 +3222,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an unchanged figure expressly labeled estimated in the supplied literal source record but relabeled measured traffic/first-party performance in the changed assertion; do not infer a provider metric definition."
+          "source_evidence": "Only an unchanged figure expressly labeled estimated in the supplied literal source record but relabeled measured traffic/first-party performance in the changed assertion; do not infer a provider metric definition.",
+          "applies_when": "The changed SEO research presents provider metrics as estimated traffic or measured first-party performance.",
+          "source_when": "The source supplies a literal metric record explicitly characterized as an estimate and the changed wording interpreting that same figure."
         },
         {
           "id": "CG_SEO_MARKET_SCOPE",
@@ -3114,7 +3254,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a metric whose explicit literal source definition names a locality/country/language/channel different from the changed claim; unsupplied provider scope still requires S."
+          "source_evidence": "Only a metric whose explicit literal source definition names a locality/country/language/channel different from the changed claim; unsupplied provider scope still requires S.",
+          "applies_when": "The changed SEO research assigns a locality, country, language, or channel scope to a metric.",
+          "source_when": "The source supplies a literal SEO metric and its explicit source definition of locality, country, language, or channel, together with the changed interpretation."
         },
         {
           "id": "CG_SEO_DEMAND_DOUBLE_COUNT",
@@ -3145,7 +3287,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a total derived from complete literal rows explicitly identified as duplicate/overlapping variants and their supplied counting/formula contract; unknown demand overlap still requires S and M."
+          "source_evidence": "Only a total derived from complete literal rows explicitly identified as duplicate/overlapping variants and their supplied counting/formula contract; unknown demand overlap still requires S and M.",
+          "applies_when": "The changed SEO research totals keyword demand across variants or buckets with an identified counting unit.",
+          "source_when": "The source supplies a complete literal demand table explicitly identifying duplicate or overlapping variants and the counting unit or formula used for its total."
         },
         {
           "id": "CG_SEO_VOLUME_AS_VISITS",
@@ -3176,7 +3320,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal source field definitions explicitly identifying a figure as search volume while the changed text relabels that unchanged figure as measured visits without a transformation; do not infer a provider field definition."
+          "source_evidence": "Only literal source field definitions explicitly identifying a figure as search volume while the changed text relabels that unchanged figure as measured visits without a transformation; do not infer a provider field definition.",
+          "applies_when": "The changed SEO research interprets search volume as visits or transforms volume into a traffic estimate.",
+          "source_when": "The source supplies a literal field explicitly defined as search volume and changed text interpreting that figure as traffic or visits, with any stated transformation supplied."
         },
         {
           "id": "CG_SEO_SCENARIO_BASELINE",
@@ -3207,7 +3353,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal scenario whose stated formula/inputs show total potential visits labeled incremental without subtracting its supplied baseline; research validity and missing unstated assumptions still require M and S."
+          "source_evidence": "Only a complete literal scenario whose stated formula/inputs show total potential visits labeled incremental without subtracting its supplied baseline; research validity and missing unstated assumptions still require M and S.",
+          "applies_when": "The changed SEO research presents a traffic scenario with click-share, baseline, total-potential, or incremental-visit assumptions.",
+          "source_when": "The source supplies a complete literal traffic scenario with the stated baseline, inputs, formula, and total or incremental visit labels."
         },
         {
           "id": "CG_SEO_RANK_SEMANTICS",
@@ -3237,7 +3385,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal source record with an explicit ranking/block/field definition that the changed assertion contradicts; do not infer source semantics, current rankings or external result types."
+          "source_evidence": "Only a literal source record with an explicit ranking/block/field definition that the changed assertion contradicts; do not infer source semantics, current rankings or external result types.",
+          "applies_when": "The changed SEO research interprets ranking observations, result-block positions, or provider ranking fields.",
+          "source_when": "The source supplies a literal ranking record with an explicit ranking, result-block, or field definition and the wording interpreting that record."
         },
         {
           "id": "CG_SEO_ABSENCE_OVERCLAIM",
@@ -3267,7 +3417,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit same-unit failed/limited-depth/partial-sample research record promoted by the changed text to categorical no rankings/no feature; missing external research alone is not evidence of absence or failure."
+          "source_evidence": "Only an explicit same-unit failed/limited-depth/partial-sample research record promoted by the changed text to categorical no rankings/no feature; missing external research alone is not evidence of absence or failure.",
+          "applies_when": "The changed SEO research draws conclusions about ranking or feature absence from a search, scan, or research sample.",
+          "source_when": "The source supplies an explicit literal failed, limited-depth, or partial-sample research record and the conclusion drawn about rankings or feature presence."
         },
         {
           "id": "CG_SEO_OBSERVATION_DATE",
@@ -3297,7 +3449,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only complete literal date fields explicitly labeled retrieval/update versus ranking observation, where the changed assertion substitutes the wrong date role; no inference of actual observation history."
+          "source_evidence": "Only complete literal date fields explicitly labeled retrieval/update versus ranking observation, where the changed assertion substitutes the wrong date role; no inference of actual observation history.",
+          "applies_when": "The changed SEO research identifies retrieval dates, metric-update dates, or ranking-observation dates.",
+          "source_when": "The source supplies complete literal date fields explicitly distinguishing retrieval, metric update, and ranking observation, and the wording interpreting those dates."
         },
         {
           "id": "CG_SEO_TEMPORAL_OVERCLAIM",
@@ -3328,7 +3482,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal temporal evidence series explicitly identifying its observation dates that the changed assertion says establishes a materially broader trend/baseline; do not infer completeness of external history."
+          "source_evidence": "Only a complete literal temporal evidence series explicitly identifying its observation dates that the changed assertion says establishes a materially broader trend/baseline; do not infer completeness of external history.",
+          "applies_when": "The changed SEO research describes a ranking or metric trend or a stable baseline over time.",
+          "source_when": "The source supplies a complete literal temporal evidence series with explicit observation dates and a trend or baseline conclusion drawn from that series."
         },
         {
           "id": "CG_SEO_RECOMMENDATION_DIAGNOSIS",
@@ -3342,7 +3498,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed SEO analysis recommends a corrective action based on a diagnosed site or search-performance gap."
         },
         {
           "id": "CG_SEO_COMPETITOR_TYPE",
@@ -3356,7 +3513,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed SEO research classifies observed domains as search competitors, publishers, or direct business competitors."
         },
         {
           "id": "CG_SEO_CLUSTER_INTENT",
@@ -3370,7 +3528,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed keyword strategy assigns retained intents or formats to target pages using supplied intent evidence."
         },
         {
           "id": "CG_SEO_CANNIBALIZATION_CLAIM",
@@ -3384,7 +3543,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed SEO analysis makes a cannibalization diagnosis about multiple pages or query-to-URL overlap."
         },
         {
           "id": "CG_BACKLINK_VERIFICATION",
@@ -3398,7 +3558,8 @@
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded.",
             "Do not require freshness for timeless metric semantics or recorded failure/status facts; require dates only when material."
-          ]
+          ],
+          "applies_when": "The changed backlink report describes inspection or verification of a backlink destination, anchor, or rel relationship."
         }
       ]
     },
@@ -3424,7 +3585,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed local-business content states a business name, address, phone number, or operator identity for an identified location."
         },
         {
           "id": "CG_LOCAL_PRESENCE_CLAIM",
@@ -3437,7 +3599,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed local-business content asserts a physical office, storefront, staff presence, or local experience."
         },
         {
           "id": "CG_LOCAL_SERVICE_FACTS",
@@ -3450,7 +3613,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed local-business content states service coverage, hours, booking, or availability for an identified location or fulfillment area."
         },
         {
           "id": "CG_LOCAL_GRID_SCOPE",
@@ -3480,7 +3644,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a local conclusion exceeding the complete literal branch/coordinate/query/map-extent inventory explicitly supplied in the same source unit; do not infer real Maps performance or unsupplied coverage."
+          "source_evidence": "Only a local conclusion exceeding the complete literal branch/coordinate/query/map-extent inventory explicitly supplied in the same source unit; do not infer real Maps performance or unsupplied coverage.",
+          "applies_when": "The changed local-search analysis interprets recorded branches, coordinates, queries, or map-grid coverage.",
+          "source_when": "The source supplies a local-search conclusion and the complete literal branch, coordinate, query, or map-extent inventory used to produce it."
         },
         {
           "id": "CG_LOCAL_ABSENCE_CLAIM",
@@ -3509,7 +3675,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit same-unit sparse/limited result record promoted to general invisibility/full competitive loss; external local visibility and unprovided grid observations remain unavailable."
+          "source_evidence": "Only an explicit same-unit sparse/limited result record promoted to general invisibility/full competitive loss; external local visibility and unprovided grid observations remain unavailable.",
+          "applies_when": "The changed local-search analysis draws conclusions about visibility or competitive loss from recorded local results.",
+          "source_when": "The source supplies an explicit literal sparse or limited local-result record and the local-visibility or competitive conclusion drawn from it."
         },
         {
           "id": "CG_LOCAL_CHANNEL_CONFLATION",
@@ -3538,7 +3706,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit same-unit organic/national source definition presented as establishing Maps/local-pack results; do not infer external channel/provider definitions."
+          "source_evidence": "Only an explicit same-unit organic/national source definition presented as establishing Maps/local-pack results; do not infer external channel/provider definitions.",
+          "applies_when": "The changed local-search analysis relates organic or national evidence to Maps or local-pack performance.",
+          "source_when": "The source supplies an explicitly defined literal organic or national evidence record and the local-search conclusion interpreting that record."
         },
         {
           "id": "CG_LOCAL_PROFILE_ELIGIBILITY",
@@ -3551,7 +3721,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed recommendation proposes a local business-profile change governed by supplied operator facts and an adopted eligibility rule."
         }
       ]
     },
@@ -3576,7 +3747,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed commerce copy represents a product SKU, model, brand, or variant and its destination."
         },
         {
           "id": "CG_COMMERCE_ATTRIBUTE_CONFLICT",
@@ -3589,7 +3761,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed commerce copy states product size, units, compatibility, safety, capacity, or suitability for an identified product record."
         },
         {
           "id": "CG_COMMERCE_AVAILABILITY",
@@ -3602,7 +3775,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed commerce copy states product stock or immediate availability for an identified inventory scope."
         },
         {
           "id": "CG_COMMERCE_FULFILLMENT",
@@ -3615,7 +3789,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed commerce copy states shipping, lead time, service region, pickup, return, or warranty terms."
         },
         {
           "id": "CG_COMMERCE_VARIANT_LANDING",
@@ -3628,7 +3803,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed feed or product listing represents a selected offer variant and a landing destination."
         },
         {
           "id": "CG_COMMERCE_SURFACE_CONFLICT",
@@ -3659,7 +3835,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only two unconditionally co-present literal representations explicitly identifying the same SKU/variant/market/period and contradicting each other on a material fact; do not infer which is true, inventory state, template output or external feed records."
+          "source_evidence": "Only two unconditionally co-present literal representations explicitly identifying the same SKU/variant/market/period and contradicting each other on a material fact; do not infer which is true, inventory state, template output or external feed records.",
+          "applies_when": "The change affects multiple page, markup, feed, or knowledge representations explicitly concerning the same offer.",
+          "source_when": "The source supplies multiple unconditionally co-present literal commerce representations explicitly identifying the same SKU, variant, market, and period."
         },
         {
           "id": "CG_COMMERCE_CATEGORY_COVERAGE",
@@ -3672,7 +3850,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed category or filter copy describes its assortment or usable result set for supplied product records."
         }
       ]
     },
@@ -3697,7 +3876,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a generated page representing a distinct task or entity with record-specific answer or artifact requirements."
         },
         {
           "id": "CG_GENERATED_DATA_GAP",
@@ -3710,7 +3890,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects generated content using source records whose fields may be present, missing, unknown, or defaulted."
         },
         {
           "id": "CG_GENERATED_RECORD_SWAP",
@@ -3723,7 +3904,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a record-driven template emitting labels, facts, links, or conditions for identified records."
         },
         {
           "id": "CG_GENERATED_STALE_FACT",
@@ -3736,7 +3918,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed generated content presents a record fact as current in relation to supplied update metadata."
         },
         {
           "id": "CG_GENERATED_DISCOVERY_POLICY",
@@ -3749,7 +3932,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a generated page family under an adopted inclusion, parent-child, or indexation policy."
         }
       ]
     },
@@ -3790,7 +3974,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit same-unit not-observed/not-listed research limitation promoted to categorical competitor capability absence; no external capability conclusion follows from missing source evidence."
+          "source_evidence": "Only an explicit same-unit not-observed/not-listed research limitation promoted to categorical competitor capability absence; no external capability conclusion follows from missing source evidence.",
+          "applies_when": "The changed competitor research or comparison makes a capability-absence assertion about an identified competitor.",
+          "source_when": "The source supplies an explicit literal not-observed or not-listed research limitation and the capability conclusion drawn about the same competitor."
         },
         {
           "id": "CG_COMPARISON_LIKE_FOR_LIKE",
@@ -3820,7 +4006,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal comparison rows explicitly identifying materially different tiers/periods/markets/definitions/use cases while the changed prose presents them as equivalent; no inference about actual competitor offerings."
+          "source_evidence": "Only literal comparison rows explicitly identifying materially different tiers/periods/markets/definitions/use cases while the changed prose presents them as equivalent; no inference about actual competitor offerings.",
+          "applies_when": "The changed comparison juxtaposes tiers, periods, markets, definitions, or use cases for two or more alternatives.",
+          "source_when": "The source supplies literal comparison rows with explicit tiers, periods, markets, definitions, or use cases and the prose comparing those rows."
         },
         {
           "id": "CG_COMPARISON_FIT_LIMIT",
@@ -3833,7 +4021,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed comparison recommends an alternative for a use case with supplied fit constraints or relevant competing options."
         },
         {
           "id": "CG_COMPARISON_MIGRATION_PROMISE",
@@ -3846,7 +4035,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed comparison describes switching, integration, export, or migration capabilities and processes."
         },
         {
           "id": "CG_COMPETITOR_FACT_CONFLICT",
@@ -3859,7 +4049,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content makes affirmative factual assertions about an identified competitor capability, price, or service."
         }
       ]
     },
@@ -3900,7 +4091,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal CTA unit whose own explicit promised next action is not identifiable from the action label and adjacent copy; actual destination behavior/product flow is not inferred."
+          "source_evidence": "Only a complete literal CTA unit whose own explicit promised next action is not identifiable from the action label and adjacent copy; actual destination behavior/product flow is not inferred.",
+          "applies_when": "The changed reader-facing content contains a CTA action label and associated explanatory or offer copy.",
+          "source_when": "The source supplies a complete literal CTA unit with its action label, adjacent explanatory copy, and explicit promised next action."
         },
         {
           "id": "CG_CTA_DESTINATION_MISMATCH",
@@ -3913,7 +4106,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed reader-facing content includes a button or link promising an action or resource at an identified destination."
         },
         {
           "id": "CG_CTA_COMMITMENT_UNDISCLOSED",
@@ -3926,7 +4120,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed CTA or associated copy represents an action as free, low risk, or subject to eligibility or sales commitments."
         },
         {
           "id": "CG_CTA_PRIMARY_GOAL_CONFLICT",
@@ -3957,7 +4152,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal conversion unit with an explicit source-local one-goal requirement and incompatible literal primary actions; layout prominence and runtime interaction still require R."
+          "source_evidence": "Only a complete literal conversion unit with an explicit source-local one-goal requirement and incompatible literal primary actions; layout prominence and runtime interaction still require R.",
+          "applies_when": "The change affects a conversion unit governed by an explicitly trusted one-primary-goal requirement.",
+          "source_when": "The source supplies a complete literal conversion unit with its literal primary actions and a trusted explicit one-goal requirement."
         },
         {
           "id": "CG_LANDING_MESSAGE_MATCH",
@@ -3970,7 +4167,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed landing page is associated with a supplied referring ad, email, or campaign specifying its offer, audience, or conditions."
         },
         {
           "id": "CG_CONVERSION_PATH_MISSING",
@@ -3983,7 +4181,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a complete conversion artifact with an expressly required conversion action or destination."
         }
       ]
     },
@@ -4008,7 +4207,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed offer copy advertises a core deliverable, included scope, or bonus."
         },
         {
           "id": "CG_OFFER_TIMELINE_EFFORT",
@@ -4021,7 +4221,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed offer copy describes a result timeline, customer effort, dependencies, or done-for-you delivery."
         },
         {
           "id": "CG_OFFER_VALUE_STACK",
@@ -4051,7 +4252,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only addition/double counting from complete literal bonus/value inputs and their explicit units/basis in the same source; the truth or economic validity of the valuations still requires B and M."
+          "source_evidence": "Only addition/double counting from complete literal bonus/value inputs and their explicit units/basis in the same source; the truth or economic validity of the valuations still requires B and M.",
+          "applies_when": "The changed offer copy quantifies bonus values or a total value stack.",
+          "source_when": "The source supplies literal bonus or value-stack figures with complete inputs, units, and explicit valuation or counting bases."
         },
         {
           "id": "CG_OFFER_GUARANTEE",
@@ -4064,7 +4267,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed offer copy makes a guarantee with eligibility, a remedy, or a claim period."
         },
         {
           "id": "CG_OFFER_SCARCITY",
@@ -4077,7 +4281,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed offer copy asserts a stock, capacity, enrollment, or exclusivity limit."
         },
         {
           "id": "CG_OFFER_DEADLINE",
@@ -4099,7 +4304,8 @@
                 "H"
               ]
             }
-          ]
+          ],
+          "applies_when": "The changed offer copy makes an urgency or closing-date assertion, or includes a countdown timer."
         }
       ]
     },
@@ -4124,7 +4330,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy states a monetary amount or currency for an identified offer."
         },
         {
           "id": "CG_PRICE_BILLING_PERIOD",
@@ -4137,7 +4344,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy describes a recurring charge or billing interval."
         },
         {
           "id": "CG_PRICE_ANNUAL_COMMITMENT",
@@ -4150,7 +4358,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy presents a monthly-equivalent price associated with an annual billing option."
         },
         {
           "id": "CG_PRICE_MANDATORY_FEES",
@@ -4163,7 +4372,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy presents an offer price or total commitment with applicable fees, seat counts, or minimum terms."
         },
         {
           "id": "CG_PRICE_UNIT_ALLOWANCE",
@@ -4176,7 +4386,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy states billing units, quotas, reset periods, caps, or overage terms."
         },
         {
           "id": "CG_PRICE_ENTITLEMENT",
@@ -4189,7 +4400,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy assigns a feature, support level, or service commitment to an identified tier."
         },
         {
           "id": "CG_PRICE_DISCOUNT_ARITHMETIC",
@@ -4219,7 +4431,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only arithmetic from literal comparable original/sale or monthly/annual prices with explicit currency, billing period, commitments and supplied saving formula; do not infer approved pricing or missing fees."
+          "source_evidence": "Only arithmetic from literal comparable original/sale or monthly/annual prices with explicit currency, billing period, commitments and supplied saving formula; do not infer approved pricing or missing fees.",
+          "applies_when": "The changed pricing copy states a numerical saving or discount using original and sale prices or monthly and annual totals.",
+          "source_when": "The source supplies literal comparable original and sale prices or monthly and annual totals, with explicit currency, billing period, commitments, and saving formula."
         },
         {
           "id": "CG_PRICE_TRIAL_TERMS",
@@ -4232,7 +4446,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing or signup copy describes a free offer or trial duration, access, payment, card, or conversion commitment."
         },
         {
           "id": "CG_PRICE_CANCELLATION_POLICY",
@@ -4245,7 +4460,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed pricing copy answers a cancellation, refund, or renewal question about the offer."
         },
         {
           "id": "CG_PRICE_SELECTOR_STATE",
@@ -4258,7 +4474,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a price or period display associated with a billing selector or selected billing state."
         }
       ]
     },
@@ -4301,7 +4518,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete unconditional literal native form field/action with its purpose/requiredness explicit in the source and no text label, associated label, accessible-name attribute/target or necessary literal instruction. Components, spreads, interpolation and externally supplied labels/state are outside this alternative."
+          "source_evidence": "Only a complete unconditional literal native form field/action with its purpose/requiredness explicit in the source and no text label, associated label, accessible-name attribute/target or necessary literal instruction. Components, spreads, interpolation and externally supplied labels/state are outside this alternative.",
+          "applies_when": "The change affects a form field, required submission instruction, or submission action and its reader-facing label.",
+          "source_when": "The source supplies a complete unconditional literal native form field or action with explicit purpose and requiredness, including its text labels, name attributes, and referenced labels, without components, spreads, interpolation, or externally supplied names or state."
         },
         {
           "id": "CG_FORM_ERROR_RECOVERY",
@@ -4314,7 +4533,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects form error, confirmation, or recovery instructions tied to a submission state."
         },
         {
           "id": "CG_FORM_CONSENT_PROMISE",
@@ -4327,7 +4547,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects consent wording or a data-use choice under a precise adopted data-use requirement or known processing contract."
         },
         {
           "id": "CG_FORM_UNKNOWN_QUALIFICATION",
@@ -4340,7 +4561,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects submission qualification or acceptance messaging for flows with accepted handling of unknown enrichment or qualification."
         }
       ]
     },
@@ -4365,7 +4587,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed signup content describes required steps, eligibility, access, or commitments in a supplied signup flow."
         },
         {
           "id": "CG_ONBOARDING_ACTION_MISMATCH",
@@ -4378,7 +4601,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed onboarding instruction or checklist identifies an action or destination for a user to complete."
         },
         {
           "id": "CG_EMPTY_STATE_PROMISE",
@@ -4391,7 +4615,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed empty-state content describes available data or an add, upload, or other action at an identified destination."
         },
         {
           "id": "CG_ACTIVATION_SUCCESS_STATE",
@@ -4404,7 +4629,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects creation, completion, or activation messaging associated with account, setup, or attained-value state."
         },
         {
           "id": "CG_FLOW_PROGRESS_STATE",
@@ -4434,7 +4660,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal required-step count/progress percentage that contradicts the complete explicit same-unit list and supplied counting formula; actual completion/account state and dynamically computed progress require B and R."
+          "source_evidence": "Only a literal required-step count/progress percentage that contradicts the complete explicit same-unit list and supplied counting formula; actual completion/account state and dynamically computed progress require B and R.",
+          "applies_when": "The change affects a flow checklist, required-step count, completed-item indicator, or progress percentage.",
+          "source_when": "The source supplies a literal required-step count or progress percentage together with the complete explicit same-unit step list and counting formula."
         }
       ]
     },
@@ -4459,7 +4687,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects an upgrade screen in a flow with an expressly promised free path, dismissal path, or payment boundary."
         },
         {
           "id": "CG_CANCEL_ACTION_OBSCURED",
@@ -4472,7 +4701,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects cancellation-flow wording identifying an operative cancellation action."
         },
         {
           "id": "CG_CANCEL_CONFIRMATION_FALSE",
@@ -4485,7 +4715,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a message confirming cancellation within a cancellation, feedback, save-offer, or pause flow."
         },
         {
           "id": "CG_CANCEL_SAVE_OFFER",
@@ -4498,7 +4729,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed retention offer describes a discount, pause, renewal, eligibility, or commitment."
         },
         {
           "id": "CG_DUNNING_STATUS_PROMISE",
@@ -4511,7 +4743,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed payment-recovery copy describes a failure, retry, charge, access loss, or restored account status."
         }
       ]
     },
@@ -4536,7 +4769,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects an overlay dismiss choice under an adopted interaction contract."
         },
         {
           "id": "CG_POPUP_DISCLOSURE_VISIBILITY",
@@ -4549,7 +4783,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects an overlay presenting a known material condition or a disclosure required by its adopted presentation contract."
         },
         {
           "id": "CG_MODAL_KEYBOARD_OPERABILITY",
@@ -4562,7 +4797,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a modal action under an adopted keyboard-accessibility contract."
         },
         {
           "id": "CG_MODAL_FOCUS_CONTAINMENT",
@@ -4575,7 +4811,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects modal focus containment or return behavior under an adopted accessibility contract."
         },
         {
           "id": "CG_MODAL_ACCESSIBLE_IDENTIFICATION",
@@ -4606,7 +4843,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete unconditional literal native dialog/essential control with explicit source role/purpose and no literal name/role or associated label target required by the supplied accessibility contract; do not infer component output, focus or keyboard behavior."
+          "source_evidence": "Only a complete unconditional literal native dialog/essential control with explicit source role/purpose and no literal name/role or associated label target required by the supplied accessibility contract; do not infer component output, focus or keyboard behavior.",
+          "applies_when": "The change affects a dialog or essential modal control under an adopted accessible-name or role contract.",
+          "source_when": "The source supplies a complete unconditional literal native dialog or essential modal control with explicit role and purpose, its full label-reference context, and the adopted naming contract, without component-generated names or behavior."
         }
       ]
     },
@@ -4631,7 +4870,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content promises a downloadable resource, access method, or delivery handoff."
         },
         {
           "id": "CG_LEADMAGNET_SCOPE",
@@ -4644,7 +4884,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed resource or its promotional copy identifies an audience, problem, or decision stage the resource addresses."
         },
         {
           "id": "CG_TOOL_RESULT_AUTHENTICITY",
@@ -4657,7 +4898,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed tool content presents results as real user-specific calculations or observations, or identifies them as demonstration outputs."
         },
         {
           "id": "CG_TOOL_BOUNDARY_DISCLOSURE",
@@ -4687,7 +4929,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal result whose stated precision/promise conceals a material assumption or limitation explicitly supplied in the same complete result unit; infer no actual calculation behavior or missing model assumptions."
+          "source_evidence": "Only a literal result whose stated precision/promise conceals a material assumption or limitation explicitly supplied in the same complete result unit; infer no actual calculation behavior or missing model assumptions.",
+          "applies_when": "The changed tool result states a level of precision or a promise whose interpretation depends on supplied assumptions or limitations.",
+          "source_when": "The source supplies a complete literal tool-result unit with its stated precision or promise and its explicitly documented assumptions or limitations."
         },
         {
           "id": "CG_TOOL_NEXT_STEP_CONTRACT",
@@ -4700,7 +4944,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a complete tool artifact governed by an explicit useful-result or next-step handoff requirement."
         },
         {
           "id": "CG_TOOL_QUANTITY_MEANING",
@@ -4730,7 +4975,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal field label/unit/time horizon that contradicts that same field's explicit source-local definition or supplied literal formula; dynamic calculation, actual result state and undocumented field semantics remain unavailable."
+          "source_evidence": "Only a literal field label/unit/time horizon that contradicts that same field's explicit source-local definition or supplied literal formula; dynamic calculation, actual result state and undocumented field semantics remain unavailable.",
+          "applies_when": "The change affects an input or output field label describing a quantity, unit, time horizon, or field meaning.",
+          "source_when": "The source supplies a literal input or output label and that same field's explicit source-local definition or literal formula, including units or time horizon."
         }
       ]
     },
@@ -4754,7 +5001,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects a final advertisement field or asset set under a confirmed adopted platform field or hard-limit profile."
         },
         {
           "id": "CG_AD_ASSEMBLY_COHERENCE",
@@ -4767,7 +5015,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects dynamic or responsive-ad assets with permitted combinations defined by an adopted assembly profile."
         },
         {
           "id": "CG_AD_GROUNDING_CONTRACT",
@@ -4780,7 +5029,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed ad deliverable marks concepts as grounded under an adopted per-concept research trace contract."
         },
         {
           "id": "CG_AD_RECOMMENDATION_EVIDENCE",
@@ -4793,7 +5043,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed advertising analysis recommends pausing, scaling, adding negative keywords, or improving performance based on campaign or test evidence."
         }
       ]
     },
@@ -4835,7 +5086,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal subject/preheader that contradicts the complete literal message/offer supplied in the same source unit; external offer truth and recipient/runtime state remain unavailable."
+          "source_evidence": "Only a literal subject/preheader that contradicts the complete literal message/offer supplied in the same source unit; external offer truth and recipient/runtime state remain unavailable.",
+          "applies_when": "The changed email content includes a subject or preheader and its associated message or offer.",
+          "source_when": "The source supplies a literal subject or preheader together with the complete literal message or offer it introduces."
         },
         {
           "id": "CG_EMAIL_TRIGGER_SEGMENT",
@@ -4848,7 +5101,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed lifecycle email assumes a recipient state, trigger, plan, or segment in a supplied program flow."
         },
         {
           "id": "CG_EMAIL_EXIT_PROMISE",
@@ -4861,7 +5115,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed email-sequence content describes stopping, reply, or completion behavior in a supplied sequence flow."
         },
         {
           "id": "CG_OUTREACH_FALSE_THREAD",
@@ -4874,7 +5129,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed outbound message uses reply, forward, or prior-relationship framing in relation to a known outreach history."
         },
         {
           "id": "CG_OUTREACH_FALSE_PERSONALIZATION",
@@ -4887,7 +5143,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed personalized outreach asserts a recipient fact, interaction, or contact detail with an identified source record."
         },
         {
           "id": "CG_EMAIL_OPTOUT_CONTRACT",
@@ -4900,7 +5157,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed email message is governed by an adopted program or profile requiring opt-out or sender elements."
         },
         {
           "id": "CG_OUTREACH_RELEVANT_ASK",
@@ -4913,7 +5171,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed outreach brief explicitly requests a prospect-specific citation reason or action based on supplied prospect context."
         }
       ]
     },
@@ -4936,7 +5195,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed SMS opt-in, confirmation, ordinary message, or HELP response is governed by an adopted role-specific disclosure profile."
         },
         {
           "id": "CG_SMS_CONSENT_REPRESENTATION",
@@ -4949,7 +5209,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects SMS choice or consent wording under a confirmed opt-in requirement or supplied consent state."
         },
         {
           "id": "CG_SMS_OPTOUT_CLAIM",
@@ -4962,7 +5223,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed SMS content describes STOP, HELP, or opt-out behavior under an adopted program profile."
         },
         {
           "id": "CG_SMS_SEGMENT_CLAIM",
@@ -4975,7 +5237,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed SMS content states a segment count or supported message size under a confirmed encoding and channel profile."
         },
         {
           "id": "CG_SMS_SEND_WINDOW",
@@ -4988,7 +5251,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed SMS content states a send schedule or observed-send time under an adopted recipient-local sending window."
         },
         {
           "id": "CG_WHATSAPP_TEMPLATE_WINDOW",
@@ -5001,7 +5265,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed WhatsApp content describes a submitted template, category, or conversation window under a confirmed adopted profile."
         }
       ]
     },
@@ -5045,7 +5310,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal standalone post/clip text and its complete supplied original/base text, where a material explicit qualifier/referent is removed from the otherwise retained assertion; infer no unseen audiovisual context or external factual truth."
+          "source_evidence": "Only a literal standalone post/clip text and its complete supplied original/base text, where a material explicit qualifier/referent is removed from the otherwise retained assertion; infer no unseen audiovisual context or external factual truth.",
+          "applies_when": "The change repurposes original material into a standalone social post or clip with its source context supplied.",
+          "source_when": "The source supplies literal standalone social-post or clip text and its complete original or base text for contextual comparison."
         },
         {
           "id": "CG_SOCIAL_CREDIT_CONTRACT",
@@ -5058,7 +5325,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed republished work is governed by an explicit source, license, or brief attribution requirement."
         },
         {
           "id": "CG_CAPTION_FIDELITY",
@@ -5088,7 +5356,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only literal caption/transcript/subtitle/translated text compared with a complete explicitly identified textual source transcript supplied in the same source/base counterpart; infer no actual audio, timing, placement, visual rendering or speech not supplied."
+          "source_evidence": "Only literal caption/transcript/subtitle/translated text compared with a complete explicitly identified textual source transcript supplied in the same source/base counterpart; infer no actual audio, timing, placement, visual rendering or speech not supplied.",
+          "applies_when": "The change affects a caption, transcript, subtitle, or translated overlay representing supplied speech or source text.",
+          "source_when": "The source supplies literal caption, transcript, subtitle, or translated text and its complete explicitly identified textual source transcript, independently of audio, timing, placement, or rendering."
         },
         {
           "id": "CG_ASSET_REAL_UI",
@@ -5101,7 +5371,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed asset presentation describes a screenshot or demo as real product UI, customer evidence, or working behavior."
         },
         {
           "id": "CG_ASSET_LEGIBILITY",
@@ -5114,7 +5385,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects an asset or layout presenting material reader information at an identified intended placement."
         },
         {
           "id": "CG_ALT_CONTENT",
@@ -5143,7 +5415,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal image whose essential purpose is explicit in the same source (for example the sole meaningful child of a named action link) and which lacks a necessary literal textual alternative or has an explicitly contradictory alternative. Do not infer unseen image content, treat decorative images as defective, or resolve component/spread/generated alternatives."
+          "source_evidence": "Only a literal image whose essential purpose is explicit in the same source (for example the sole meaningful child of a named action link) and which lacks a necessary literal textual alternative or has an explicitly contradictory alternative. Do not infer unseen image content, treat decorative images as defective, or resolve component/spread/generated alternatives.",
+          "applies_when": "The change affects an image or its textual alternative in reader-facing content, including an image serving a functional action.",
+          "source_when": "The source supplies a literal image whose essential function is explicit in the same source and its complete textual-alternative context, without resolving unseen image content or component-generated alternatives."
         },
         {
           "id": "CG_CAPTIONS_REQUIRED",
@@ -5156,7 +5430,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The change affects material audio under an adopted audience or placement contract requiring captions or equivalent access."
         },
         {
           "id": "CG_ASSET_RIGHTS_CONFLICT",
@@ -5169,7 +5444,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed content describes or exercises reuse permission for an identified source or creator asset under supplied rights terms."
         },
         {
           "id": "CG_MEDIA_DELIVERY_PROFILE",
@@ -5182,7 +5458,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed delivered image or video is governed by an adopted dimension, duration, aspect-ratio, encoding, or placement requirement."
         }
       ]
     },
@@ -5206,7 +5483,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed sponsored content has a known material relationship covered by a supplied adopted disclosure requirement."
         },
         {
           "id": "CG_SPONSOR_DISCLOSURE_INEFFECTIVE",
@@ -5219,7 +5497,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed sponsored content presents a required material-connection disclosure on an identified audio or visual surface."
         }
       ]
     },
@@ -5246,7 +5525,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed incident statement describes impact, containment, cause, remediation, or certainty relative to a supplied fact ledger."
         },
         {
           "id": "CG_PRESS_STORY_PROMISE",
@@ -5259,7 +5539,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed press pitch or news headline describes an identified story, source, or news availability."
         },
         {
           "id": "CG_LAUNCH_SHIPPED_CLAIM",
@@ -5272,7 +5553,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed launch copy describes feature availability or scope relative to a supplied release state."
         },
         {
           "id": "CG_EVENT_TIME_LOCATION",
@@ -5285,7 +5567,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed event or registration copy states a date, timezone, venue, eligibility, access, or replay condition."
         },
         {
           "id": "CG_PARTNER_COMMITMENT",
@@ -5298,7 +5581,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed co-branded copy describes a partner role, endorsement, contribution, or deliverable."
         },
         {
           "id": "CG_COMMUNITY_IDENTITY_PROMISE",
@@ -5311,7 +5595,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed community copy describes identity, affiliation, access, moderation, or member commitments."
         }
       ]
     },
@@ -5337,7 +5622,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed sales asset addresses an assigned buyer role, use case, deal stage, or competitor."
         },
         {
           "id": "CG_SALES_OBJECTION_UNANSWERED",
@@ -5350,7 +5636,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed sales response addresses a supplied operative buyer objection."
         },
         {
           "id": "CG_PROPOSAL_SCOPE_GAP",
@@ -5363,7 +5650,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed proposal describes its coverage of supplied delivery requirements."
         },
         {
           "id": "CG_PROPOSAL_RESPONSIBILITY_GAP",
@@ -5376,7 +5664,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed proposal covers implementation dependencies or stakeholder actions within a promised delivery scope."
         },
         {
           "id": "CG_PROPOSAL_INVESTMENT_GAP",
@@ -5389,7 +5678,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed decision-ready proposal is governed by an adopted contract specifying price, payment, inclusions, or next-step commitments."
         },
         {
           "id": "CG_REFERRAL_REWARD_TERMS",
@@ -5402,7 +5692,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed referral or affiliate copy states eligibility, rewards, qualifying actions, payout timing, attribution, or clawback terms."
         },
         {
           "id": "CG_ADVISOR_SIMULATION_TRUTH",
@@ -5415,7 +5706,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed artifact is an established adviser simulation presenting attributed quotations, adviser participation, a meeting, or endorsement."
         },
         {
           "id": "CG_ADVISOR_SIMULATION_DISCLOSURE",
@@ -5428,7 +5720,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed artifact is an established adviser simulation with a complete audience-facing representation of participation."
         }
       ]
     },
@@ -5472,7 +5765,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only arithmetic/rates/variance/ROI/driver totals derived from all necessary literal inputs, units, denominators and formula supplied in the same source; infer no missing measurement definitions or external data validity."
+          "source_evidence": "Only arithmetic/rates/variance/ROI/driver totals derived from all necessary literal inputs, units, denominators and formula supplied in the same source; infer no missing measurement definitions or external data validity.",
+          "applies_when": "The changed analytical report or quantitative explanation states a calculation, variance, rate, ROI, or driver total from supplied inputs.",
+          "source_when": "The source supplies a literal calculation, rate, variance, ROI, or driver total with all necessary inputs, units, denominators, and formula."
         },
         {
           "id": "CG_REPORT_COMPARABILITY",
@@ -5501,7 +5796,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a comparison whose own complete literal source rows explicitly identify incompatible periods/populations/units/definitions/windows/attribution methods and whose changed text presents them as equivalent; infer no external dataset semantics."
+          "source_evidence": "Only a comparison whose own complete literal source rows explicitly identify incompatible periods/populations/units/definitions/windows/attribution methods and whose changed text presents them as equivalent; infer no external dataset semantics.",
+          "applies_when": "The changed analytical comparison relates periods, populations, units, definitions, windows, or attribution methods.",
+          "source_when": "The source supplies complete literal comparison rows with explicit periods, populations, units, definitions, windows, or attribution methods and the text comparing them."
         },
         {
           "id": "CG_REPORT_MISSING_AS_ZERO",
@@ -5531,7 +5828,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal source-local evidence record explicitly marked unknown/unavailable/empty that the changed summary represents as an observed zero/complete actual; do not infer that an unprovided record is unknown or zero."
+          "source_evidence": "Only a literal source-local evidence record explicitly marked unknown/unavailable/empty that the changed summary represents as an observed zero/complete actual; do not infer that an unprovided record is unknown or zero.",
+          "applies_when": "The changed analytical report represents measurements as numeric zero, actual totals, unknown, unavailable, or empty observations.",
+          "source_when": "The source supplies a literal evidence record explicitly characterized as unknown, unavailable, or empty and the summary assigning numeric or actual status to that same record."
         },
         {
           "id": "CG_REPORT_UNCERTAINTY",
@@ -5561,7 +5860,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a complete literal report conclusion that suppresses a material limitation explicitly documented in its supplied same-unit evidence; do not infer missing external uncertainty."
+          "source_evidence": "Only a complete literal report conclusion that suppresses a material limitation explicitly documented in its supplied same-unit evidence; do not infer missing external uncertainty.",
+          "applies_when": "The changed analytical report states a conclusion based on evidence with supplied uncertainty or access limitations.",
+          "source_when": "The source supplies a complete literal report conclusion and a material limitation explicitly documented in its same-unit evidence."
         },
         {
           "id": "CG_VISUAL_ENCODING_TRUTH",
@@ -5591,7 +5892,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only an explicit literal chart specification plus all supplied values/scale/aggregation/geometry/labels where the specification itself contradicts its declared numeric mapping; no chart execution, actual rendering, pixel geometry or runtime data is inferred."
+          "source_evidence": "Only an explicit literal chart specification plus all supplied values/scale/aggregation/geometry/labels where the specification itself contradicts its declared numeric mapping; no chart execution, actual rendering, pixel geometry or runtime data is inferred.",
+          "applies_when": "The changed quantitative chart or chart specification maps supplied values to scales, aggregation, geometry, or labels.",
+          "source_when": "The source supplies an explicit literal chart specification and all relevant values, scale, aggregation, geometry, and label definitions, so its declared mapping can be inspected without executing or rendering a chart."
         },
         {
           "id": "CG_FIGURE_TEXT_CONFLICT",
@@ -5621,7 +5924,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal figure data/specification and adjacent title/annotation/summary that contradict each other on explicit values/population/uncertainty; actual rendered chart and unsupplied data remain unavailable."
+          "source_evidence": "Only a literal figure data/specification and adjacent title/annotation/summary that contradict each other on explicit values/population/uncertainty; actual rendered chart and unsupplied data remain unavailable.",
+          "applies_when": "The changed quantitative figure has an associated title, annotation, summary, or adjacent explanatory prose.",
+          "source_when": "The source supplies literal figure data or a chart specification and its adjacent title, annotation, summary, or prose with explicit values, population, or uncertainty."
         },
         {
           "id": "CG_REPORT_STATUS_BASIS",
@@ -5651,7 +5956,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal status judgment inconsistent with its complete explicit same-unit target, definition, inputs and pacing formula; do not infer the governing business target or validate actual performance."
+          "source_evidence": "Only a literal status judgment inconsistent with its complete explicit same-unit target, definition, inputs and pacing formula; do not infer the governing business target or validate actual performance.",
+          "applies_when": "The changed report states a health, on-track, target, or pacing judgment about measured performance.",
+          "source_when": "The source supplies a literal status judgment and its complete explicit same-unit target, definition, inputs, and pacing formula."
         },
         {
           "id": "CG_EXPERIMENT_METRIC_CONTRACT",
@@ -5664,7 +5971,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed written experiment plan is governed by an accepted objective and contract for hypotheses, metrics, units, guardrails, or stopping interpretation."
         },
         {
           "id": "CG_EXPERIMENT_RESULT_OVERCLAIM",
@@ -5677,7 +5985,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed experiment analysis claims a winner, causal lift, or generalization from assignment, exposure, or statistical evidence."
         },
         {
           "id": "CG_REPORT_RECOMMENDATION_SUPPORT",
@@ -5707,7 +6016,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a recommendation contradicted by its own explicit same-unit diagnosis or known prerequisite statement; do not infer external feasibility or treat absent external proof alone as a defect."
+          "source_evidence": "Only a recommendation contradicted by its own explicit same-unit diagnosis or known prerequisite statement; do not infer external feasibility or treat absent external proof alone as a defect.",
+          "applies_when": "The changed analytical report recommends an action or operating commitment based on a diagnosis or known prerequisites.",
+          "source_when": "The source supplies a literal recommendation and the explicit same-unit diagnosis or known prerequisite statement on which it relies."
         },
         {
           "id": "CG_REPORT_METHOD_PROVENANCE",
@@ -5738,7 +6049,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal source/method/verification attribution that contradicts the same-unit explicit provenance record under a supplied adopted reporting contract; infer no unrecorded method or verification activity."
+          "source_evidence": "Only a literal source/method/verification attribution that contradicts the same-unit explicit provenance record under a supplied adopted reporting contract; infer no unrecorded method or verification activity.",
+          "applies_when": "The changed analytical report is governed by an adopted requirement for method, source, or verification provenance supporting material conclusions.",
+          "source_when": "The source supplies literal method, source, or verification attributions and an explicit same-unit provenance record under an adopted reporting contract."
         },
         {
           "id": "CG_ARTIFACT_FORMAT_CONTRACT",
@@ -5769,7 +6082,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only the complete literal artifact whose field/structure/hard size/dependency requirement is explicit in a supplied adopted delivery contract; runtime presentation and generated artifacts remain unavailable."
+          "source_evidence": "Only the complete literal artifact whose field/structure/hard size/dependency requirement is explicit in a supplied adopted delivery contract; runtime presentation and generated artifacts remain unavailable.",
+          "applies_when": "The changed artifact is governed by an explicitly adopted delivery contract specifying fields, structure, hard size, dependencies, or presentation.",
+          "source_when": "The source supplies the complete literal artifact and a supplied adopted delivery contract specifying field, structure, hard-size, or dependency requirements."
         },
         {
           "id": "CG_ARTIFACT_COMPLETION_CLAIM",
@@ -5799,7 +6114,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a literal handoff that claims completion/verification while the same supplied source record explicitly marks that exact step failed, pending or blocked; do not infer actual deployment/integration behavior from missing execution evidence."
+          "source_evidence": "Only a literal handoff that claims completion/verification while the same supplied source record explicitly marks that exact step failed, pending or blocked; do not infer actual deployment/integration behavior from missing execution evidence.",
+          "applies_when": "The changed handoff or status artifact describes verification, saving, deployment, publication, connection, or working status of an identified operation.",
+          "source_when": "The source supplies a literal handoff or status assertion and an explicit same-unit operation record characterizing that exact step as failed, pending, blocked, or completed."
         },
         {
           "id": "CG_UPDATE_CURRENT_FACT_CONFLICT",
@@ -5829,7 +6146,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only mutually incompatible literal facts about the same explicitly scoped current item in the complete update, or a literal completed status contradicted by its own explicit unmet criterion; freshness/history and actual completion state still require the original evidence."
+          "source_evidence": "Only mutually incompatible literal facts about the same explicitly scoped current item in the complete update, or a literal completed status contradicted by its own explicit unmet criterion; freshness/history and actual completion state still require the original evidence.",
+          "applies_when": "The changed status or current-information update states facts or completion criteria about an identified current item.",
+          "source_when": "The source supplies a complete literal update with same-scope current-item assertions or a completed status and its explicit completion criteria."
         },
         {
           "id": "CG_FEEDBACK_EVIDENCE_ANCHOR",
@@ -5858,7 +6177,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a review quote/location and its complete supplied literal target/base counterpart, where the quotation is absent or materially different at that identified location; do not infer external targets or unseen source versions."
+          "source_evidence": "Only a review quote/location and its complete supplied literal target/base counterpart, where the quotation is absent or materially different at that identified location; do not infer external targets or unseen source versions.",
+          "applies_when": "The changed review artifact cites a quotation or location in an identified supplied review target.",
+          "source_when": "The source supplies a literal review quotation or location and the complete identified review target or base counterpart."
         },
         {
           "id": "CG_STAT_PVALUE_MEANING",
@@ -5871,7 +6192,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed statistical explanation defines or interprets a p-value under an explicitly identified statistical method."
         },
         {
           "id": "CG_STAT_INTERVAL_MEANING",
@@ -5884,7 +6206,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed statistical explanation interprets an interval under an explicitly identified frequentist or Bayesian method."
         },
         {
           "id": "CG_STAT_METHOD_INTERPRETATION",
@@ -5897,7 +6220,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed statistical explanation defines or interprets fixed-horizon, sequential, or Bayesian methods or stopping rules."
         },
         {
           "id": "CG_ATTRIBUTION_OUTCOME_DEDUP",
@@ -5927,7 +6251,9 @@
               "source_only": true
             }
           ],
-          "source_evidence": "Only a total counting complete literal records explicitly sharing the same outcome identifiers as unique outcomes, with the supplied counting-unit/overlap definitions; infer no hidden cross-channel identity or attribution semantics."
+          "source_evidence": "Only a total counting complete literal records explicitly sharing the same outcome identifiers as unique outcomes, with the supplied counting-unit/overlap definitions; infer no hidden cross-channel identity or attribution semantics.",
+          "applies_when": "The changed attribution analysis totals outcomes credited across platforms, CRM, organic, events, surveys, or other channels.",
+          "source_when": "The source supplies a complete literal set of credited outcome records with explicit outcome identifiers, counting-unit definitions, and overlap definitions."
         }
       ]
     },
@@ -5951,7 +6277,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed submitted store or directory field or asset is governed by a confirmed adopted format, count, or hard-limit profile."
         },
         {
           "id": "CG_LISTING_PRODUCT_FIT",
@@ -5964,7 +6291,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed product listing states a capability, category, price, or intended audience for an identified product."
         },
         {
           "id": "CG_LISTING_BADGE_STATUS",
@@ -5977,7 +6305,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed listing describes a badge, award, or listing status as earned or current in relation to known eligibility or status evidence."
         },
         {
           "id": "CG_LISTING_PROMOTION_POLICY",
@@ -5990,7 +6319,8 @@
             "Review only the changed in-scope instance, honoring its actual draft/template/example/final role and explicit user overrides.",
             "Missing necessary evidence means not_evaluated; source absence alone does not establish fabrication or functional failure.",
             "Apply only the relevant adopted artifact/platform contract; optional tactics and unrelated source workflow instructions are excluded."
-          ]
+          ],
+          "applies_when": "The changed promotional ask concerns a listing or campaign governed by an adopted platform or campaign promotion rule."
         }
       ]
     }

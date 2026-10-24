@@ -22,6 +22,8 @@ class ContentRule:
     evidence: str = ""  # the exact authored evidence contract
     conditional: frozenset[str] = frozenset()  # codes the contract names that no evidence path requires
     source_evidence: str = ""  # bounded literal subtype eligible for an L evidence alternative
+    applies_when: str = ""  # positive subject/mechanism boundary, independent of defect presence
+    source_when: str = ""  # positive literal representation boundary, independent of correctness
 
 
 _EVIDENCE = {
@@ -129,8 +131,10 @@ def _validate(data: object) -> dict:
         for rule in rules:
             if not isinstance(rule, dict):
                 raise _error("rule must be an object")
-            for field in ("id", "defect", "evidence", "haiku_skill", "haiku_skill_source", "haiku_excerpt_focus"):
+            for field in ("id", "defect", "evidence", "haiku_skill", "haiku_skill_source", "haiku_excerpt_focus", "applies_when"):
                 _text(rule.get(field), f"{key} rule {field}")
+            if len(rule["applies_when"].split()) < 5 or rule["applies_when"] == rule["defect"]:
+                raise _error(f"{rule['id']} requires a meaningful positive applies_when boundary")
             rule_id = rule["id"]
             if not re.fullmatch(r"CG_[A-Z0-9_]+", rule_id):
                 raise _error(f"invalid rule id {rule_id}")
@@ -148,8 +152,11 @@ def _validate(data: object) -> dict:
             paths = _evidence_paths(rule)
             if any("L" in path for path in paths):
                 _text(rule.get("source_evidence"), f"{rule_id} source_evidence")
-            elif "source_evidence" in rule:
-                raise _error(f"{rule_id} source_evidence requires an L evidence path")
+                _text(rule.get("source_when"), f"{rule_id} source_when")
+                if len(rule["source_when"].split()) < 5 or rule["source_when"] in (rule["defect"], rule["source_evidence"]):
+                    raise _error(f"{rule_id} requires a meaningful positive source_when boundary")
+            elif "source_evidence" in rule or "source_when" in rule:
+                raise _error(f"{rule_id} source_evidence/source_when requires an L evidence path")
     scope = data.get("scope")
     if not isinstance(scope, dict):
         raise _error("scope must be an object")
@@ -181,8 +188,10 @@ def _rubric(data: dict, pack: dict, rule: dict, paths: tuple[frozenset[str], ...
     alternatives = " OR ".join("+".join(code for code in _EVIDENCE if code in path) for path in paths)
     exclusions = "\n".join(f"- {item}" for item in rule["rubric_exclusions"])
     source_evidence = (
+        f"Source-only representation boundary: {rule['source_when']}\n"
         f"Source-only alternative scope: {rule['source_evidence']} "
-        "L is available only when this exact subtype and all its guards are established by the supplied source. "
+        "L eligibility depends on the positive representation boundary and its literal/completeness/static guards, independently of correctness. "
+        "Defect language in the alternative scope describes the outcome to judge, never a prerequisite for evaluation. "
         "This alternative replaces the original evidence requirements only for that subtype. "
         "A source-only pass covers only the instantiated literal observation; it never establishes correct effective output or runtime behavior.\n"
         if rule.get("source_evidence") else ""
@@ -196,6 +205,8 @@ def _rubric(data: dict, pack: dict, rule: dict, paths: tuple[frozenset[str], ...
         f"Defect predicate: {rule['defect']}\n"
         f"Focused specialist criterion: {rule['haiku_excerpt_focus']}\n"
         f"Applicability: {pack['route']}\n"
+        f"Positive subject boundary: {rule['applies_when']} "
+        "Classify this subject and mechanism independently of whether a defect exists.\n"
         "Instantiate one independently judged proposition per named field, term, requirement, record, or claim. "
         "Identify the exact changed instance and its conditions; never assign one aggregate probability to the pack.\n\n"
         f"Exact evidence contract: {rule['evidence']}\n"
@@ -239,6 +250,8 @@ def all_rules() -> list[ContentRule]:
                 evidence=item["evidence"],
                 conditional=frozenset(_mentioned(item)) - frozenset().union(*paths),
                 source_evidence=item.get("source_evidence", ""),
+                applies_when=item["applies_when"],
+                source_when=item.get("source_when", ""),
             ))
     return result
 

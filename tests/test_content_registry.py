@@ -119,6 +119,7 @@ def _minimal_catalog():
                     {
                         "id": "CG_FIXTURE_CLAIM",
                         "defect": "A changed claim contradicts trusted facts.",
+                        "applies_when": "The changed copy makes factual assertions about an identified product or service.",
                         "evidence": "D+B",
                         "haiku_skill": "copy-editing",
                         "haiku_skill_source": "skill://user/copy-editing/SKILL.md",

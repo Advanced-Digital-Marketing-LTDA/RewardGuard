@@ -20,8 +20,38 @@ RULE_ID = re.compile(r"[A-Z][A-Z0-9_]{0,119}\Z")
 def safe(value: object) -> str:
     """Render report data as inert Markdown text, including workflow command characters."""
     value = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
-    value = html.escape(value, quote=True)
+    value = html.escape(value, quote=False)
     return re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", value)[:2000]
+
+
+def source_records(value: object) -> list[dict]:
+    """Keep report provenance readable without exposing its internal dictionary layout."""
+    return [row for row in value if isinstance(row, dict) and row.get("role") != "boundary"] if isinstance(value, list) else []
+
+
+def source_summary(value: object) -> str:
+    rows = source_records(value)
+    paths = sorted({str(row.get("path", row.get("file", "unspecified"))) for row in rows})
+    examples = ", ".join(safe(path[:250]) for path in paths[:5])
+    tail = f"; {len(paths) - 5} more paths" if len(paths) > 5 else ""
+    return f"{len(rows)} evidence unit(s) from {len(paths)} source path(s)" + (f": {examples}{tail}" if paths else "")
+
+
+def omission_groups(value: object) -> list[tuple[str, list[str], int]]:
+    groups = defaultdict(list)
+    if isinstance(value, list):
+        for row in value:
+            if isinstance(row, dict):
+                groups[str(row.get("reason", "Evidence unavailable"))].append(str(row.get("path", row.get("file", "unspecified"))))
+    return [(reason, sorted(set(paths)), len(paths)) for reason, paths in sorted(groups.items())]
+
+
+def omission_summary(value: object) -> str:
+    groups = omission_groups(value)
+    parts = [f"{safe(reason[:300])} ({count})" for reason, _, count in groups[:6]]
+    if len(groups) > 6:
+        parts.append(f"{len(groups) - 6} additional reason(s); see JSON")
+    return "; ".join(parts) or "No collection omissions recorded"
 
 
 def probability(value: object) -> float | None:
@@ -31,7 +61,7 @@ def probability(value: object) -> float | None:
 
 
 def _scope(row: dict) -> str:
-    return "; ".join(f"{label}: {safe(row[key])}" for key, label in
+    return "; ".join(f"{label}: {source_summary(row[key]) if key == 'provenance' else safe(row[key])}" for key, label in
                      (("file", "file"), ("line", "line"), ("instance", "instance"), ("reason", "reason"),
                       ("requires", "requires"), ("available", "available"),
                       ("missing_sources", "missing sources"), ("provenance", "provenance"),
@@ -63,7 +93,10 @@ def build_checks(report: dict) -> list[dict]:
     general_gaps = [r for r in coverage if not r.get("rule") and r.get("status") == "not_evaluated"]
     for row in general_gaps[:10]:
         summary += f"\n- Unverified: {_scope(row)}"
-    for key in ("eligibility", "provenance", "omissions", "missing_sources", "reason"):
+    summary += f"\n\nSources: {source_summary(content.get('provenance', []))}"
+    if content.get("omissions"):
+        summary += f"\n\nCollection limits: {omission_summary(content['omissions'])}. Missing automatic discovery probes do not require repository setup."
+    for key in ("eligibility", "missing_sources", "reason"):
         if key in content:
             summary += f"\n\n{safe(key)}: {safe(content[key])}"
     for note in report.get("notes", [])[:10]:
