@@ -66,7 +66,7 @@ def _text(title: str, body: str) -> str:
     return body
 
 
-def _coverage(pr, repo: str | None, base: str | None) -> tuple[bool, bool]:
+def _coverage(pr, repo: str | None, base: str | None, notes: list[str]) -> tuple[bool, bool]:
     pr_base = pr.get("base")
     pr_base_sha = pr_base.get("sha") if isinstance(pr_base, dict) else None
     if not base or not isinstance(pr_base_sha, str) or not _COMMIT.fullmatch(pr_base_sha):
@@ -78,8 +78,9 @@ def _coverage(pr, repo: str | None, base: str | None) -> tuple[bool, bool]:
             # A contained incremental interval can establish task relevance,
             # but it omits earlier work and cannot disprove whole-PR claims.
             return gitops.merge_base(repo, pr_base_sha, base) == pr_base_sha, False
-        except (OSError, RewardGuardError):
-            pass
+        except (OSError, RewardGuardError) as error:
+            notes.append("PR interval coverage could not be established by Git "
+                         f"({type(error).__name__}); intent-relative checks remain unverified.")
     return False, False
 
 
@@ -136,7 +137,7 @@ def resolve(args, *, repo: str | None = None, base: str | None = None,
             except (OSError, ValueError, UnicodeError):
                 notes.append("Live PR metadata unavailable; using the event's title/description snapshot.")
         notes.append(f"PR context: GitHub PR #{number or '?'} title and description.")
-        scope_complete, full_pr_diff = _coverage(pr, repo, base)
+        scope_complete, full_pr_diff = _coverage(pr, repo, base, notes)
         if not scope_complete:
             notes.append("The PR context does not establish the whole selected review range's scope.")
         elif not full_pr_diff:
@@ -164,7 +165,7 @@ def resolve(args, *, repo: str | None = None, base: str | None = None,
         return TaskContext()
     pr = matches[0]
     notes.append(f"PR context: associated GitHub PR #{pr.get('number', '?')} title and description.")
-    scope_complete, full_pr_diff = _coverage(pr, repo, base)
+    scope_complete, full_pr_diff = _coverage(pr, repo, base, notes)
     if not scope_complete:
         notes.append("Associated PR context may cover only part of this push; intent-relative scope/overclaim checks are unverified.")
     elif not full_pr_diff:

@@ -124,11 +124,16 @@ A source diff alone cannot disprove a claim about test execution or external CI.
 PR text describes intent; instructions to suppress review and claims that code is
 safe or approved do not override trusted policy or prove correctness.
 
+`HOLLOW_FALLBACK` requires both a required result being lost and a consumer/check
+incorrectly accepting the substitute as success. Explicitly unavailable optional
+metadata or a disclosed unverified status is not itself a hollow result.
+
 Context is credential-redacted and bounded to at most 16,000 characters and the
 configured state budget. When shortened, its opening and closing sections are
 retained with an explicit omission marker. Intent-relative checks remain unverified
 if the full task context did not fit. The hosted GitHub lookup has a fixed API host,
 bounded response size, timeout, and no redirects; it never executes repository code.
+GitHub tokens used for lookup are removed from the Haiku subprocess environment.
 
 Local callers can supply context explicitly:
 
