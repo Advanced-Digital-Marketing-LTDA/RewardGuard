@@ -16,8 +16,13 @@ data. Only applicable policy from the trusted base governs a review.
 ## Sources and their scope
 
 Configured `[content.context]` paths are attempted first, using the trusted base and
-their explicitly declared evidence codes. These files are included only as complete
-units within the budget. A supplied context file is a repository assertion; the
+their explicitly declared evidence codes. These files are included as complete artifacts within the budget where possible.
+Oversized configured B/P/S Markdown may supply whole relevant sections with exact
+line ranges, declared codes, and incomplete-artifact provenance. Matching uses the
+affected path tokens and appropriate business/editorial headings; a scoped unit
+does not establish completeness of its parent ledger or document. Unadmitted
+configured files remain eligible for automatic discovery. Other oversized
+configured formats are explicitly omitted. A supplied context file is a repository assertion; the
 collector does not independently authenticate its business claims or measurements.
 
 Automatic discovery then looks for ancestor `AGENTS.md`, `CLAUDE.md`, and README
@@ -26,7 +31,14 @@ writing, content, product, style, SEO, CRO, or landing pages. Applicable agent f
 can reference local skill documents through Markdown links. Only safe local paths
 with relevant names are followed; remote links and unrelated skills are excluded.
 Markdown sections must contain a relevant topic and business or policy language.
-Whole matching sections supply scoped B or P evidence. A section that does not fit
+Known product/context documents lead automatic discovery and supply scoped B
+claims, including sections whose language does not match English topic words.
+Half of the automatic documentation allowance is reserved from B-only material
+for writing policy. Whole matching sections supply scoped B or P evidence.
+Known writing guides lead general agent instructions. Within agent files,
+editorial headings lead and generic development directives do not become writing
+policy merely by mentioning content or writing code. Automatic P requires an
+actual writing guide or editorial language with adopted policy instructions. A section that does not fit
 is omitted with its line range; a clipped sentence never becomes a complete policy.
 Business facts are repository-authored claims, not independently verified truth.
 All sources retain separate provenance, including conflicting facts; no newest-file

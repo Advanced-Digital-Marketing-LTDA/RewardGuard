@@ -43,6 +43,23 @@ _BUSINESS = re.compile(r'\b(?:product|audience|customer|positioning|offer|pricin
                        r'benefits?|features?|service|business|brand)\b', re.I)
 _SKILL = re.compile(r'(?:writ|copy|content|editorial|seo|cro|landing|brand|accessibility|product|pricing|marketing|style|humaniz|stop[-_]?slop)', re.I)
 
+_EDITORIAL = re.compile(
+    r'\b(?:writing (?:style|guidelines?|policy|copy|content|prose)|copywriting|editorial|prose|tone|voice|brand|citations?|proof|'
+    r'public claims?|headlines?|seo|publication|humaniz\w*|stop[-_ ]?slop)\b', re.I)
+
+
+def _business_document(file: str) -> bool:
+    p = PurePosixPath(file)
+    name = p.stem.lower().replace('_', '-')
+    return (name in {'product', 'product-context', 'product-marketing', 'business-context', 'brand-context'}
+            or (str(p.parent) == '.' and name == 'context'))
+
+
+def _writing_document(file: str) -> bool:
+    return bool(re.search(r'(?:writ|copy|editorial|style|humaniz|stop[-_]?slop)',
+                          PurePosixPath(file).stem, re.I)
+                or ('/skills/' in file and re.search(r'writ|copy|editorial|humaniz|stop[-_]?slop', file, re.I)))
+
 
 def _safe_path(path: str) -> bool:
     if not isinstance(path, str) or not path or '\\' in path or ':' in path:
@@ -203,13 +220,43 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         file=path, commit=base, role='boundary', limit=1500)
 
     configured = set()
+    target_tokens = set(re.findall(r'[a-z0-9]{3,}', path.lower())) - {
+        'src', 'lib', 'routes', 'pages', 'index', 'page', 'astro', 'html', 'svelte', 'tsx', 'jsx',
+        'content', 'contents', 'docs', 'www', 'com', 'org',
+    }
     for code, paths in cfg.content.context.items():
         for file in paths:
             text = read(base, base_files, file)
-            if text:
+            if not text:
+                continue
+            # Exclude automatic discovery only after a full configured artifact
+            # was actually supplied. Oversized Markdown can retain whole units.
+            if add(text, file=file, commit=base, role='configured_context', codes={code}):
                 configured.add(file)
-                # Declared evidence type is retained; consumers check relevance/freshness.
-                add(text, file=file, commit=base, role='configured_context', codes={code})
+                continue
+            if code not in {'B', 'P', 'S'} or PurePosixPath(file).suffix.lower() not in {'.md', '.mdx', '.txt'}:
+                continue
+            used = 0
+            supplied = False
+            for first, last, section in _sections(text):
+                heading = section.splitlines()[0]
+                section_tokens = set(re.findall(r'[a-z0-9]{3,}', section.lower()))
+                target_match = bool(target_tokens & section_tokens)
+                relevant = (target_match or
+                            (code == 'B' and (_business_document(file) or _BUSINESS.search(heading))) or
+                            (code == 'P' and (_writing_document(file) or _EDITORIAL.search(heading))))
+                if not relevant:
+                    continue
+                if used + len(section) > per_file:
+                    omit(file, 'Whole relevant configured section exceeds per-file allowance', commit=base,
+                         code=code, start_line=first, end_line=last)
+                    continue
+                if add(section, file=file, commit=base, role='configured_context', codes={code},
+                       scope='configured_matched_section', start=first, end=last, complete=False):
+                    used += len(section)
+                    supplied = True
+            if not supplied:
+                omit(file, 'No whole relevant configured Markdown unit admitted', commit=base, code=code)
 
     parent = PurePosixPath(path).parent
     ancestors = {str(p) for p in (parent, *parent.parents)}
@@ -238,7 +285,11 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         low = file.lower()
         if file in configured or not applicable_skill(file) or p.suffix.lower() not in {'.md', '.mdx', '.txt'}:
             continue
-        if p.name.lower() in {'agents.md', 'claude.md'} and str(p.parent) in ancestors:
+        if _business_document(file) and (str(p.parent) == '.' or low.startswith(('docs/', 'doc/', '.agents/'))):
+            candidates.append((-2, file))
+        elif _writing_document(file) and (str(p.parent) == '.' or low.startswith(('docs/', 'doc/', '.agents/'))):
+            candidates.append((-1, file))
+        elif p.name.lower() in {'agents.md', 'claude.md'} and str(p.parent) in ancestors:
             candidates.append((0, file))
         elif p.name.lower().startswith('readme') and (str(p.parent) in ancestors or str(p.parent) == '.'):
             candidates.append((1, file))
@@ -266,21 +317,41 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
     document_count = 0
     documentation_used = 0
     documentation_budget = min(8000, remaining // 2)
+    business_budget = documentation_budget // 2
+    business_used = 0
     for _, file in sorted(set(candidates))[:40]:
         text = read(base, base_files, file)
         if not text:
             continue
         document_count += 1
         used = 0
-        for first, last, section in _sections(text):
-            if not _TOPICS.search(section):
+        is_business = _business_document(file)
+        is_writing = _writing_document(file)
+        is_agent = PurePosixPath(file).name.lower() in {'agents.md', 'claude.md'}
+        units = _sections(text)
+        if is_business and len(text) + 500 <= business_budget - business_used and len(text) <= per_file:
+            units = [(1, len(text.splitlines()), text)]
+        if is_agent:
+            # Editorial headings lead; generic development sections mentioning
+            # content or product cannot consume the content-policy allowance.
+            units.sort(key=lambda unit: (not bool(_EDITORIAL.search(unit[2].splitlines()[0])), unit[0]))
+        for first, last, section in units:
+            editorial = bool(_EDITORIAL.search(section) or re.match(r'^#{1,6}\s+Writing\s*$', section.splitlines()[0], re.I))
+            if not (is_business or is_writing or editorial or (not is_agent and _TOPICS.search(section))):
                 continue
             codes = set()
-            if _POLICY.search(section):
-                codes.add('P')
-            if _BUSINESS.search(section):
+            if is_business or (not is_agent and _BUSINESS.search(section)):
                 codes.add('B')
+            adopted_policy = bool(re.search(
+                r'\b(?:must|required?|never|prohibit|policy|guidelines?|rules?|avoid|prefer|do not|should|standards?)\b',
+                section, re.I))
+            if is_writing or (editorial and adopted_policy):
+                codes.add('P')
             if not codes:
+                continue
+            if codes == {'B'} and business_used + len(section) + 500 > business_budget:
+                omit(file, 'Business-context allowance exhausted; writing-policy space reserved', commit=base,
+                     start_line=first, end_line=last)
                 continue
             if used + len(section) > per_file or documentation_used + len(section) + 500 > documentation_budget:
                 omit(file, 'Relevant whole section exceeds per-document budget', commit=base,
@@ -291,6 +362,8 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
                    complete=first == 1 and last == len(text.splitlines())):
                 used += len(section)
                 documentation_used += len(section) + 500
+                if codes == {'B'}:
+                    business_used += len(section) + 500
         if document_count >= 16:
             omit(path, 'Automatic documentation scan capped at 16 documents', commit=base)
             break

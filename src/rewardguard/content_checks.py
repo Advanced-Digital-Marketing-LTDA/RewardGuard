@@ -14,14 +14,24 @@ import urllib.parse
 import urllib.request
 
 
-RULE_ID = re.compile(r"[A-Z][A-Z0-9_]{0,119}\Z")
+RULE_ID = re.compile(r"CG_[A-Z0-9_]{1,116}\Z")
 
 
-def safe(value: object) -> str:
-    """Render report data as inert Markdown text, including workflow command characters."""
+def display_limit(value: str, limit: int) -> str:
+    """Cap presentation bytes explicitly; grading always uses the original report."""
+    encoded = value.encode("utf-8")
+    if len(encoded) <= limit:
+        return value
+    marker = " … (display truncated; see JSON)"
+    budget = max(0, limit - len(marker.encode("utf-8")))
+    return encoded[:budget].decode("utf-8", errors="ignore").rstrip("\\") + marker
+
+
+def safe(value: object, limit: int = 2000) -> str:
+    """Render report data as inert Markdown text, marking any display truncation."""
     value = re.sub(r"[\x00-\x1f\x7f]", " ", str(value))
     value = html.escape(value, quote=False)
-    return re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", value)[:2000]
+    return display_limit(re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", value), limit)
 
 
 def source_records(value: object) -> list[dict]:
@@ -32,7 +42,7 @@ def source_records(value: object) -> list[dict]:
 def source_summary(value: object) -> str:
     rows = source_records(value)
     paths = sorted({str(row.get("path", row.get("file", "unspecified"))) for row in rows})
-    examples = ", ".join(safe(path[:250]) for path in paths[:5])
+    examples = ", ".join(safe(path, 250) for path in paths[:5])
     tail = f"; {len(paths) - 5} more paths" if len(paths) > 5 else ""
     return f"{len(rows)} evidence unit(s) from {len(paths)} source path(s)" + (f": {examples}{tail}" if paths else "")
 
@@ -48,7 +58,7 @@ def omission_groups(value: object) -> list[tuple[str, list[str], int]]:
 
 def omission_summary(value: object) -> str:
     groups = omission_groups(value)
-    parts = [f"{safe(reason[:300])} ({count})" for reason, _, count in groups[:6]]
+    parts = [f"{safe(reason, 300)} ({count})" for reason, _, count in groups[:6]]
     if len(groups) > 6:
         parts.append(f"{len(groups) - 6} additional reason(s); see JSON")
     return "; ".join(parts) or "No collection omissions recorded"
@@ -57,7 +67,9 @@ def omission_summary(value: object) -> str:
 def probability(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value) if math.isfinite(value) and 0 <= value <= 1 else None
+    if not 0 <= value <= 1:
+        return None
+    return float(value) if math.isfinite(value) else None
 
 
 def _scope(row: dict) -> str:
@@ -70,18 +82,48 @@ def _scope(row: dict) -> str:
 
 
 def build_checks(report: dict) -> list[dict]:
-    content = report.get("content") or {}
-    if not isinstance(content, dict):
-        raise ValueError("content must be an object")
-    coverage = content.get("coverage", [])
-    findings = report.get("findings", [])
+    content = report.get("content")
+    if not isinstance(content, dict) or not content:
+        raise ValueError("content must be a nonempty object")
+    status = content.get("status")
+    if not isinstance(status, str) or status not in {"reviewed", "skipped", "not_evaluated", "error"}:
+        raise ValueError("unknown content status")
+    coverage = content.get("coverage")
+    findings = report.get("findings")
+    notes = report.get("notes")
     if not isinstance(coverage, list) or not all(isinstance(r, dict) for r in coverage):
         raise ValueError("coverage must be an array of objects")
     if not isinstance(findings, list) or not all(isinstance(r, dict) for r in findings):
         raise ValueError("findings must be an array of objects")
-    counts = Counter(str(r.get("status", "unknown")) for r in coverage)
-    classifiers = [r for r in coverage if r.get("stage") == "classification"]
-    status = str(content.get("status", "unavailable"))
+    if not isinstance(notes, list) or not all(isinstance(note, str) for note in notes):
+        raise ValueError("notes must be an array of strings")
+    for row in coverage:
+        row_status = row.get("status")
+        if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable"}:
+            raise ValueError("unknown content coverage status")
+        rule = row.get("rule")
+        if rule is not None and (not isinstance(rule, str) or not RULE_ID.fullmatch(rule)):
+            raise ValueError("invalid content rule ID")
+        if row_status in {"evaluated", "not_applicable"} and rule is None:
+            raise ValueError("rule coverage requires a content rule ID")
+        if row.get("stage") == "classification":
+            if row_status not in {"eligible", "skipped"} or probability(row.get("probability")) is None:
+                raise ValueError("classification requires a valid probability and classification status")
+        elif row_status in {"eligible", "skipped"}:
+            raise ValueError("classification status requires the classification stage")
+        if row_status == "evaluated" and probability(row.get("probability")) is None:
+            raise ValueError("evaluated coverage requires a valid probability")
+        if "applicability" in row and probability(row["applicability"]) is None:
+            raise ValueError("rule applicability requires a valid probability")
+    for finding in findings:
+        if finding.get("source") == "content":
+            rule = finding.get("rule")
+            if not isinstance(rule, str) or not RULE_ID.fullmatch(rule) or probability(finding.get("probability")) is None:
+                raise ValueError("content findings require a content rule ID and valid probability")
+    if status == "reviewed" and not any(row["status"] == "evaluated" for row in coverage):
+        raise ValueError("reviewed content must contain an evaluated rule scope")
+    counts = Counter(row["status"] for row in coverage)
+    classifiers = [row for row in coverage if row.get("stage") == "classification"]
     summary = (f"Content status: {safe(status)}. Classification: {len(classifiers)} chunk(s), "
                f"{sum(r.get('status') == 'eligible' for r in classifiers)} eligible, "
                f"{sum(r.get('status') == 'skipped' for r in classifiers)} skipped.\n\n"
@@ -89,21 +131,27 @@ def build_checks(report: dict) -> list[dict]:
                + ".\n\nClassification at p >= 0.60 enters review; it is not a defect score. "
                "Skipped and missing evidence scopes are unverified, never a clean content verdict.")
     for row in classifiers[:20]:
-        summary += f"\n- {_scope(row)}; classification p={safe(row.get('probability', 'unknown'))}; {safe(row.get('status', 'unknown'))}"
+        summary += f"\n- {_scope(row)}; classification p={safe(row['probability'])}; {safe(row['status'])}"
+    if len(classifiers) > 20:
+        summary += f"\n- {len(classifiers) - 20} additional classification scopes; see JSON."
     general_gaps = [r for r in coverage if not r.get("rule") and r.get("status") == "not_evaluated"]
     for row in general_gaps[:10]:
         summary += f"\n- Unverified: {_scope(row)}"
+    if len(general_gaps) > 10:
+        summary += f"\n- {len(general_gaps) - 10} additional unverified scopes; see JSON."
     summary += f"\n\nSources: {source_summary(content.get('provenance', []))}"
     if content.get("omissions"):
         summary += f"\n\nCollection limits: {omission_summary(content['omissions'])}. Missing automatic discovery probes do not require repository setup."
     for key in ("eligibility", "missing_sources", "reason"):
         if key in content:
             summary += f"\n\n{safe(key)}: {safe(content[key])}"
-    for note in report.get("notes", [])[:10]:
-        if "content" in str(note).lower():
-            summary += f"\n\n{safe(note)}"
+    content_notes = [note for note in notes if "content" in note.lower()]
+    for note in content_notes[:10]:
+        summary += f"\n\n{safe(note)}"
+    if len(content_notes) > 10:
+        summary += f"\n\n{len(content_notes) - 10} additional content notes; see JSON."
     checks = [{"name": "contentguard / eligibility", "conclusion": "neutral",
-               "output": {"title": "Content eligibility and coverage", "summary": summary}}]
+               "output": {"title": "Content eligibility and coverage", "summary": display_limit(summary, 60000)}}]
     groups = defaultdict(list)
     for row in coverage:
         if row.get("rule") and row.get("status") in ("evaluated", "not_evaluated"):
@@ -123,9 +171,10 @@ def build_checks(report: dict) -> list[dict]:
     for rule, rows in sorted(groups.items()):
         evaluated = [r for r in rows if r.get("status") == "evaluated"]
         gaps = [r for r in rows if r.get("status") == "not_evaluated"]
-        scores = [p for r in evaluated + content_findings[rule] if (p := probability(r.get("probability"))) is not None]
+        # Every evaluated/finding score was validated before any presentation limits.
+        scores = [float(row["probability"]) for row in evaluated + content_findings[rule]]
         peak = max(scores) if scores else None
-        uncertain = bool(gaps) or any(probability(r.get("probability")) is None for r in evaluated + content_findings[rule])
+        uncertain = bool(gaps)
         conclusion = "neutral"
         if peak is not None and peak >= .8:
             conclusion = "failure"
@@ -151,13 +200,14 @@ def build_checks(report: dict) -> list[dict]:
             for detail in (finding.get("details") or [])[:5]:
                 if isinstance(detail, dict):
                     summary += f"\n- Grounded line {safe(detail.get('line'))}: {safe(detail.get('problem', ''))}; fix: {safe(detail.get('fix', ''))}"
+            if len(finding.get("details") or []) > 5:
+                summary += f"\n- {len(finding['details']) - 5} additional grounded details; see JSON."
+        if len(content_findings[rule]) > 10:
+            summary += f"\n\n{len(content_findings[rule]) - 10} additional findings; see JSON."
         checks.append({"name": f"contentguard / {rule}", "conclusion": conclusion,
-                       "output": {"title": title, "summary": summary[:60000]}})
+                       "output": {"title": title, "summary": display_limit(summary, 60000)}})
     if status == "error":
         checks.append(error_check("Content evaluation failed; reviewed scopes are incomplete. See the RewardGuard error report."))
-    elif not content:
-        checks.append({"name": "contentguard / evaluation", "conclusion": "neutral",
-                       "output": {"title": "Content coverage unavailable", "summary": "No content result was recorded. The scope is unverified; see the aggregate check for preflight or coding errors."}})
     return checks
 
 
@@ -207,8 +257,8 @@ def main(argv: list[str] | None = None) -> int:
         opener = urllib.request.build_opener(NoRedirect)
         for check in checks:
             # GitHub caps text by bytes; bound every output even with multi-byte report text.
-            check["output"]["summary"] = check["output"]["summary"].encode("utf-8")[:60000].decode("utf-8", errors="ignore")
-            check["output"]["title"] = check["output"]["title"].encode("utf-8")[:250].decode("utf-8", errors="ignore")
+            check["output"]["summary"] = display_limit(check["output"]["summary"], 60000)
+            check["output"]["title"] = display_limit(check["output"]["title"], 250)
             payload = dict(check, head_sha=args.head, status="completed")
             request = urllib.request.Request(f"{base}/repos/{args.repo}/check-runs", method="POST",
                                              data=json.dumps(payload, allow_nan=False).encode(),

@@ -77,7 +77,7 @@ def _content_markdown(content: dict) -> list[str]:
                 scope += f"; lines {source['start_line']}–{source.get('end_line', source['start_line'])}"
             codes = source.get("codes", [])
             code_text = ", ".join(map(str, codes)) if isinstance(codes, list) else str(codes)
-            lines.append(f"| {safe(str(source.get('path', source.get('file', 'unspecified')))[:250])} | {safe(revision)} | {safe(scope[:250])} | {safe(code_text[:100]) or '—'} |")
+            lines.append(f"| {safe(source.get('path', source.get('file', 'unspecified')), 250)} | {safe(revision)} | {safe(scope, 250)} | {safe(code_text, 100) or '—'} |")
         if len(provenance) > 12:
             lines += ["", f"{len(provenance) - 12} additional evidence unit(s); see JSON for full scope and provenance."]
         lines += ["", "</details>", ""]
@@ -87,10 +87,10 @@ def _content_markdown(content: dict) -> list[str]:
                   "Missing automatically probed conventional files do not require repository setup. Applicable rules still need their stated evidence.", "",
                   "| Reason | Occurrences | Example paths |", "|---|---:|---|"]
         for reason, paths, count in omission_rows[:8]:
-            examples = ", ".join(safe(path[:250]) for path in paths[:3])
+            examples = ", ".join(safe(path, 250) for path in paths[:3])
             if len(paths) > 3:
                 examples += f"; {len(paths) - 3} more paths"
-            lines.append(f"| {safe(reason[:300])} | {count} | {examples} |")
+            lines.append(f"| {safe(reason, 300)} | {count} | {examples} |")
         if len(omission_rows) > 8:
             lines += ["", f"{len(omission_rows) - 8} additional reason(s); see JSON."]
         lines += ["", "</details>", ""]
@@ -118,14 +118,14 @@ def markdown(report: Report) -> str:
              f"{fails} fail · {warns} warn · {len(report.errors)} error", ""]
     lines += _content_markdown(report.content)
     if report.errors:
-        lines += ["### Errors", ""] + [f"- {safe(e.splitlines()[0][:300])}" for e in report.errors] + [""]
+        lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
         lines += ["| Severity | Rule | Where | Detail |", "|---|---|---|---|"]
         for f in sorted(report.findings, key=lambda x: (x.source != "content", x.severity != FAIL, x.file or "", x.line or 0)):
             p = f" (p={f.probability!r})" if f.probability is not None else ""
             detail = safe(f.message)
             if f.evidence:
-                detail += "<br>" + safe(f.evidence.splitlines()[0][:120])
+                detail += "<br>" + safe(f.evidence, 160)
             for d in f.details or []:
                 detail += f"<br>line {safe(d['line'])}: {safe(d['problem'])} Fix: {safe(d['fix'])}"
             if f.details == []:
