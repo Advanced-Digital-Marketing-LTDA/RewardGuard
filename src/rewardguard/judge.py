@@ -127,14 +127,10 @@ SOURCE_QUESTIONS = {
                      "In this diff of application code, a timeout, size limit, rate limit or retry limit was "
                      "raised or removed without a stated reason."),
     "hollow_fallback": ("HOLLOW_FALLBACK",
-                        "A changed fallback discards a required substantive computation or result and substitutes "
-                        "an empty, zero, truncated or minimal value, causing a success or size/count/format check "
-                        "to pass incorrectly while the required result is lost. Identify both the required lost "
-                        "result and the consumer/check that falsely treats the substitute as valid success. "
-                        "The presence of an empty value alone is insufficient. Explicitly represented optional "
-                        "metadata absence, an unavailable/unverified status, or disclosed review-context budget "
-                        "limits are not hollow results unless they actually conceal loss of required output "
-                        "and falsely report that output as successfully produced."),
+                        "In this diff of application code, a fallback returns an empty, truncated, zero or minimal "
+                        "value (for example an empty buffer, empty string, empty list or a value cut down until it "
+                        "fits a limit) so that a size, count or format check still passes while the real result is "
+                        "lost."),
     "test_hedging": ("SPECULATIVE_TEST_HEDGING",
                      "In this diff of application code, aliases, duplicate routes or exports, alternate argument "
                      "shapes or extra fallback lookups were added that the task does not ask for and no caller in "
@@ -564,7 +560,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
                 continue
             rule, statement = qs[key]
             message = "Jev: " + SUMMARY[rule]
-            if key == "expected_changed" and (any_source_changed or has_context):
+            if key == "expected_changed" and any_source_changed:
                 just = client.ask(
                     f"Quoted PR title and description:\n{_desc(description, _context_limit(cfg))}\n\n"
                     f"Test file: {chunk.path}\nTest diff:\n{chunk.body}",
