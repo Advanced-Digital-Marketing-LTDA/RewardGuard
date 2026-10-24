@@ -50,6 +50,11 @@ DEFAULT_CONTENT_INCLUDE = [
 DEFAULT_CONTENT_SOURCE_INCLUDE = ["**/*.{js,ts,mjs,cjs,mts,cts}"]
 DEFAULT_CONTENT_EXCLUDE = [
     *DEFAULT_EXCLUDE,
+    # Internal documentation is evidence/context, not website content to grade.
+    # Trusted projects publishing from docs/ can explicitly replace this list.
+    "**/{.agents,.claude,.codex,.cursor,.github,.rewardguard,.superpowers,.windsurf,docs,doc,documentation,adr,adrs}/**",
+    "**/{AGENTS,CLAUDE,GEMINI,SKILL,agents,claude,gemini,skill}{,.*}",
+    "**/{README,Readme,readme,CONTRIBUTING,contributing,DEVELOPMENT,development,DEVELOPING,developing,ARCHITECTURE,architecture,CODE_OF_CONDUCT,code_of_conduct,MAINTAINERS,maintainers,TODO,todo}{,.*}",
     "**/{vendor,.git,.venv,venv,.next,.nuxt,.svelte-kit,.astro,out,.output}/**",
     "**/{test,tests,e2e,__tests__,__snapshots__,test-results}/**",
     "**/*.{test,spec}.*",

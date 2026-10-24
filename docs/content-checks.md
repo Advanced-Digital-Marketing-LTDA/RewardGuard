@@ -29,7 +29,7 @@ enabled = true
 packs = [] # All packs are eligible; Jev applicability and evidence still filter them.
 
 # Optional path-list overrides; omit these to retain packaged defaults.
-# include = ["content/**", "docs/**", "public/robots.txt", "public/sitemap*.xml"]
+# include = ["content/**", "src/pages/**", "public/robots.txt", "public/sitemap*.xml"]
 # source_include = ["src/**/*.astro", "src/**/*.svelte", "src/**/*.tsx"]
 # exclude = ["vendor/**", "generated/vendor/**"]
 
@@ -55,6 +55,33 @@ packs = [] # All packs are eligible; Jev applicability and evidence still filter
 | `content.context` | Evidence-code arrays of trusted-base file paths. These are file paths, not shell commands, network URLs, or branch-executed collectors. |
 
 Omitted path lists retain packaged defaults; explicit lists are project overrides. Preserve the necessary editorial, source-copy, metadata/schema, and discovery-control paths when customizing them. A path match only makes a change eligible for classification; it is not a finding.
+
+### Internal documents are context, not review targets
+
+The default presence gate excludes `.agents/`, `.claude/`, `.codex/`, `.cursor/`,
+`.github/`, `.rewardguard/`, `.superpowers/`, `.windsurf/`, `docs/`, `doc/`,
+`documentation/`, `adr/`, and `adrs/` at any depth. Agent/skill instruction
+files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `SKILL.md`,
+including local variants, are excluded alongside conventional README, contributor,
+development, architecture, maintainer, conduct and TODO documents.
+
+These paths are filtered before diff chunking, content classification, evidence
+collection for a target, or focused content review. An internal-docs-only change
+therefore skips content review with no content-model calls. In mixed changes,
+website files remain eligible. Jev also rejects unrelated internal documents in
+other locations based on the actual changed artifact's purpose; a mention of
+SEO, a landing page, or example public copy does not make an internal document a
+website content task.
+
+Target exclusion does not prevent relevant trusted documents from supplying
+product context or adopted editorial policy to a genuine website-content review.
+Normal coding/integrity checks continue independently.
+
+A site that actually publishes pages from `docs/` can opt in through trusted-base
+`content.include` and `content.exclude` overrides. Exclusions take precedence:
+including `docs/**` alone does not undo the default exclusion. Replace the exclude
+list deliberately, retaining generated/vendor/test exclusions and other internal
+paths; changing that list in a PR cannot affect its own review.
 
 Context files supply evidence, not permission to run code. The reviewer does not crawl a site, query an account, execute a build, run candidate scripts, or fetch current competitor facts to fill a missing evidence slot. Supply relevant inspection records separately. Dates are required only when material to the claim, such as current price or a verified publication update.
 
