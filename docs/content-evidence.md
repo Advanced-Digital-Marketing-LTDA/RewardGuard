@@ -91,5 +91,14 @@ content has a separate bounded allowance. Documentation scans, related files,
 file inventory, and static HTML observations have explicit caps. Oversized or
 skipped units produce omission records. `complete` applies to the stated unit or
 scope, so consumers must not interpret a matched section as a complete artifact.
+Guidance relevance uses the complete blob already admitted by the read-size guard.
+Policy-reference discovery, changed-line anchor collection, section selection, and
+history limits each report omissions when they exclude candidates. The primary
+diff remains independent of these context-selection limits. If an affected artifact
+is unavailable, the collector records that fact and skips dependent skill-relevance,
+link-prioritization, import, or related-section analysis rather than treating the
+artifact as empty. An absent base counterpart for a newly added file is explicitly
+recorded as unavailable.
+
 Missing external facts and omitted evidence remain gaps, rather than proof that
 the changed content is defective.

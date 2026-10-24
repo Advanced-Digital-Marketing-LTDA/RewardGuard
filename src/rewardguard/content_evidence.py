@@ -155,6 +155,8 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
             omit(file, 'Unsafe or excluded repository path', commit=commit)
             return None
         if file not in files:
+            omit(file, 'File not available at revision', commit=commit)
+            cache[key] = None
             return None
         oid = files[file][0]
         size = int(gitops.git(repo, 'cat-file', '-s', oid).stdout.strip())
@@ -212,7 +214,11 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
     parent = PurePosixPath(path).parent
     ancestors = {str(p) for p in (parent, *parent.parents)}
     candidates = []
-    target_hint = path + '\n' + (read(proposed, head_files, path) or '')[:6000]
+    proposed_source = read(proposed, head_files, path)
+    target_hint = None if proposed_source is None else path + '\n' + proposed_source
+    if target_hint is None:
+        omit(path, 'Artifact-dependent installed-skill relevance analysis unavailable: proposed source not available',
+             commit=proposed)
 
     def applicable_skill(file):
         # Ordinary project docs can concern several topics; installed skills require
@@ -220,6 +226,8 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         low = file.lower()
         if '/skills/' not in low:
             return True
+        if target_hint is None:
+            return False
         if re.search(r'seo|schema|search', low):
             return bool(re.search(r'html|astro|page|blog|article|metadata|title|robots|sitemap|canonical', target_hint, re.I))
         if re.search(r'cro|conversion|landing|pricing', low):
@@ -238,6 +246,9 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
             # Skills must be relevant by path and by topic below; do not load all skills.
             candidates.append((2, file))
     discovered = {file for _, file in candidates}
+    if len(candidates) > 30:
+        omit(path, 'Local policy-reference discovery capped at 30 candidate documents',
+             commit=base, omitted_count=len(candidates) - 30)
     for _, file in sorted(candidates)[:30]:
         text = read(base, base_files, file)
         if not text:
@@ -289,9 +300,12 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
              candidate_count=len(candidates), scanned_count=document_count)
 
     # This is a file-path inventory only. It can never establish URL, route, or render completeness.
-    target_source = cache.get((proposed, path)) or ''
+    target_source = read(proposed, head_files, path)
     local_link_hints = set()
-    for target in re.findall(r'''(?:href|src)\s*=\s*["']([^"'<>\n{}]+)["']''', target_source):
+    if target_source is None:
+        omit(path, 'Local-link inventory prioritization unavailable: proposed source not available',
+             commit=proposed)
+    for target in re.findall(r'''(?:href|src)\s*=\s*["']([^"'<>\n{}]+)["']''', target_source) if target_source is not None else []:
         target = target.split('#', 1)[0].split('?', 1)[0]
         if not target or target.startswith('//') or re.match(r'[a-z][a-z0-9+.-]*:', target, re.I):
             continue
@@ -335,6 +349,9 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         for commit, start, count in ((base, old_start, old_count), (proposed, new_start, new_count)):
             number = int(start)
             length = int(count) if count else 1
+            if length > 200:
+                omit(path, 'Changed-line anchor collection capped at 200 lines in this hunk; primary diff remains independent',
+                     commit=commit, start_line=number, hunk_line_count=length, omitted_count=length - 200)
             changed_lines[commit].update(range(max(1, number), max(1, number) + max(1, min(length, 200))))
 
     for commit, files, role in ((base, base_files, 'base_artifact'), (proposed, head_files, 'proposed_artifact')):
@@ -351,6 +368,9 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
             sections = (_sections(text) if PurePosixPath(path).suffix.lower() in {'.md', '.mdx'}
                         else _semantic_sections(text))
             selected = set()
+            if len(changed_lines[commit]) > 200:
+                omit(path, 'Whole-section selection capped at 200 changed-line anchors; primary diff remains independent',
+                     commit=commit, omitted_count=len(changed_lines[commit]) - 200)
             for changed_line in sorted(changed_lines[commit])[:200]:
                 matches = [unit for unit in sections if unit[0] <= changed_line <= unit[1]]
                 matches.sort(key=lambda unit: len(unit[2]))
@@ -381,8 +401,10 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
     # Resolve static local imports and conventional aliases without executing config.
     related = set()
     for commit, files in ((base, base_files), (proposed, head_files)):
-        text = cache.get((commit, path)) or ''
-        for imported in re.findall(r'''(?:\bfrom\s+|\bimport\s*|\brequire\s*\()["']((?:\.|\$lib/|@/)[^"'\n]+)["']''', text):
+        text = read(commit, files, path)
+        if text is None:
+            omit(path, 'Static import discovery unavailable: affected source not available', commit=commit)
+        for imported in re.findall(r'''(?:\bfrom\s+|\bimport\s*|\brequire\s*\()["']((?:\.|\$lib/|@/)[^"'\n]+)["']''', text) if text is not None else []:
             if imported.startswith('$lib/'):
                 stem = posixpath.normpath('src/lib/' + imported[5:])
             elif imported.startswith('@/'):
@@ -411,7 +433,11 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
                             else _semantic_sections(text))
                 # A scoped related unit must define a symbol actually referenced
                 # by this artifact; shared ordinary prose is insufficient.
-                artifact = cache.get((commit, path)) or ''
+                artifact = read(commit, files, path)
+                if artifact is None:
+                    omit(file, 'Related-section relevance analysis unavailable: affected source not available',
+                         commit=commit, affected_path=path)
+                    continue
                 source_identifiers = set(re.findall(r'\b[A-Za-z_$][A-Za-z0-9_$]*\b', artifact))
                 supplied = False
                 spent = 0
@@ -430,7 +456,10 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         omit(path, 'Related-source collection capped at 6 files', omitted_count=len(related) - 6)
 
     # Actual historical metadata, never a guessed timeline from the current template.
-    history = gitops.git(repo, 'log', '-5', '--format=%H %aI %s', base, '--', path).stdout.strip()
+    history_lines = gitops.git(repo, 'log', '-6', '--format=%H %aI %s', base, '--', path).stdout.splitlines()
+    if len(history_lines) > 5:
+        omit(path, 'Git history metadata capped at five commits; additional older history exists', commit=base)
+    history = '\n'.join(history_lines[:5])
     if history:
         add(_safe(history), file=path, commit=base, role='git_history', codes={'H'},
             scope='last_5_commits_affecting_file')

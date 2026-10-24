@@ -79,7 +79,7 @@ runs:
 
     - name: Install rewardguard
       shell: bash
-      run: python -m pip install --quiet "${{ github.action_path }}"
+      run: python -I -m pip install --quiet "${{ github.action_path }}"
 
     - name: Resolve base
       id: base
@@ -149,7 +149,7 @@ runs:
       env:
         BASE: ${{ steps.base.outputs.ref }}
         REVIEW_HEAD: ${{ steps.base.outputs.head }}
-      run: rewardguard run-tests --base "$BASE" --head "$REVIEW_HEAD" --out "$RUNNER_TEMP/rewardguard-run.json"
+      run: python -I -m rewardguard.cli run-tests --base "$BASE" --head "$REVIEW_HEAD" --out "$RUNNER_TEMP/rewardguard-run.json"
 
     - name: Upload run results
       if: inputs.mode == 'tests'
@@ -190,7 +190,7 @@ runs:
         fi
         rm -f "$RUNNER_TEMP/rewardguard.md" "$RUNNER_TEMP/rewardguard.json"
         set +e
-        rewardguard check --base "$BASE" --head "$REVIEW_HEAD" --no-local-tests "${results[@]}" \
+        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --no-local-tests "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e
