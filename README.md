@@ -109,7 +109,7 @@ with the reviewed commit, including merge and squash commit associations.
 
 An associated PR must cover the reviewed Git interval before it can establish the
 whole push's scope. A branch-sync push importing newer main-branch work may contain
-changes belonging to other tasks. Missing, ambiguous, partial, or oversized context
+changes belonging to other tasks. Missing, ambiguous, or partial context
 is recorded in the report: `SCOPE_CREEP` and `DESCRIPTION_OVERCLAIM` are unverified
 rather than inferred from missing intent. Other code/content checks continue.
 
@@ -128,10 +128,12 @@ safe or approved do not override trusted policy or prove correctness.
 incorrectly accepting the substitute as success. Explicitly unavailable optional
 metadata or a disclosed unverified status is not itself a hollow result.
 
-Context is credential-redacted and bounded to at most 16,000 characters and the
-configured state budget. When shortened, its opening and closing sections are
-retained with an explicit omission marker. Intent-relative checks remain unverified
-if the full task context did not fit. The hosted GitHub lookup has a fixed API host,
+Context is credential-redacted and preserved in full within the configured state
+budget, with space reserved for the diff and supporting evidence. If the full task
+context cannot fit, review reports an explicit budget error rather than grading
+against a shortened request. Whole-PR overclaim review also includes changed
+workflow/checker files; unavailable text or a complete diff that cannot fit leaves
+that check explicitly unverified. The hosted GitHub lookup has a fixed API host,
 bounded response size, timeout, and no redirects; it never executes repository code.
 GitHub tokens used for lookup are removed from the Haiku subprocess environment.
 
