@@ -270,6 +270,7 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     budget = cfg.max_state_chars - len(header)
     if budget < 2000:
         raise RewardGuardError("judge.max_state_chars is too small")
+    piece_budget = budget - 1  # assembly appends a newline after every piece
     chunks: list[Chunk] = []
     buf, first = "", None
     hunks = gitops.file_hunks(repo, base, head, cf.path, cfg.context_lines, cf.old_path)
@@ -277,12 +278,12 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     for h in hunks:
         lines, hidden = _redact_lines(h.lines)
         text = "\n".join([h.header, *lines])
-        if len(text) <= budget:
+        if len(text) <= piece_budget:
             pieces.append((text, h.new_start, hidden))
             continue
         part, start, n = h.header + "\n", h.new_start, h.new_start
         for line in lines:
-            if len(part) + len(line) + 1 > budget:
+            if len(part) + len(line) + 1 > piece_budget:
                 pieces.append((part, start, hidden))
                 part, start, hidden = h.header + " (continued)\n", n, 0  # a continuation starts at its own line
             part += line + "\n"
