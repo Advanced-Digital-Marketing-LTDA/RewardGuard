@@ -7,6 +7,8 @@ import html
 import json
 import math
 import os
+from pathlib import Path
+import stat
 import re
 import sys
 import urllib.error
@@ -116,6 +118,9 @@ def build_checks(report: dict) -> list[dict]:
             raise ValueError("invalid content rule ID")
         if row_status in {"evaluated", "not_applicable"} and rule is None:
             raise ValueError("rule coverage requires a content rule ID")
+        if (rule is not None or row.get("stage") == "classification") and (
+                not isinstance(row.get("file"), str) or not row["file"].strip()):
+            raise ValueError("content rule and classification scopes require an artifact path")
         if row.get("stage") == "classification":
             if row_status not in {"eligible", "skipped"} or probability(row.get("probability")) is None:
                 raise ValueError("classification requires a valid probability and classification status")
@@ -130,6 +135,8 @@ def build_checks(report: dict) -> list[dict]:
             rule = finding.get("rule")
             if not isinstance(rule, str) or not RULE_ID.fullmatch(rule) or probability(finding.get("probability")) is None:
                 raise ValueError("content findings require a content rule ID and valid probability")
+            if not isinstance(finding.get("file"), str) or not finding["file"].strip():
+                raise ValueError("content findings require an artifact path")
     if status == "reviewed" and not any(row["status"] == "evaluated" for row in coverage):
         raise ValueError("reviewed content must contain an evaluated rule scope")
     counts = Counter(row["status"] for row in coverage)
@@ -231,6 +238,42 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("GitHub API redirects are not permitted")
 
 
+
+def load_report(report_argument: str) -> dict:
+    """Read one bounded report inside the runner report directory or local CWD."""
+    runner_directory = os.environ.get("RUNNER_TEMP")
+    if runner_directory is not None and not runner_directory.strip():
+        raise ValueError("RUNNER_TEMP must identify the runner report directory")
+    try:
+        allowed_directory = (Path(runner_directory) if runner_directory is not None else Path.cwd()).resolve(strict=True)
+        report_path = Path(report_argument).resolve(strict=True)
+    except RuntimeError as exc:
+        raise ValueError("report path cannot be resolved safely") from exc
+    if not allowed_directory.is_dir():
+        raise ValueError("report root must be a directory")
+    if not report_path.is_relative_to(allowed_directory) or report_path.suffix != ".json":
+        raise ValueError("report must be a JSON file inside the report directory")
+    # Resolve before containment checking, and reject a changed final-component symlink on open.
+    descriptor = os.open(report_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(descriptor, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        maximum_bytes = 16 * 1024 * 1024
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("report must be a regular file")
+        if metadata.st_size > maximum_bytes:
+            raise ValueError("report exceeds the 16 MiB size limit")
+        payload = stream.read(maximum_bytes + 1)
+        if len(payload) > maximum_bytes:
+            raise ValueError("report exceeds the 16 MiB size limit")
+    try:
+        report = json.loads(payload)
+    except RecursionError as exc:
+        raise ValueError("report JSON nesting is unsupported") from exc
+    if not isinstance(report, dict):
+        raise ValueError("report must be an object")
+    return report
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", required=True)
@@ -244,25 +287,22 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("repo must be owner/name")
         base = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
         parsed = urllib.parse.urlsplit(base)
-        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+        if (parsed.scheme != "https" or parsed.hostname != "api.github.com" or parsed.username or parsed.password
                 or parsed.query or parsed.fragment or parsed.port not in (None, 443)
-                or parsed.path not in ("", "/api/v3")):
-            raise ValueError("GitHub API URL must be an absolute HTTPS API host (optionally /api/v3)")
+                or parsed.path != ""):
+            raise ValueError("GitHub API URL must use the hosted api.github.com HTTPS endpoint")
         token = os.environ.get("GH_TOKEN", "")
         if not token or any(ord(c) < 33 or ord(c) > 126 for c in token):
             print("::error::GH_TOKEN is missing or invalid; content checks require a token with checks:write.", file=sys.stderr)
             return 2
         invalid = False
         try:
-            with open(args.report, encoding="utf-8") as stream:
-                report = json.load(stream)
-            if not isinstance(report, dict):
-                raise ValueError("report must be an object")
+            report = load_report(args.report)
             checks = build_checks(report)
         except (OSError, ValueError, TypeError):
-            print("::error::RewardGuard JSON report is absent or malformed; content coverage is unavailable. Inspect the original judge error.", file=sys.stderr)
+            print("::error::RewardGuard JSON report is absent, outside the allowed directory, oversized, or malformed; content coverage is unavailable. Inspect the original judge error.", file=sys.stderr)
             invalid = True
-            checks = [error_check("RewardGuard JSON report is absent or malformed. Content coverage is unavailable; inspect the original judge step error."),
+            checks = [error_check("RewardGuard JSON report is absent, outside the allowed directory, oversized, or malformed. Content coverage is unavailable; inspect the original judge step error."),
                       {"name": "contentguard / eligibility", "conclusion": "neutral", "output": {"title": "Content eligibility unavailable", "summary": "No valid report; no content scope can be claimed reviewed."}}]
         opener = urllib.request.build_opener(NoRedirect)
         for check in checks:
