@@ -25,27 +25,33 @@ configured files remain eligible for automatic discovery. Other oversized
 configured formats are explicitly omitted. A supplied context file is a repository assertion; the
 collector does not independently authenticate its business claims or measurements.
 
-Automatic discovery then looks for ancestor `AGENTS.md`, `CLAUDE.md`, and README
-files, root product/style/content documents, plus documentation under `docs/`, `doc/`, and `.agents/` whose paths concern
-writing, content, product, style, SEO, CRO, or landing pages. Applicable agent files
-can reference local skill documents through Markdown links. Only safe local paths
-with relevant names are followed; remote links and unrelated skills are excluded.
-Markdown sections must contain a relevant topic and business or policy language.
-Known product/context documents lead automatic discovery and supply scoped B
-claims, including sections whose language does not match English topic words.
-Half of the automatic documentation allowance is reserved from B-only material
-for writing policy. Whole matching sections supply scoped B or P evidence.
-Known writing guides lead general agent instructions. Within agent files,
-editorial headings lead and generic development directives do not become writing
-policy merely by mentioning content or writing code. Automatic P requires an
-actual writing guide or editorial language with adopted policy instructions. A section that does not fit
-is omitted with its line range; a clipped sentence never becomes a complete policy.
-Business facts are repository-authored claims, not independently verified truth.
-All sources retain separate provenance, including conflicting facts; no newest-file
-overwrite or claim reconciliation is performed. Configured R/M evidence also
-requires consumer checks for the target file, measured revision, and freshness.
-The trusted revision of a context file does not prove it measured the proposed
-revision. Heuristics cannot establish that every discovered guideline applies to every rule.
+Internal-document filtering applies before all evidence discovery and reads, including
+explicit `[content.context]` paths. `content.evidence_exclude` defaults cover agent
+instructions and installed skills, documentation and planning trees, tests/fixtures,
+tooling, CI, infrastructure, backend-only paths and conventional project documents.
+A configured reference to an excluded file records an omission; its contents never
+become B/P/S/R/M evidence or reach Haiku. The same boundary applies to Markdown
+references, static imports, related-source candidates and inventory entries.
+Case differences such as `Docs/` and `Agents.md` do not bypass exclusions.
+
+Use the dedicated `.rewardguard/content-*.md` or JSON files for intentional review
+evidence. These remain eligible as trusted context but are excluded as grading
+targets. The old implicit `.agents/product-marketing.md` default is removed.
+Do not copy a whole development manual into a content policy; supply only the
+adopted public-content facts and requirements relevant to the reviewed artifact.
+
+Eligible root business/editorial documents can still provide scoped automatic B/P
+evidence. Whole sections, per-file budgets, relevance checks, provenance and source
+conflicts are preserved. Missing or filtered policy is a coverage gap, not proof of
+a defect. Configured R/M records still require target/revision/freshness checks.
+
+`content.exclude` controls grading targets; `content.evidence_exclude` controls
+evidence paths independently. Both are trusted-base, case-insensitive path-list
+overrides. A project that actually publishes from an otherwise internal-looking
+directory must deliberately retain the other internal exclusions while opting the
+published subtree into both lists. Adding a path to `include` or `context` alone
+does not bypass either exclusion list. Credential/private-export safety checks
+cannot be overridden by these lists.
 
 The proposed-tree inventory supplies I with scope `eligible_text_files`. It lists
 up to 40 eligible file paths, prioritizing the affected file, explicit local-link

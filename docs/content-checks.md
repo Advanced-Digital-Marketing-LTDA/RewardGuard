@@ -35,13 +35,13 @@ packs = [] # All packs are eligible; Jev applicability and evidence still filter
 
 [content.context]
 # Use real, repository-relative paths present on the trusted base.
-# B = [".agents/product-marketing.md"]
-# P = ["docs/editorial-policy.md"]
-# I = ["docs/content/routes.json"]
-# S = ["docs/content/source-evidence.json"]
-# R = ["docs/content/rendered-evidence.md"]
-# M = ["docs/content/metric-definitions.md"]
-# H = ["docs/content/publication-history.md"]
+# B = [".rewardguard/content-context.md"]
+# P = [".rewardguard/content-policy.md"]
+# I = [".rewardguard/content-inventory.json"]
+# S = [".rewardguard/content-sources.json"]
+# R = [".rewardguard/content-rendered.md"]
+# M = [".rewardguard/content-measurements.json"]
+# H = [".rewardguard/content-history.md"]
 ```
 
 
@@ -51,37 +51,46 @@ packs = [] # All packs are eligible; Jev applicability and evidence still filter
 | `content.include` | Content-bearing path patterns considered by the deterministic gate. |
 | `content.source_include` | Source/template path patterns considered for user-facing copy or content controls. |
 | `content.exclude` | Paths omitted from content selection. |
+| `content.evidence_exclude` | Paths omitted from all repository evidence, including explicit context, discovery, imports and inventories. |
 | `content.packs` | Eligible pack keys. An empty list means all packs; selecting a pack does not force every rule to run. |
 | `content.context` | Evidence-code arrays of trusted-base file paths. These are file paths, not shell commands, network URLs, or branch-executed collectors. |
 
 Omitted path lists retain packaged defaults; explicit lists are project overrides. Preserve the necessary editorial, source-copy, metadata/schema, and discovery-control paths when customizing them. A path match only makes a change eligible for classification; it is not a finding.
 
-### Internal documents are context, not review targets
+### Internal documents are excluded from targets and evidence
 
-The default presence gate excludes `.agents/`, `.claude/`, `.codex/`, `.cursor/`,
-`.github/`, `.rewardguard/`, `.superpowers/`, `.windsurf/`, `docs/`, `doc/`,
-`documentation/`, `adr/`, and `adrs/` at any depth. Agent/skill instruction
-files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `SKILL.md`,
-including local variants, are excluded alongside conventional README, contributor,
-development, architecture, maintainer, conduct and TODO documents.
+The default gate and evidence collector exclude agent instructions/skills,
+development documentation, plans/specifications/runbooks, tests and fixtures,
+tooling/examples, CI configuration, infrastructure/migrations and backend-only
+paths. Conventional project documents such as README, AGENTS, CLAUDE, LICENSE,
+CHANGELOG, CONTEXT and TESTING are excluded at any depth. Matching is
+case-insensitive. See the [path review](content-path-review.md) for the complete
+categories and boundaries.
 
-These paths are filtered before diff chunking, content classification, evidence
-collection for a target, or focused content review. An internal-docs-only change
-therefore skips content review with no content-model calls. In mixed changes,
-website files remain eligible. Jev also rejects unrelated internal documents in
-other locations based on the actual changed artifact's purpose; a mention of
-SEO, a landing page, or example public copy does not make an internal document a
-website content task.
+These filters apply before content-model calls and before evidence blob reads.
+Configured `[content.context]` references do not override
+`content.evidence_exclude`; filtered references are recorded as omissions.
+Automatic Markdown following, installed-skill discovery, related-source imports
+and Git file inventories use the same filter. Generic development guidance cannot
+become content policy merely because it mentions writing, content or SEO.
 
-Target exclusion does not prevent relevant trusted documents from supplying
-product context or adopted editorial policy to a genuine website-content review.
-Normal coding/integrity checks continue independently.
+Dedicated `.rewardguard/content-*` evidence files remain eligible as explicitly
+declared trusted context, while `.rewardguard/` stays excluded as a grading target.
+The implicit `.agents/product-marketing.md` context default is removed. Use the
+dedicated product/content evidence file when those facts are intentionally needed.
 
-A site that actually publishes pages from `docs/` can opt in through trusted-base
-`content.include` and `content.exclude` overrides. Exclusions take precedence:
-including `docs/**` alone does not undo the default exclusion. Replace the exclude
-list deliberately, retaining generated/vendor/test exclusions and other internal
-paths; changing that list in a PR cannot affect its own review.
+Public pages, landing pages, blog/article sources, templates, copy/locales,
+SEO/schema metadata and robots/sitemap/publication controls remain eligible outside
+internal paths. Missing evidence remains `not_evaluated`, not a content defect or
+a claimed pass. Coding/integrity checks continue independently.
+
+Sites actually publishing from `docs/`, `examples/` or another excluded directory
+can deliberately replace both `content.exclude` and
+`content.evidence_exclude` in trusted-base configuration, removing only the
+published subtree from the exclusions while retaining internal/test/generated
+paths. Include/context lists alone do not undo exclusions. Candidate config changes
+cannot alter their own review. Private/credential path safety checks remain
+non-overridable.
 
 Context files supply evidence, not permission to run code. The reviewer does not crawl a site, query an account, execute a build, run candidate scripts, or fetch current competitor facts to fill a missing evidence slot. Supply relevant inspection records separately. Dates are required only when material to the claim, such as current price or a verified publication update.
 
