@@ -13,6 +13,7 @@ from html.parser import HTMLParser
 from pathlib import PurePosixPath
 
 from . import gitops, judge
+from .config import content_path_excluded
 
 
 @dataclass
@@ -146,18 +147,25 @@ class _LiteralHTML(HTMLParser):
 def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> EvidenceBundle:
     """Collect scoped evidence for one affected FILE without executing repository code.
 
-    Only configured context may provide R/M/S. Automatic B/P derives from trusted
-    base documentation; automatic H is an actual Git log. All text remains data.
+    Only configured context may provide R/M/S. Automatic B/P derives from eligible
+    trusted base documents; internal paths are filtered even when configured.
+    Automatic H is an actual Git log. All text remains data.
     """
     bundle = EvidenceBundle()
     pieces: list[str] = []
     remaining = max(0, int(max_chars))
     per_file = min(6500, remaining)
-    base, base_files = _tree(repo, trusted_base)
-    proposed, head_files = _tree(repo, head)
-    if not _safe_path(path):
+    if not _safe_path(path) or content_path_excluded(path, cfg.content.evidence_exclude):
         bundle.omissions.append({'path': str(path), 'reason': 'Unsafe or excluded repository path'})
         return bundle
+    base, base_files = _tree(repo, trusted_base)
+    proposed, head_files = _tree(repo, head)
+    # Filter before candidate discovery, inventories, reference following or blob reads.
+    # Configured evidence uses the same exclusion boundary as discovered evidence.
+    base_files = {file: item for file, item in base_files.items()
+                  if not content_path_excluded(file, cfg.content.evidence_exclude)}
+    head_files = {file: item for file, item in head_files.items()
+                  if not content_path_excluded(file, cfg.content.evidence_exclude)}
 
     def omit(file, reason, **extra):
         bundle.omissions.append({'path': file, 'reason': reason, **extra})
@@ -168,8 +176,9 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
         key = (commit, file)
         if key in cache:
             return cache[key]
-        if not _safe_path(file):
-            omit(file, 'Unsafe or excluded repository path', commit=commit)
+        if not _safe_path(file) or content_path_excluded(file, cfg.content.evidence_exclude):
+            omit(file, 'Repository evidence excluded by path safety or content.evidence_exclude', commit=commit)
+            cache[key] = None
             return None
         if file not in files:
             omit(file, 'File not available at revision', commit=commit)
@@ -404,9 +413,10 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
             return (3, file)
         return (4, file)
 
-    inventory = sorted((f for f in head_files if PurePosixPath(f).suffix.lower() in _TEXT_SUFFIXES), key=inventory_priority)
+    inventory = sorted((f for f in head_files if PurePosixPath(f).suffix.lower() in _TEXT_SUFFIXES
+                        and not content_path_excluded(f, cfg.content.exclude)), key=inventory_priority)
     shown = inventory[:40]
-    inventory_text = 'Scope: eligible text FILE paths in proposed Git tree; excludes private/generated/binary paths.\n'
+    inventory_text = 'Scope: eligible text FILE paths in proposed Git tree; excludes internal/development, private/generated/binary and configured-excluded paths.\n'
     inventory_text += 'URL/render coverage: unknown.\n' + '\n'.join(shown)
     if len(inventory) > len(shown):
         omit(path, 'File inventory capped at 40 paths', omitted_count=len(inventory) - len(shown))

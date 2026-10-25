@@ -55,19 +55,22 @@ packs = [] # All packs are eligible; Jev applicability and evidence still filter
 
 # Optional complete path-list overrides. Omit these to retain packaged defaults.
 # Keep editorial/UI copy, metadata/schema and publication controls in scope as needed.
-# include = ["content/**", "docs/**", "public/robots.txt", "public/sitemap*.xml"]
+# include = ["content/**", "src/pages/**", "public/robots.txt", "public/sitemap*.xml"]
 # source_include = ["src/**/*.astro", "src/**/*.svelte", "src/**/*.tsx"]
 # exclude = ["vendor/**", "generated/vendor/**"]
+# evidence_exclude controls evidence independently; omit it to retain internal-doc
+# exclusions even for explicit [content.context] references. Overrides replace the
+# complete list; preserve internal/test/generated paths when opting in public docs.
 
 # Repository-relative files read from the trusted BASE revision, never the candidate.
 # Replace examples with real existing evidence paths. These do not run collectors or scripts.
 # Missing necessary evidence is not_evaluated, not a finding or a claimed pass.
 # Dates are required only when material to the particular claim.
 [content.context]
-# B = [".agents/product-marketing.md"]              # Product/audience/offer facts and brief
-# P = ["docs/editorial-policy.md"]                 # Explicit adopted artifact/platform policy
-# I = ["docs/content/routes.json"]                 # Complete relevant route/product/record inventory
-# S = ["docs/content/source-evidence.json"]        # Inspectable proof/source observations
-# R = ["docs/content/rendered-evidence.md"]        # Supplied resolved/rendered/runtime observations
-# M = ["docs/content/metric-definitions.md"]       # Inputs, definitions, formulas and denominators
-# H = ["docs/content/publication-history.md"]      # Publication/version/history evidence
+# B = [".rewardguard/content-context.md"]              # Product/audience/offer facts and brief
+# P = [".rewardguard/content-policy.md"]                 # Explicit adopted artifact/platform policy
+# I = [".rewardguard/content-inventory.json"]                 # Complete relevant route/product/record inventory
+# S = [".rewardguard/content-sources.json"]        # Inspectable proof/source observations
+# R = [".rewardguard/content-rendered.md"]        # Supplied resolved/rendered/runtime observations
+# M = [".rewardguard/content-measurements.json"]       # Inputs, definitions, formulas and denominators
+# H = [".rewardguard/content-history.md"]      # Publication/version/history evidence

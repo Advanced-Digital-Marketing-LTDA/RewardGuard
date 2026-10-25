@@ -6,7 +6,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import PureWindowsPath
 
-from . import gitops
+from . import gitops, globs
 from .models import RewardGuardError
 
 CONFIG_FILE = ".rewardguard.toml"
@@ -48,22 +48,44 @@ DEFAULT_CONTENT_INCLUDE = [
     "**/redirects.{json,jsonc,yaml,yml,toml,js,ts,mjs,cjs,mts,cts}",
 ]
 DEFAULT_CONTENT_SOURCE_INCLUDE = ["**/*.{js,ts,mjs,cjs,mts,cts}"]
-DEFAULT_CONTENT_EXCLUDE = [
-    *DEFAULT_EXCLUDE,
-    # Internal documentation is evidence/context, not website content to grade.
-    # Trusted projects publishing from docs/ can explicitly replace this list.
-    "**/{.agents,.claude,.codex,.cursor,.github,.rewardguard,.superpowers,.windsurf,docs,doc,documentation,adr,adrs}/**",
+DEFAULT_CONTENT_INTERNAL_EXCLUDE = [
+    # Development and agent material is neither publication copy nor automatic evidence.
+    "**/{.agents,.agent,.claude,.codex,.cursor,.superpowers,.windsurf,.opencode,.serena,.gstack,.warp,.aider,.vscode,.idea}/**",
+    "**/{docs,doc,documentation,adr,adrs,rfcs,rfc,specs,specifications,plans,planning,runbooks,playbooks,decisions,notes,tickets,tasks,issues}/**",
+    "**/{research,notebooks,reports,audits,evidence,benchmarks,benchmark}/**",
+    "**/{.github,.gitlab,.circleci,.buildkite,.devcontainer,.husky,.changeset,.changesets,ci}/**",
+    "**/{scripts,tools,tooling,skills,skills-src,examples,samples,fixtures,__fixtures__,mocks,__mocks__}/**",
+    "**/{test,tests,e2e,__tests__,__snapshots__,snapshots,test-results,playwright-report,storybook-static,.storybook}/**",
+    "**/{infra,infrastructure,terraform,deploy,deployment,deployments,docker,containers,migrations}/**",
+    "**/{backend,server}/**",
+    "**/{src,app,pages,routes}/{api,server}/**",
+    "**/{src,app,lib}/{db,database}/**",
+    "**/{prisma,drizzle}/migrations/**",
     "**/{AGENTS,CLAUDE,GEMINI,SKILL,agents,claude,gemini,skill}{,.*}",
-    "**/{README,Readme,readme,CONTRIBUTING,contributing,DEVELOPMENT,development,DEVELOPING,developing,ARCHITECTURE,architecture,CODE_OF_CONDUCT,code_of_conduct,MAINTAINERS,maintainers,TODO,todo}{,.*}",
+    "**/{README,CONTRIBUTING,DEVELOPMENT,DEVELOPING,ARCHITECTURE,CODE_OF_CONDUCT,MAINTAINERS,TODO,SECURITY,LICENSE,LICENCE,COPYING,NOTICE,CHANGELOG,CHANGES,CODEOWNERS}{,.*}",
+    "**/{CONTEXT,ROADMAP,PLAN,PLANS,DESIGN,SPEC,REQUIREMENTS,TASKS,TESTING,OPERATIONS,DEPLOYMENT,MIGRATION,RUNBOOK,EVIDENCE}{,.*}",
+    "**/*.{test,spec,stories,story}.*",
+    "**/*.d.{ts,mts,cts}",
+    "**/{tsconfig,jsconfig}{,.*}.json",
+    "**/{jest,vitest,playwright,eslint,prettier,stylelint,commitlint,postcss,tailwind,vite,webpack,rollup,babel}.config.*",
+    "**/.{eslintrc,prettierrc,babelrc,stylelintrc}{,.*}",
+]
+DEFAULT_CONTENT_EVIDENCE_EXCLUDE = [
+    *DEFAULT_EXCLUDE,
+    *DEFAULT_CONTENT_INTERNAL_EXCLUDE,
     "**/{vendor,.git,.venv,venv,.next,.nuxt,.svelte-kit,.astro,out,.output}/**",
-    "**/{test,tests,e2e,__tests__,__snapshots__,test-results}/**",
-    "**/*.{test,spec}.*",
+    "**/{__pycache__,.cache,.pytest_cache,.mypy_cache,.ruff_cache,.tox,.nox,.turbo,.parcel-cache,.vercel,.netlify}/**",
     "**/*.snap",
     "**/*.lock",
     "**/{bun.lockb,Pipfile.lock}",
 ]
+DEFAULT_CONTENT_EXCLUDE = [
+    *DEFAULT_CONTENT_EVIDENCE_EXCLUDE,
+    # Dedicated trusted evidence is not itself publication content to grade.
+    "**/.rewardguard/**",
+]
 DEFAULT_CONTENT_CONTEXT = {
-    "B": [".agents/product-marketing.md", ".rewardguard/content-context.md"],
+    "B": [".rewardguard/content-context.md"],
     "P": [".rewardguard/content-policy.md", ".rewardguard/content-policy.json"],
     "I": [".rewardguard/content-inventory.md", ".rewardguard/content-inventory.json"],
     "S": [".rewardguard/content-sources.md", ".rewardguard/content-sources.json"],
@@ -85,6 +107,12 @@ class ContentConfig:
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_EXCLUDE))
     context: dict[str, list[str]] = field(default_factory=_default_content_context)
     packs: list[str] = field(default_factory=list)  # Empty selects all supported packs.
+    evidence_exclude: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_EVIDENCE_EXCLUDE))
+
+
+def content_path_excluded(path: str, patterns: list[str]) -> bool:
+    """Apply content exclusions consistently, including Docs/ and mixed-case agent files."""
+    return globs.match(path.casefold(), tuple(pattern.casefold() for pattern in patterns))
 
 
 @dataclass
@@ -146,7 +174,7 @@ def _content_list(section: dict, key: str, default: list[str], *, scope: str = "
 def _parse_content(section: object) -> ContentConfig:
     if not isinstance(section, dict):
         raise RewardGuardError(f"{CONFIG_FILE}: [content] must be a table")
-    allowed = {"enabled", "include", "source_include", "exclude", "context", "packs"}
+    allowed = {"enabled", "include", "source_include", "exclude", "evidence_exclude", "context", "packs"}
     unknown = set(section) - allowed
     if unknown:
         raise RewardGuardError(f"{CONFIG_FILE}: unknown content setting '{min(unknown)}'")
@@ -168,6 +196,7 @@ def _parse_content(section: object) -> ContentConfig:
         include=_content_list(section, "include", DEFAULT_CONTENT_INCLUDE),
         source_include=_content_list(section, "source_include", DEFAULT_CONTENT_SOURCE_INCLUDE),
         exclude=_content_list(section, "exclude", DEFAULT_CONTENT_EXCLUDE),
+        evidence_exclude=_content_list(section, "evidence_exclude", DEFAULT_CONTENT_EVIDENCE_EXCLUDE),
         context=context,
         packs=_content_list(section, "packs", [], paths=False),
     )

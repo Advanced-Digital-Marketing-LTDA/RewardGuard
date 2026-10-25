@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field, replace
 
 from . import explainer, gitops, globs, judge
-from .config import Config
+from .config import Config, content_path_excluded
 from .models import Finding, RewardGuardError, WARN_AT, grade
 from .static_checks import OTHER
 
@@ -105,7 +105,7 @@ def candidates(repo, base, head, cfg, changed):
     for cf in changed:
         paths = [cf.path] + ([cf.old_path] if cf.old_path else [])
         # A surviving file is judged where it now lives: moving copy out of an excluded directory publishes it
-        if globs.match(cf.path, cfg.content.exclude):
+        if content_path_excluded(cf.path, cfg.content.exclude):
             continue
         direct = any(globs.match(path, cfg.content.include) for path in paths)
         source = any(globs.match(path, cfg.content.source_include) for path in paths)

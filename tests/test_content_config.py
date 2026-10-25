@@ -16,7 +16,7 @@ def test_content_defaults_are_enabled_with_trusted_context():
     assert content.enabled is True
     assert content.packs == []
     assert content.context == {
-        "B": [".agents/product-marketing.md", ".rewardguard/content-context.md"],
+        "B": [".rewardguard/content-context.md"],
         "P": [".rewardguard/content-policy.md", ".rewardguard/content-policy.json"],
         "I": [".rewardguard/content-inventory.md", ".rewardguard/content-inventory.json"],
         "S": [".rewardguard/content-sources.md", ".rewardguard/content-sources.json"],
@@ -117,7 +117,7 @@ def test_content_defaults_are_independent_between_configurations():
         assert globs.match("dist/index.html", content.exclude)
         assert content.packs == []
         assert content.context["B"] == [
-            ".agents/product-marketing.md", ".rewardguard/content-context.md",
+            ".rewardguard/content-context.md",
         ]
 
 
@@ -192,7 +192,7 @@ def test_missing_project_config_gets_content_defaults(content_repo):
 
     assert cfg.content.enabled is True
     assert cfg.content.context["B"] == [
-        ".agents/product-marketing.md", ".rewardguard/content-context.md",
+        ".rewardguard/content-context.md",
     ]
     assert cfg.run_tests is False
 
