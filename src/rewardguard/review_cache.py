@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -28,9 +29,13 @@ class ReviewCache:
             payload = record['payload']
             signature = hmac.new(self.key, (identity + payload).encode(), hashlib.sha256).hexdigest()
             if not hmac.compare_digest(signature, record['signature']):
+                logging.warning("RewardGuard ignored a cache entry with an invalid signature")
                 return None
             return json.loads(payload)
+        except FileNotFoundError:
+            return None
         except (OSError, ValueError, KeyError, TypeError):
+            logging.warning("RewardGuard could not read or validate a cache entry; reviewing again")
             return None
 
     def save(self, body, data):
@@ -48,10 +53,10 @@ class ReviewCache:
                 json.dump(record, stream)
             os.replace(temporary, self.root / (identity + '.json'))
         except OSError:
-            pass  # Cache availability never changes the verdict.
+            logging.warning("RewardGuard could not save a cache entry; verdict unchanged")
         finally:
             if temporary:
                 try:
                     Path(temporary).unlink(missing_ok=True)
                 except OSError:
-                    pass
+                    logging.warning("RewardGuard could not remove a temporary cache file")

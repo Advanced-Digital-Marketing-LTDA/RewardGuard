@@ -7,7 +7,7 @@ def test_clean_review_is_reused_across_clients(tmp_path, monkeypatch):
     cfg = config.parse('run_tests = false\n')
     api = FakeJev()
     for _ in range(2):
-        judge.JevClient(cfg, api_key='test-key', opener=api).ask('same evidence', {'q': 'same rule'})
+        assert judge.JevClient(cfg, api_key='test-key', opener=api).ask('same evidence', {'q': 'same rule'}) == {'q': .02}
     assert len(api.calls) == 1
     judge.JevClient(cfg, api_key='test-key', opener=api).ask('changed evidence', {'q': 'same rule'})
     assert len(api.calls) == 2
@@ -18,7 +18,7 @@ def test_findings_are_not_cached(tmp_path, monkeypatch):
     cfg = config.parse('run_tests = false\n')
     api = FakeJev(rules={('q', 'evidence'): .9})
     for _ in range(2):
-        judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'})
+        assert judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'}) == {'q': .9}
     assert len(api.calls) == 2
 
 
@@ -32,8 +32,8 @@ def test_tampered_cache_and_changed_key_are_not_trusted(tmp_path, monkeypatch):
         record = json.loads(path.read_text())
         record['payload'] = json.dumps({'answers': {'q': {'type': 'noul', 'noul': 0.0}}})
         path.write_text(json.dumps(record))
-    judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'})
-    judge.JevClient(cfg, api_key='different', opener=api).ask('evidence', {'q': 'rule'})
+    assert judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'}) == {'q': .02}
+    assert judge.JevClient(cfg, api_key='different', opener=api).ask('evidence', {'q': 'rule'}) == {'q': .02}
     assert len(api.calls) == 3
 
 
@@ -53,7 +53,7 @@ def test_routing_reuses_positive_classification(tmp_path, monkeypatch):
     cfg = config.parse('run_tests = false\n')
     api = FakeJev(rules={('content_task', 'evidence'): .99})
     for _ in range(2):
-        judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'content_task': 'classify'})
+        assert judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'content_task': 'classify'}) == {'content_task': .99}
     assert len(api.calls) == 1
 
 
@@ -72,7 +72,7 @@ def test_invalid_response_never_becomes_a_cached_pass(tmp_path, monkeypatch):
     cfg = config.parse('run_tests = false\n')
     api = FakeJev(raw={'answers': {}})
     for _ in range(2):
-        with pytest.raises(RewardGuardError):
+        with pytest.raises(RewardGuardError, match="no usable answer"):
             judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'})
     assert len(api.calls) == 2
     assert not list(tmp_path.glob('*.json'))
