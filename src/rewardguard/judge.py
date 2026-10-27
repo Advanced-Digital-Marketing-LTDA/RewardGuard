@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from . import gitops
 from .config import Config
 from .explainer import HaikuExplainer
-from .models import CLEAR_CUT, FAIL, Finding, RewardGuardError, grade
+from .models import WARN_AT, CLEAR_CUT, FAIL, Finding, RewardGuardError, grade
 from .static_checks import CHECKER, CONFIG, OTHER, SOURCE, TEST, find_secret
 
 EVIDENCE_NOTE = (
@@ -352,6 +352,9 @@ class JevClient:
         self.models_seen: set[str] = set()
         self.usage = usage
         self.phase = phase
+        from .review_cache import ReviewCache
+        self.cache = ReviewCache(self.api_key, cfg.api_url)
+        self.cache_hits = 0
 
     def ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
         if len(state) > self.cfg.max_state_chars:
@@ -361,6 +364,11 @@ class JevClient:
             "state": state,
             "questions": {k: {"type": "noul", "instructions": v} for k, v in questions.items()},
         }).encode()
+        cached = self.cache.load(body)
+        if cached is not None:
+            answers = self._validate(cached, questions)
+            self.cache_hits += 1
+            return answers
         delay = 2.0
         for attempt in range(4):
             req = urllib.request.Request(self.cfg.api_url, data=body, method="POST", headers={
@@ -384,7 +392,12 @@ class JevClient:
                 raise RewardGuardError(f"Jev API request failed: {e}") from e
             except json.JSONDecodeError as e:
                 raise RewardGuardError(f"Jev API returned invalid JSON: {e}") from e
-        return self._validate(data, questions)
+        answers = self._validate(data, questions)
+        routing = all(k == "content_task" or k.startswith(("pack_", "variant_", "applies_", "literal_"))
+                      for k in questions)
+        if routing or all(p < WARN_AT for p in answers.values()):
+            self.cache.save(body, {"model": data.get("model"), "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}})
+        return answers
 
     def _validate(self, data: dict, questions: dict[str, str]) -> dict[str, float]:
         if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):

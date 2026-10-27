@@ -81,6 +81,16 @@ runs:
       shell: bash
       run: python -I -m pip install --quiet "${{ github.action_path }}"
 
+    - name: Restore authenticated Jev results
+      continue-on-error: true # A cache outage must not affect the review verdict.
+      if: inputs.mode == 'check'
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ runner.temp }}/rewardguard-jev-cache
+        key: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          rewardguard-jev-v1-${{ runner.os }}-
+
     - name: Resolve base
       id: base
       shell: bash
@@ -177,6 +187,7 @@ runs:
       id: check
       shell: bash
       env:
+        REWARDGUARD_CACHE_DIR: ${{ runner.temp }}/rewardguard-jev-cache
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
@@ -202,6 +213,14 @@ runs:
         fi
         if [ $code -eq 0 ]; then echo "result=passed" >> "$GITHUB_OUTPUT"; else echo "result=failed" >> "$GITHUB_OUTPUT"; fi
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Save authenticated Jev results
+      continue-on-error: true # Saving an optimization must not affect the review verdict.
+      if: always() && inputs.mode == 'check' && steps.check.outcome != 'skipped'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ runner.temp }}/rewardguard-jev-cache
+        key: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Publish scoped content checks
       if: always() && inputs.mode == 'check' && inputs.content-checks == 'true' && steps.check.outcome != 'skipped'

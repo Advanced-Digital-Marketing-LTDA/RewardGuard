@@ -168,6 +168,7 @@ def check(args) -> int:
                                   full_task_diff=task_context.full_pr_diff)
         rep.findings.extend(judged)
         rep.notes.extend(notes)
+        rep.notes.append(f"Jev code: {client.cache_hits} unchanged clean request(s) reused without API calls.")
         if client.models_seen:
             rep.notes.append("Jev model: " + ", ".join(sorted(client.models_seen)))
     except RewardGuardError as e:
