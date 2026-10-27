@@ -94,9 +94,25 @@ def _ask(client, state, questions):
     return answers
 
 
-def _batches(values, size=16):
-    for index in range(0, len(values), size):
-        yield values[index:index + size]
+def _batches(values, size=16, *, state=None):
+    # Combine independent metadata questions while bounding total UTF-8 bytes.
+    # Large states retain the previous batch size; final defect checks stay at 16.
+    if state is None or len(state.encode()) >= 56000:
+        for index in range(0, len(values), size):
+            yield values[index:index + size]
+        return
+    import json
+    allowance = 56000 - len(state.encode())
+    batch, used = [], 0
+    for item in values:
+        amount = len(json.dumps(item).encode())
+        if batch and (len(batch) >= 64 or used + amount > allowance):
+            yield batch
+            batch, used = [], 0
+        batch.append(item)
+        used += amount
+    if batch:
+        yield batch
 
 
 def candidates(repo, base, head, cfg, changed):
@@ -258,7 +274,7 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
             for index, variant in enumerate(variant_specs):
                 questions[f'variant_{index}'] = f'This is actually the following artifact, not an example or mention: {variant["artifact"]}.{ROUTING_BOUNDARY}'
             answers = {}
-            for batch in _batches(list(questions.items())):
+            for batch in _batches(list(questions.items()), state=state):
                 answers.update(_ask(client, state, dict(batch)))
             active = {key for key in allowed if answers['pack_' + key] >= WARN_AT}
             variants = [v for index, v in enumerate(variant_specs) if answers[f'variant_{index}'] >= WARN_AT]
@@ -277,7 +293,7 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                 if rule.source_evidence:
                     applicability_questions['literal_' + rule.id] = rule.source_when + ROUTING_BOUNDARY
             applicability = {}
-            for batch in _batches(list(applicability_questions.items())):
+            for batch in _batches(list(applicability_questions.items()), state=state):
                 applicability.update(_ask(client, state, dict(batch)))
             jobs, metadata = [], {}
             for rule in applicable:
@@ -363,6 +379,8 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                     identity = (rule.id, instance, cf.path, line)
                     if identity not in seen or probability > seen[identity].probability:
                         seen[identity] = finding
+    if getattr(client, "cache_hits", 0):
+        result.notes.append(f"Jev content: {client.cache_hits} unchanged routing/clean request(s) reused without API calls.")
     result.findings = list(seen.values())
     if result.status == 'skipped':
         result.notes.append('Content review skipped: no text chunk classified at or above 0.60.')

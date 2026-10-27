@@ -253,3 +253,29 @@ This complements `rewardguard check`, which reviews branch changes for reward-ha
 Rewardguard is source-available under the [PolyForm Shield License 1.0.0](LICENSE).
 Commercial use is permitted when it complies with that license. For uses not
 permitted by PolyForm Shield, see [commercial licensing](COMMERCIAL.md).
+
+## Avoiding repeated model input
+
+The GitHub Action now restores and saves authenticated Jev results across runs.
+Identical clean defect requests (all probabilities below 0.60) and content routing
+requests reuse their previous answers without another provider call. Findings,
+errors and incomplete responses are not cached as clean results. Static checks,
+test-result validation and content coverage still execute; reuse never turns a
+skipped or missing-evidence scope into a verified pass.
+
+The cache identity includes the complete request, endpoint, model and installed
+RewardGuard version. Changed task descriptions, source/evidence or questions
+therefore trigger fresh requests. Entries are authenticated with the existing
+Jev API key; edited or unsigned entries are ignored, and key rotation invalidates
+old entries. Cache files contain probabilities and model identifiers, not source
+text or credentials. Only the secret-bearing review job uses this cache.
+
+For local checks, set `REWARDGUARD_CACHE_DIR` to a persistent directory to enable
+reuse. Leave it unset locally to always call the provider. Delete that directory
+(or the GitHub Actions cache) to force a fresh review.
+
+Content routing and applicability now combine independent questions into fewer
+requests, bounded by a conservative UTF-8 byte allowance. This reduces repeated
+state even on the first review. Final defect/evidence grading retains its
+existing focused batches. Terminal/Markdown notes identify reused requests;
+reported input-token totals count actual provider responses only.
