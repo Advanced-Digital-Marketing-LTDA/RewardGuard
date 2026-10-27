@@ -32,6 +32,10 @@ def terminal(report: Report) -> str:
             out.append("       Haiku found no specific lines; review this chunk by hand")
     for n in report.notes:
         out.append(f"note   {n}")
+    for phase, u in sorted(report.usage.items()):
+        out.append(f"usage  Jev {phase}: {u['requests']} responses, {u['input_tokens']} reported input tokens, "
+                   f"{u['usage_missing']} without usage; {u['state_characters']} state characters, "
+                   f"{u['question_characters']} question characters")
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
     verdict = "FAILED" if report.failed else "PASSED"
@@ -117,6 +121,12 @@ def markdown(report: Report) -> str:
     lines = [MARKER, f"## rewardguard: {head}", "",
              f"{fails} fail · {warns} warn · {len(report.errors)} error", ""]
     lines += _content_markdown(report.content)
+    if report.usage:
+        lines += ["### Jev input usage", "", "| Phase | Responses | Reported input tokens | Missing usage | State characters | Question characters |",
+                  "|---|---:|---:|---:|---:|---:|"]
+        for phase, u in sorted(report.usage.items()):
+            lines.append(f"| {safe(phase)} | {u['requests']} | {u['input_tokens']} | {u['usage_missing']} | {u['state_characters']} | {u['question_characters']} |")
+        lines += ["", "Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
     if report.errors:
         lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
@@ -145,4 +155,5 @@ def as_json(report: Report) -> str:
         "findings": [f.to_dict() for f in report.findings],
         "notes": report.notes,
         "content": report.content,
+        "usage": report.usage,
     }, indent=2)

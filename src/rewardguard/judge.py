@@ -343,13 +343,15 @@ def key_block_notes(chunks: list[Chunk]) -> list[str]:
 
 
 class JevClient:
-    def __init__(self, cfg: Config, api_key: str | None = None, opener=None):
+    def __init__(self, cfg: Config, api_key: str | None = None, opener=None, usage=None, phase="code"):
         self.cfg = cfg
         self.api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
         if not self.api_key:
             raise RewardGuardError("TYPESAFE_API_KEY is not set")
         self.opener = opener or urllib.request.urlopen
         self.models_seen: set[str] = set()
+        self.usage = usage
+        self.phase = phase
 
     def ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
         if len(state) > self.cfg.max_state_chars:
@@ -367,6 +369,8 @@ class JevClient:
             try:
                 with self.opener(req, timeout=self.cfg.timeout_seconds) as resp:
                     data = json.loads(resp.read().decode())
+                if self.usage is not None:
+                    self.usage.record(self.phase, state, questions, data)
                 break
             except urllib.error.HTTPError as e:
                 detail = e.read().decode(errors="replace")[:500]

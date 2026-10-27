@@ -246,3 +246,12 @@ def test_action_uses_resolved_commits_for_both_test_and_check_commands(tmp_path)
         assert args[args.index("--base") + 1] == "a" * 40
         assert args[args.index("--head") + 1] == "b" * 40
     assert "--no-local-tests" in calls[1]
+
+
+def test_rewardguard_workflow_does_not_run_on_feature_branch_pushes():
+    import yaml
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / '.github/workflows/rewardguard.yml').read_text()
+    workflow = yaml.load(text, Loader=yaml.BaseLoader)
+    assert workflow['on']['push']['branches'] == ['main']
+    assert 'pull_request' in workflow['on']
