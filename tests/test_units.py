@@ -465,3 +465,44 @@ def test_commented_out_key_block_is_redacted_in_full(prefix):
     lines = [f"+{prefix}-----BEGIN " + "PRIVATE KEY-----", f"+{prefix}QUJDREVG", f"+{prefix}SktMTU5P",
              f"+{prefix}QUJDREVG==", f"+{prefix}-----END " + "PRIVATE KEY-----", "+run()"]
     assert judge._redact_lines(lines)[0] == ["+" + judge.REDACTED] * 5 + ["+run()"]
+
+
+def test_jev_usage_tracks_reported_tokens_and_context_without_recording_text():
+    from rewardguard.usage import UsageTracker
+    tracker = UsageTracker()
+    client = judge.JevClient(config.parse(BASE_TOML), api_key="k", opener=FakeJev(),
+                             usage=tracker, phase="code")
+    client.ask("secret context", {"q1": "A question?"})
+    summary = tracker.snapshot()["code"]
+    assert summary["requests"] == 1
+    assert summary["input_tokens"] == 1
+    assert summary["state_characters"] == len("secret context")
+    assert summary["question_characters"] == len("A question?")
+    assert summary["usage_missing"] == 0
+    assert "secret context" not in str(summary)
+
+
+def test_jev_usage_marks_missing_provider_usage():
+    from rewardguard.usage import UsageTracker
+    tracker = UsageTracker()
+    response = {"answers": {"q1": {"type": "noul", "noul": 0.1}}}
+    client = judge.JevClient(config.parse(BASE_TOML), api_key="k", opener=FakeJev(raw=response),
+                             usage=tracker, phase="content")
+    client.ask("state", {"q1": "question"})
+    assert tracker.snapshot()["content"]["usage_missing"] == 1
+
+
+def test_usage_is_separated_by_review_phase_and_included_in_reports():
+    from rewardguard import report
+    from rewardguard.models import Report
+    from rewardguard.usage import UsageTracker
+    tracker = UsageTracker()
+    for phase in ("code", "content"):
+        client = judge.JevClient(config.parse(BASE_TOML), api_key="k", opener=FakeJev(),
+                                 usage=tracker, phase=phase)
+        client.ask("state", {"q": "question"})
+    rep = Report(usage=tracker.snapshot())
+    assert 'Jev code: 1 responses, 1 reported input tokens' in report.terminal(rep)
+    assert '| content | 1 | 1 | 0 | 5 | 8 |' in report.markdown(rep)
+    import json
+    assert json.loads(report.as_json(rep))["usage"]["code"]["input_tokens"] == 1

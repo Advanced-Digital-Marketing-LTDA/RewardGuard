@@ -3,6 +3,7 @@ name: rewardguard
 on:
   pull_request:
   push:
+    branches: [main]
 
 jobs:
   rewardguard:

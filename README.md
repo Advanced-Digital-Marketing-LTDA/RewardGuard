@@ -26,6 +26,8 @@ The code review path has the layers below. Configuration is always read from the
 
 **Fail-closed.** If Jev returns an HTTP error, a malformed answer or a missing answer, the check fails. So does a `claude` CLI failure, an error result or a missing structured answer from Haiku. It also fails if the Jev key, the Claude token or the `claude` CLI is missing, a suite writes no report, or the config is invalid. There is no fallback. Jev retries happen only on HTTP 429/5xx, at most 3 times. Test commands never see `TYPESAFE_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` or GitHub tokens.
 
+Each run reports Jev's provider-reported input tokens and request context sizes separately for code and content review, in the terminal, Markdown and JSON reports. State and question sizes are character counts, not token estimates. Responses without valid usage are counted separately; failed or interrupted requests may also be missing from these totals, so consult the provider's billing records for actual charges. The report does not retain the prompts in its usage totals. Content review may submit the same state repeatedly for classification, routing, applicability and batches of checks; all reported input tokens are added per response.
+
 Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 
 ## What it catches

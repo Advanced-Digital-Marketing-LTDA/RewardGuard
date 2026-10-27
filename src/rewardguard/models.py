@@ -55,6 +55,7 @@ class Report:
     errors: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     content: dict = field(default_factory=dict)
+    usage: dict = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:

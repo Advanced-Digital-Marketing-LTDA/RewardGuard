@@ -80,6 +80,8 @@ def run_tests(args) -> int:
 def check(args) -> int:
     repo = str(Path(args.repo).resolve())
     rep = Report()
+    from .usage import UsageTracker
+    usage = UsageTracker()
     log = (lambda *_: None) if args.quiet else (lambda m: print(m, file=sys.stderr))
 
     try:
@@ -115,7 +117,7 @@ def check(args) -> int:
     try:
         content = content_review.review(
             repo, base, head, cfg, changed, description,
-            trusted_base=getattr(args, "config_base", base), log=log,
+            trusted_base=getattr(args, "config_base", base), log=log, usage=usage,
         )
         rep.findings.extend(content.findings)
         rep.notes.extend(content.notes)
@@ -124,6 +126,7 @@ def check(args) -> int:
         rep.errors.append(f"Content review: {e}")
         rep.content = {"status": "error", "coverage": []}
     if getattr(args, "content_only", False):
+        rep.usage = usage.snapshot()
         return _finish(rep, args)
 
     log("rewardguard: static checks")
@@ -158,7 +161,7 @@ def check(args) -> int:
     # changed file, and Haiku explains everything Jev reports
     log("rewardguard: Jev judge, Haiku explainer")
     try:
-        client = judge.JevClient(cfg)
+        client = judge.JevClient(cfg, usage=usage, phase="code")
         haiku = explainer.HaikuExplainer(cfg)
         judged, notes = judge.run(repo, base, head, cfg, changed, kinds, description, client, haiku, log,
                                   to_confirm=found, task_context_complete=task_context.scope_complete,
@@ -171,6 +174,7 @@ def check(args) -> int:
         rep.findings.extend(f for f in found if f.rule in CLEAR_CUT)
         rep.errors.append(f"Judge: {e}")
 
+    rep.usage = usage.snapshot()
     return _finish(rep, args)
 
 

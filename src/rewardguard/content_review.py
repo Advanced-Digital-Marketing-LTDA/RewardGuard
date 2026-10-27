@@ -184,7 +184,7 @@ def _rule_row(rule, cf, **values):
 
 
 def review(repo: str, base: str, head: str, cfg: Config, changed, description='', *,
-           trusted_base=None, client=None, haiku=None, log=print) -> ContentResult:
+           trusted_base=None, client=None, haiku=None, log=print, usage=None) -> ContentResult:
     result = ContentResult()
     if not cfg.content.enabled:
         result.notes.append('Content review skipped: disabled by trusted-base configuration.')
@@ -246,7 +246,7 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
             if len(state) > cfg.max_state_chars:
                 raise RewardGuardError(f'Content diff contains an oversized line/chunk: {cf.path}')
             if client is None:
-                client = judge.JevClient(cfg)
+                client = judge.JevClient(cfg, usage=usage, phase='content')
             p = _ask(client, state, {'content_task': CONTENT_TASK + BOUNDARY})['content_task']
             result.coverage.append({'file': cf.path, 'line': chunk.first_line, 'stage': 'classification',
                                     'probability': p, 'status': 'eligible' if p >= WARN_AT else 'skipped'})
