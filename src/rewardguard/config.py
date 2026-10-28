@@ -133,6 +133,7 @@ class Config:
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE))
     model: str = "jev-1.13.0"
     cache_epoch: str = "v1"  # Change on provider model behavior changes not reflected in model name.
+    cache_max_age_seconds: int | None = None  # Optional freshness policy for mutable model aliases.
     api_url: str = "https://api.typesafe.ai/v1/systemone"
     max_state_chars: int = 90_000  # ~22k tokens; Jev allows 32k for state + longest question
     max_attempts: int | None = None  # Across code and content, including retries; None means unlimited.
@@ -257,6 +258,7 @@ def parse(text: str) -> Config:
         exclude=_list(paths, "exclude", DEFAULT_EXCLUDE),
         model=str(judge.get("model", "jev-1.13.0")),
         cache_epoch=judge.get("cache_epoch", "v1"),
+        cache_max_age_seconds=_optional_positive_int(judge, "cache_max_age_seconds"),
         api_url=str(judge.get("api_url", "https://api.typesafe.ai/v1/systemone")),
         max_state_chars=int(judge.get("max_state_chars", 90_000)),
         max_attempts=_optional_positive_int(judge, "max_attempts"),

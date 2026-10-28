@@ -47,6 +47,11 @@ def exercise(repo, base, head, description, deduplicate):
         body = {'model': cfg.model, 'state': state,
                 'questions': {key: {'type': 'noul', 'instructions': value} for key, value in questions.items()}}
         totals['serialized_body_bytes'] += len(json.dumps(body).encode())
+    totals['distinct_states'] = len({state for state, _ in client.calls})
+    totals['distinct_state_characters'] = sum(map(len, {state for state, _ in client.calls}))
+    totals['routing_boundary_occurrences'] = sum(question.count(content_review.ROUTING_BOUNDARY)
+                                                  for _, questions in client.calls for question in questions.values())
+    totals['routing_boundary_characters'] = totals['routing_boundary_occurrences'] * len(content_review.ROUTING_BOUNDARY)
     questions = Counter((key, question) for _, batch in client.calls for key, question in batch.items())
     return totals, result.to_dict(), questions
 

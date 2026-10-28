@@ -93,7 +93,7 @@ def test_cache_expires_at_24_hours(tmp_path, monkeypatch):
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
     now = [100_000.0]
     monkeypatch.setattr(review_cache.time, 'time', lambda: now[0])
-    cfg, api = config.parse('run_tests = false\n'), FakeJev()
+    cfg, api = config.parse('run_tests = false\n[judge]\ncache_max_age_seconds = 86400\n'), FakeJev()
     client = judge.JevClient(cfg, api_key='key', opener=api)
     client.ask('source', {'q': 'question'})
     now[0] += 24 * 60 * 60 - 0.001
@@ -102,6 +102,25 @@ def test_cache_expires_at_24_hours(tmp_path, monkeypatch):
     now[0] += 0.001
     client.ask('source', {'q': 'question'})
     assert len(api.calls) == 2
+
+
+def test_default_cache_does_not_expire_solely_with_age(tmp_path, monkeypatch):
+    from rewardguard import review_cache
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    now = [100_000.0]
+    monkeypatch.setattr(review_cache.time, 'time', lambda: now[0])
+    client = judge.JevClient(config.parse('run_tests = false\n'), api_key='key', opener=FakeJev())
+    client.ask('source', {'q': 'question'})
+    now[0] += 7 * 24 * 60 * 60
+    client.ask('source', {'q': 'question'})
+    assert client.cache_hits == 1
+
+
+@pytest.mark.parametrize('value', ['0', '-1', 'true', '1.5', '"86400"'])
+def test_invalid_cache_max_age_rejected(value):
+    from rewardguard.models import RewardGuardError
+    with pytest.raises(RewardGuardError, match='cache_max_age_seconds.*positive integer'):
+        config.parse(f'run_tests = false\n[judge]\ncache_max_age_seconds = {value}\n')
 
 
 def test_timestamp_is_authenticated_and_legacy_records_are_not_reused(tmp_path, monkeypatch):

@@ -3,6 +3,17 @@ from threading import Lock
 from copy import deepcopy
 from .models import RewardGuardError
 
+_CATEGORIES = {'request', 'result_cache_lookup', 'result_cache_validation', 'result_cache_write',
+               'http_attempt', 'retry', 'response_validation', 'budget'}
+_REASONS = {'started', 'disabled', 'invalid_timestamp', 'integrity_failure', 'clock_unavailable',
+            'future_timestamp', 'expired', 'hit', 'not_found_or_identity_changed', 'read_failed',
+            'malformed', 'invalid_response', 'saved', 'write_failed', 'cleanup_failed',
+            'finding_not_cacheable', 'exhausted', 'response_received', 'retryable_http_error',
+            'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json'}
+_NUMBERS = {'state_characters', 'question_characters', 'question_count', 'request_bytes', 'attempt',
+            'input_tokens_available', 'output_tokens_available', 'cached_input_tokens_available',
+            'input_tokens', 'output_tokens', 'cached_input_tokens', 'http_status'}
+
 
 class UsageTracker:
     def __init__(self):
@@ -11,6 +22,39 @@ class UsageTracker:
         self._limits = None
         self._attempts = 0
         self._request_bytes = 0
+        self._events = []
+        self._events_dropped = 0
+        self._request_id = 0
+
+    def start_request(self, phase, stage, state, questions, request_bytes):
+        with self._lock:
+            self._request_id += 1
+            request_id = self._request_id
+        self.event(request_id, phase, stage, 'request', 'started',
+                   state_characters=len(state), question_characters=sum(map(len, questions.values())),
+                   question_count=len(questions), request_bytes=request_bytes)
+        return request_id
+
+    def event(self, request_id, phase, stage, category, reason, **numbers):
+        # Only fixed internal labels and nonnegative integer counters belong in
+        # diagnostics. Never retain request contents, credentials or hashes.
+        row = {'request_id': request_id if type(request_id) is int and request_id >= 0 else 0,
+               'phase': phase if phase in ('code', 'content') else 'other',
+               'stage': stage if stage in ('classification', 'routing', 'applicability', 'evaluation') else 'other',
+               'category': category if isinstance(category, str) and category in _CATEGORIES else 'other',
+               'reason': reason if isinstance(reason, str) and reason in _REASONS else 'other'}
+        row.update({k: v for k, v in numbers.items() if k in _NUMBERS and type(v) is int and v >= 0})
+        with self._lock:
+            if len(self._events) < 10000:
+                self._events.append(row)
+            else:
+                self._events_dropped += 1
+
+    def diagnostics(self):
+        with self._lock:
+            return {'events': deepcopy(self._events), 'events_dropped': self._events_dropped,
+                    'provider_cached_tokens': 'unavailable unless explicitly reported on a response',
+                    'provider_billed_tokens': 'unavailable'}
 
     def configure(self, max_attempts, max_request_bytes):
         """Bind one shared run to one set of limits before any provider calls."""

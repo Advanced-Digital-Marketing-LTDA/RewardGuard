@@ -82,6 +82,7 @@ runs:
       run: python -I -m pip install --quiet "${{ github.action_path }}"
 
     - name: Restore authenticated Jev results
+      id: jev_restore
       continue-on-error: true # A cache outage must not affect the review verdict.
       if: inputs.mode == 'check'
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -90,6 +91,55 @@ runs:
         key: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
           rewardguard-jev-v1-${{ runner.os }}-
+
+    - name: Report Jev archive restore
+      if: always() && inputs.mode == 'check'
+      continue-on-error: true # Diagnostics cannot change the review verdict.
+      shell: bash
+      env:
+        CACHE_REQUESTED: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        CACHE_PREFIX: rewardguard-jev-v1-${{ runner.os }}-
+        CACHE_MATCHED: ${{ steps.jev_restore.outputs.cache-matched-key }}
+        CACHE_HIT: ${{ steps.jev_restore.outputs.cache-hit }}
+        CACHE_OUTCOME: ${{ steps.jev_restore.outcome }}
+        CACHE_DIR: ${{ runner.temp }}/rewardguard-jev-cache
+      run: |
+        python - <<'PY'
+        import json, os, re
+        requested = os.environ.get('CACHE_REQUESTED', '')
+        prefix = os.environ.get('CACHE_PREFIX', '')
+        matched = os.environ.get('CACHE_MATCHED', '')
+        hit = os.environ.get('CACHE_HIT', '')
+        outcome = os.environ.get('CACHE_OUTCOME', '')
+        safe_prefix = re.fullmatch(r'rewardguard-jev-v1-(Linux|Windows|macOS)-', prefix)
+        safe_requested = safe_prefix and re.fullmatch(re.escape(prefix) + r'[0-9]+-[0-9]+', requested)
+        safe_matched = safe_prefix and re.fullmatch(re.escape(prefix) + r'[0-9]+-[0-9]+', matched)
+        print('Jev archive requested key:', requested if safe_requested else 'unavailable')
+        print('Jev archive restore prefix:', prefix if safe_prefix else 'unavailable')
+        print('Jev archive restore step outcome:', outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable')
+        print('Jev archive matched key:', matched if safe_matched else 'unavailable')
+        if outcome == 'success' and safe_matched:
+            status = 'exact hit' if hit == 'true' and matched == requested else 'prefix hit' if hit == 'false' and matched != requested else 'restored; match type unavailable'
+            count = 0
+            try:
+                with os.scandir(os.environ['CACHE_DIR']) as entries:
+                    for index, entry in enumerate(entries):
+                        if index >= 100000:
+                            raise ValueError('too many entries')
+                        if re.fullmatch(r'[0-9a-f]{64}\.json', entry.name) and entry.is_file(follow_symlinks=False):
+                            count += 1
+            except (OSError, KeyError, ValueError):
+                count = None
+        else:
+            status = 'miss (no matched key reported)' if outcome == 'success' and not matched else 'unavailable'
+            count = None
+        print('Jev archive restore:', status)
+        print('Jev archive restored entry files:', count if count is not None else 'unavailable', '(not authenticated-result hits)')
+        print(json.dumps({'kind': 'jev_archive_restore', 'requested_key': requested if safe_requested else None,
+                          'prefix': prefix if safe_prefix else None, 'matched_key': matched if outcome == 'success' and safe_matched else None,
+                          'outcome': outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable',
+                          'status': status, 'restored_count': count}, separators=(',', ':'), sort_keys=True))
+        PY
 
     - name: Resolve base
       id: base
@@ -188,6 +238,8 @@ runs:
       shell: bash
       env:
         REWARDGUARD_CACHE_DIR: ${{ runner.temp }}/rewardguard-jev-cache
+        REWARDGUARD_EVENT_ACTION: ${{ github.event.action }}
+        REWARDGUARD_ACTION_REVISION: ${{ github.action_ref }}
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
@@ -215,12 +267,37 @@ runs:
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
     - name: Save authenticated Jev results
+      id: jev_save
       continue-on-error: true # Saving an optimization must not affect the review verdict.
       if: always() && inputs.mode == 'check' && steps.check.outcome != 'skipped'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ${{ runner.temp }}/rewardguard-jev-cache
         key: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+    - name: Report Jev archive save
+      if: always() && inputs.mode == 'check'
+      continue-on-error: true # Diagnostics cannot change the review verdict.
+      shell: bash
+      env:
+        CACHE_OUTCOME: ${{ steps.jev_save.outcome }}
+        CACHE_REQUESTED: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        CACHE_PREFIX: rewardguard-jev-v1-${{ runner.os }}-
+      run: |
+        python - <<'PY'
+        import json, os, re
+        outcome = os.environ.get('CACHE_OUTCOME', '')
+        requested = os.environ.get('CACHE_REQUESTED', '')
+        prefix = os.environ.get('CACHE_PREFIX', '')
+        safe_prefix = re.fullmatch(r'rewardguard-jev-v1-(Linux|Windows|macOS)-', prefix)
+        safe_requested = safe_prefix and re.fullmatch(re.escape(prefix) + r'[0-9]+-[0-9]+', requested)
+        print('Jev archive save step outcome:', outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable')
+        print('Jev archive save confirmation: unavailable from action outputs; inspect save logs')
+        print(json.dumps({'kind': 'jev_archive_save', 'requested_key': requested if safe_requested else None,
+                          'prefix': prefix if safe_prefix else None, 'matched_key': None,
+                          'outcome': outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable',
+                          'status': 'unavailable', 'restored_count': None}, separators=(',', ':'), sort_keys=True))
+        PY
 
     - name: Publish scoped content checks
       if: always() && inputs.mode == 'check' && inputs.content-checks == 'true' && steps.check.outcome != 'skipped'

@@ -30,6 +30,17 @@ Each run reports Jev's provider-reported input tokens and request context sizes 
 
 The same reports include HTTP attempts, serialized request-body bytes, authenticated cache hits, and denied requests per phase and per content stage (classification, routing, applicability and evaluation). Attempts and request bytes are reserved before each provider call and include retries, failures and requests whose responses are lost. Cache hits do not use an HTTP attempt. Bytes are a payload measure, not a token or billing estimate.
 
+The terminal and JSON report also include structured per-request cache, retry,
+response and budget events using run-local numeric IDs. They never contain
+prompts, source payloads, credentials, signing material or request hashes.
+Archive restore/save diagnostics separately report their non-secret key,
+matched key when exposed, step outcome and restored entry-file count. An
+archive hit is not itself an authenticated result hit. A result-key miss cannot
+say which input changed: the matching signed identity is simply absent. Missing
+provider cache/billing fields are marked unavailable rather than inferred. To
+bound report size, at most 10,000 events are retained and dropped events are
+counted explicitly.
+
 Optional trusted-base `[judge]` settings `max_attempts` and `max_request_bytes` limit the combined code and content review across the entire run. Both must be positive integers; omitting a setting leaves that budget unlimited. For example:
 
 ```toml
@@ -282,16 +293,19 @@ Jev API key; edited or unsigned entries are ignored, and key rotation invalidate
 old entries. Cache files contain probabilities and model identifiers, not source
 text or credentials. Only the secret-bearing review job uses this cache.
 
-Each entry has a signed creation time and expires after 24 hours. An older entry
-without a signed timestamp is ignored. A missing or invalid clock, or an entry
-dated in the future, also forces a fresh review instead of a cached result. A
-persistently wrong but otherwise valid system clock cannot establish real age.
-Expiry limits stale reuse but may increase provider calls and input. For model
+Each entry has a signed creation time. Older entries without one are ignored.
+A missing or invalid clock, or an entry dated in the future, forces a fresh
+review. There is no automatic age limit by default: exact request, endpoint,
+model, epoch, version and key changes invalidate the corresponding entries.
+For a mutable model alias, trusted-base `[judge] cache_max_age_seconds` may set
+a positive maximum age, for example `86400` for 24 hours. Expiry bounds how long
+an undisclosed model change can be reused but can increase provider calls; a
+persistently wrong but otherwise valid clock cannot establish real age. For model
 changes that keep the same provider model identifier, increment the trusted-base
 `[judge] cache_epoch` value (default `"v1"`), for example `cache_epoch = "v2"`.
 It accepts 1–64 ASCII letters, digits, dots, underscores or hyphens; changing it
-invalidates all previous entries. Neither expiry nor the epoch can automatically
-detect an undisclosed model change within the 24-hour window.
+invalidates all previous entries. Neither expiry nor the epoch automatically
+detects an undisclosed model change; without expiry, it requires an epoch update.
 
 For local checks, set `REWARDGUARD_CACHE_DIR` to a persistent directory to enable
 reuse. Leave it unset locally to always call the provider. Delete that directory
