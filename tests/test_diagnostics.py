@@ -107,3 +107,21 @@ def test_only_explicit_provider_cache_tokens_are_reported(monkeypatch):
     response = next(e for e in events(usage) if e['reason'] == 'response_received')
     assert response['cached_input_tokens_available'] == 1 and response['cached_input_tokens'] == 12
     assert response['output_tokens_available'] == 0 and 'output_tokens' not in response
+
+
+def test_cache_clock_failure_records_safe_specific_reason_and_falls_back(tmp_path, monkeypatch):
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(review_cache.time, 'time', lambda: 100.0)
+    usage, api = UsageTracker(), FakeJev()
+    client = judge.JevClient(config.parse('run_tests = false\n'), api_key='key', opener=api, usage=usage)
+    client.ask('state', {'q': 'question'})
+
+    def broken_clock():
+        raise OSError('private clock detail')
+
+    monkeypatch.setattr(review_cache.time, 'time', broken_clock)
+    client.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+    reasons = [e['reason'] for e in events(usage)]
+    assert 'clock_system_error' in reasons and 'clock_unavailable' in reasons
+    assert 'private clock detail' not in json.dumps(usage.diagnostics())

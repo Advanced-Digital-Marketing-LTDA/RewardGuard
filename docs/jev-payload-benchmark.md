@@ -1,6 +1,6 @@
 # Offline content payload benchmark
 
-`scripts/benchmark_content_payload.py REPO BASE HEAD [DESCRIPTION_FILE]` compares
+`scripts/benchmark_content_payload.py REPO BASE HEAD [--description-stdin]` compares
 the previous evidence representation with self-contained references to identical
 redacted text. Both runs use the same trusted-base configuration, selected files,
 evidence admission limits and diff-chunk budgets. The script checks equality of
@@ -14,8 +14,14 @@ code review and network retries. Reproduce with local Git objects and, optionall
 a UTF-8 file containing the exact task context to compare:
 
 ```sh
-python scripts/benchmark_content_payload.py /path/to/repository BASE_SHA HEAD_SHA /path/to/context.txt
+python scripts/benchmark_content_payload.py /path/to/repository BASE_SHA HEAD_SHA --description-stdin < /path/to/context.txt
 ```
+
+The benchmark does not open a context-file path. The operator chooses any shell
+redirection explicitly; context is read from standard input only with the flag,
+must be valid UTF-8 and is limited to 256,000 bytes. Repository selection and
+shell redirection remain under the local caller's control; this command is not a
+remote, privilege-separated file-access service.
 
 On 28 October 2026, using AI-Comment-Moderation PR #25 base
 `f171e856fbe6cbbad027ba8012db7c5c0990ccdb` and head

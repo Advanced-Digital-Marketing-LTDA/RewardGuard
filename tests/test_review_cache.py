@@ -204,3 +204,20 @@ def test_clock_error_and_backwards_clock_miss_safely(tmp_path, monkeypatch):
     client.ask('state', {'q': 'question'})
     assert len(api.calls) == 3
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize('error,reason', [
+    (OSError('private-path'), 'clock_system_error'),
+    (ValueError('private-value'), 'clock_invalid_value'),
+    (RuntimeError('private-detail'), 'clock_unexpected_error'),
+])
+def test_clock_exceptions_are_reported_without_sensitive_detail(monkeypatch, error, reason):
+    from rewardguard import review_cache
+
+    def broken_clock():
+        raise error
+
+    monkeypatch.setattr(review_cache.time, 'time', broken_clock)
+    events = []
+    assert review_cache._clock(diagnostic=events.append) is None
+    assert events == [reason]

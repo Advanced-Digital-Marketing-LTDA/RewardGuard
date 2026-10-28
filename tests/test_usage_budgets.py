@@ -81,6 +81,36 @@ def test_shared_reservations_are_atomic_under_concurrency():
     assert row['attempts'] == 5 and row['request_bytes'] == 50 and row['budget_denials'] == 35
 
 
+def test_mixed_staged_and_unstaged_usage_counts_each_request_once():
+    tracker = UsageTracker()
+    tracker.configure(3, 100)
+    for stage, size, tokens in ((None, 10, 2), ('routing', 20, 3), ('routing', 30, 5)):
+        tracker.reserve('content', size, stage)
+        tracker.record('content', 'abc', {'q': 'xy'}, {'usage': {'input_tokens': tokens}}, stage)
+        tracker.cache_hit('content', stage)
+    with pytest.raises(RewardGuardError, match='max_attempts'):
+        tracker.reserve('content', 1, None)
+    with pytest.raises(RewardGuardError, match='max_attempts'):
+        tracker.reserve('content', 1, 'routing')
+    total = tracker.snapshot()['content']
+    stage = total['stages']['routing']
+    assert (total['attempts'], total['request_bytes'], total['requests'], total['input_tokens'], total['cache_hits'], total['budget_denials']) == (3, 60, 3, 10, 3, 2)
+    assert (stage['attempts'], stage['request_bytes'], stage['requests'], stage['input_tokens'], stage['cache_hits'], stage['budget_denials']) == (2, 50, 2, 8, 2, 1)
+    assert (total['state_characters'], total['question_characters']) == (9, 6)
+    assert (stage['state_characters'], stage['question_characters']) == (6, 4)
+
+
+def test_unstaged_usage_does_not_create_a_stage_or_double_count():
+    tracker = UsageTracker()
+    tracker.configure(None, None)
+    tracker.reserve('code', 7)
+    tracker.record('code', 'a', {'q': 'b'}, {'usage': {'input_tokens': 1}})
+    tracker.cache_hit('code')
+    row = tracker.snapshot()['code']
+    assert 'stages' not in row
+    assert (row['attempts'], row['requests'], row['cache_hits'], row['request_bytes']) == (1, 1, 1, 7)
+
+
 def test_content_stages_measure_each_request_without_recording_content(monkeypatch):
     monkeypatch.delenv('REWARDGUARD_CACHE_DIR', raising=False)
     cfg = config.parse('run_tests = false\n')

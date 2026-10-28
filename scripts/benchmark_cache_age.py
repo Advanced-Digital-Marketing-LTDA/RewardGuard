@@ -11,7 +11,7 @@ from rewardguard.review_cache import ReviewCache
 def simulate(max_age_seconds):
     now = [100_000.0]
     with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'REWARDGUARD_CACHE_DIR': directory}), \
-            patch('rewardguard.review_cache._clock', side_effect=lambda: now[0]):
+            patch('rewardguard.review_cache._clock', side_effect=lambda **_: now[0]):
         cache = ReviewCache('synthetic-key', 'https://synthetic.invalid', max_age_seconds=max_age_seconds)
         requests, hits = 0, 0
         for run in range(42):  # Every four hours for seven days.

@@ -19,12 +19,25 @@ def _valid_timestamp(value):
         return False
 
 
-def _clock():
+def _clock(diagnostic=None):
+    def note(reason):
+        if diagnostic:
+            diagnostic(reason)
     try:
         now = time.time()
+    except OSError:
+        note('clock_system_error')
+        return None
+    except (OverflowError, ValueError):
+        note('clock_invalid_value')
+        return None
     except Exception:
+        # Cache failure must fall back to a fresh review. Never log exception
+        # text: runtime errors can contain paths or other sensitive values.
+        note('clock_unexpected_error')
         return None
     if not _valid_timestamp(now):
+        note('clock_invalid_value')
         return None
     return now
 
@@ -71,7 +84,7 @@ class ReviewCache:
                 logging.warning("RewardGuard ignored a cache entry with an invalid signature")
                 note('integrity_failure')
                 return None
-            now = _clock()
+            now = _clock(diagnostic=note)
             if now is None:
                 note('clock_unavailable')
                 return None
@@ -103,7 +116,7 @@ class ReviewCache:
         if self.root is None:
             note('disabled')
             return
-        created_at = _clock()
+        created_at = _clock(diagnostic=note)
         if created_at is None:
             note('clock_unavailable')
             return

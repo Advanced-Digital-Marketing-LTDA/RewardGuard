@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
 """Compare old and deduplicated content payloads with deterministic offline answers.
 
-Usage: python scripts/benchmark_content_payload.py REPO BASE HEAD [DESCRIPTION_FILE]
+Usage: python scripts/benchmark_content_payload.py REPO BASE HEAD [--description-stdin]
 This does not contact any provider or establish semantic model parity.
 """
 import json
 import sys
 from collections import Counter
-from pathlib import Path
 
 from rewardguard import config, content_evidence, content_review, gitops
+
+MAX_DESCRIPTION_BYTES = 256_000
+
+
+def read_description(stream):
+    """Read only explicitly supplied bounded input, never an arbitrary pathname."""
+    data = stream.read(MAX_DESCRIPTION_BYTES + 1)
+    if len(data) > MAX_DESCRIPTION_BYTES:
+        raise SystemExit('Description input exceeds 256000 bytes')
+    try:
+        return data.decode('utf-8')
+    except UnicodeDecodeError:
+        raise SystemExit('Description input must be UTF-8') from None
 
 
 class OfflineJudge:
@@ -57,10 +69,10 @@ def exercise(repo, base, head, description, deduplicate):
 
 
 def main():
-    if len(sys.argv) not in (4, 5):
+    if len(sys.argv) not in (4, 5) or (len(sys.argv) == 5 and sys.argv[4] != '--description-stdin'):
         raise SystemExit(__doc__)
     repo, base, head = sys.argv[1:4]
-    description = Path(sys.argv[4]).read_text() if len(sys.argv) == 5 else ''
+    description = read_description(sys.stdin.buffer) if len(sys.argv) == 5 else ''
     before, old_result, old_questions = exercise(repo, base, head, description, False)
     after, new_result, new_questions = exercise(repo, base, head, description, True)
     if old_result != new_result or old_questions != new_questions:

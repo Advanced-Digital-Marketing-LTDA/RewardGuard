@@ -7,6 +7,7 @@ _CATEGORIES = {'request', 'result_cache_lookup', 'result_cache_validation', 'res
                'http_attempt', 'retry', 'response_validation', 'budget'}
 _REASONS = {'started', 'disabled', 'invalid_timestamp', 'integrity_failure', 'clock_unavailable',
             'future_timestamp', 'expired', 'hit', 'not_found_or_identity_changed', 'read_failed',
+            'clock_system_error', 'clock_invalid_value', 'clock_unexpected_error',
             'malformed', 'invalid_response', 'saved', 'write_failed', 'cleanup_failed',
             'finding_not_cacheable', 'exhausted', 'response_received', 'retryable_http_error',
             'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json'}
@@ -74,10 +75,11 @@ class UsageTracker:
 
     def _rows(self, phase, stage):
         aggregate = self._phases.setdefault(phase, self._empty())
-        if stage is None:
-            return (aggregate,)
-        stages = aggregate.setdefault('stages', {})
-        return aggregate, stages.setdefault(stage, self._empty())
+        rows = [aggregate]
+        if stage is not None:
+            stages = aggregate.setdefault('stages', {})
+            rows.append(stages.setdefault(stage, self._empty()))
+        return rows
 
     def cache_hit(self, phase, stage=None):
         with self._lock:
