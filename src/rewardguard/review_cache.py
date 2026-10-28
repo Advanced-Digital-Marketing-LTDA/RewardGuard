@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import re
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -21,6 +22,11 @@ def _valid_timestamp(value):
 
 def _clock(diagnostic=None):
     def note(reason):
+        # logging.LogRecord reads time.time(), which may be the failing clock.
+        try:
+            sys.stderr.write("RewardGuard cache clock unavailable; reviewing again\n")
+        except (OSError, ValueError):
+            pass  # A broken output stream must not prevent a fresh review.
         if diagnostic:
             diagnostic(reason)
     try:

@@ -221,3 +221,37 @@ def test_clock_exceptions_are_reported_without_sensitive_detail(monkeypatch, err
     events = []
     assert review_cache._clock(diagnostic=events.append) is None
     assert events == [reason]
+
+
+def test_clock_failure_warns_without_callback_or_secret_details(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+    from rewardguard import review_cache
+
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    cache = review_cache.ReviewCache('key', 'endpoint')
+    cache.save(b'body', {'ok': True})
+
+    def broken_clock():
+        raise RuntimeError('private-path-and-value')
+
+    monkeypatch.setattr(review_cache, 'time', SimpleNamespace(time=broken_clock))
+    assert cache.load(b'body') is None
+    cache.save(b'other', {'ok': True})
+    assert len(list(tmp_path.glob('*.json'))) == 1
+    output = capsys.readouterr().err
+    assert output.count('RewardGuard cache clock unavailable; reviewing again') == 2
+    assert 'private-path-and-value' not in output
+
+
+def test_broken_warning_stream_does_not_break_clock_fallback(monkeypatch):
+    from types import SimpleNamespace
+    from rewardguard import review_cache
+
+    def fail(*args):
+        raise OSError('private error')
+
+    monkeypatch.setattr(review_cache, 'time', SimpleNamespace(time=fail))
+    monkeypatch.setattr(review_cache, 'sys', SimpleNamespace(stderr=SimpleNamespace(write=fail)))
+    events = []
+    assert review_cache._clock(diagnostic=events.append) is None
+    assert events == ['clock_system_error']
