@@ -21,8 +21,8 @@ def test_global_budget_spans_content_and_code_and_counts_cache_hits(tmp_path, mo
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
     cfg = config.parse('run_tests = false\n[judge]\nmax_attempts = 1\n')
     usage, api = UsageTracker(), FakeJev()
-    content = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='content')
-    code = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='code')
+    content = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='content', cache_namespace='shared-test')
+    code = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='code', cache_namespace='shared-test')
     assert content.ask('same', {'q': 'question'}) == {'q': .02}
     assert code.ask('same', {'q': 'question'}) == {'q': .02}  # authenticated cache hit
     with pytest.raises(RewardGuardError, match='max_attempts.*review incomplete'):
@@ -44,7 +44,7 @@ def test_byte_budget_uses_actual_serialized_body_and_is_checked_before_send(monk
     client = judge.JevClient(cfg, api_key='key', opener=api, usage=tracker)
     client.ask(state, questions)
     with pytest.raises(RewardGuardError, match='max_request_bytes.*review incomplete'):
-        client.ask(state, questions)
+        client.ask(state + "changed", questions)
     assert len(api.calls) == 1
     assert tracker.snapshot()['code']['request_bytes'] == body_size
 

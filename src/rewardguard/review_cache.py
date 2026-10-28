@@ -10,7 +10,10 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from . import __version__
+import subprocess
+from threading import Lock
+from contextlib import contextmanager
+from copy import deepcopy
 from .models import RewardGuardError
 
 def _valid_timestamp(value):
@@ -49,8 +52,22 @@ def _clock(diagnostic=None):
     return now
 
 
+def repository_identity(repo=None):
+    repository = os.environ.get('GITHUB_REPOSITORY')
+    if repository:
+        return repository.strip().lower().removesuffix('.git')
+    try:
+        remote = subprocess.run(['git', '-C', str(repo or Path.cwd()), 'config', '--get', 'remote.origin.url'],
+                                capture_output=True, text=True, timeout=5, check=False).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        remote = ''
+    remote = re.sub(r'^git@([^:]+):', r'https://\1/', remote)
+    remote = re.sub(r'^https?://(?:[^/@]+@)?', '', remote)
+    return remote.lower().rstrip('/').removesuffix('.git') or str(Path(repo or Path.cwd()).resolve())
+
+
 class ReviewCache:
-    def __init__(self, api_key, endpoint, epoch='v1', max_age_seconds=None):
+    def __init__(self, api_key, endpoint, epoch='v1', max_age_seconds=None, *, namespace='default', repository=None):
         if not isinstance(epoch, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', epoch):
             raise RewardGuardError('Jev cache epoch must be 1-64 letters, digits, dots, underscores or hyphens')
         if max_age_seconds is not None and (type(max_age_seconds) is not int or max_age_seconds <= 0):
@@ -61,26 +78,76 @@ class ReviewCache:
         self.endpoint = endpoint
         self.epoch = epoch
         self.max_age_seconds = max_age_seconds
+        self.namespace = namespace
+        self.repository = repository if repository is not None else repository_identity()
+        self._guard = Lock()
+        self._locks = {}
+        self._memory = {}
+
+    @contextmanager
+    def coordinate(self, body):
+        identity = self.identity(body)
+        with self._guard:
+            lock = self._locks.setdefault(identity, Lock())
+        with lock:
+            yield
+
 
     def identity(self, body):
-        return hmac.new(self.key, b'rewardguard-cache-v2\0' + __version__.encode() + b'\0' + self.endpoint.encode() + b'\0' + self.epoch.encode() + b'\0' + body,
-                        hashlib.sha256).hexdigest()
+        try:
+            body = json.dumps(json.loads(body), sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+        except (ValueError, TypeError, UnicodeDecodeError):
+            pass
+        identity = json.dumps({'format': 3, 'revision': 'results-1', 'endpoint': self.endpoint,
+                               'repository': self.repository, 'scope': self.namespace,
+                               'epoch': self.epoch}, sort_keys=True, separators=(',', ':')).encode()
+        return hmac.new(self.key, identity + b'\0' + body, hashlib.sha256).hexdigest()
 
     def _signature(self, identity, created_at, payload):
         signed = json.dumps({'identity': identity, 'created_at': created_at, 'payload': payload},
                             sort_keys=True, separators=(',', ':')).encode()
         return hmac.new(self.key, signed, hashlib.sha256).hexdigest()
 
+    def _metadata(self, note):
+        # Advisory only: restored/missing metadata never authorizes a result.
+        scope = json.dumps([self.repository, self.namespace], separators=(',', ':')).encode()
+        path = self.root / ('.key-' + hashlib.sha256(scope).hexdigest())
+        key_id = hmac.new(self.key, b'rewardguard-signing-key-id', hashlib.sha256).hexdigest()
+        temporary = None
+        try:
+            previous = path.read_text() if path.exists() else None
+            if previous is not None and previous != key_id:
+                note('signing_key_changed')
+            if previous != key_id:
+                self.root.mkdir(parents=True, exist_ok=True)
+                with tempfile.NamedTemporaryFile(mode='w', dir=self.root, delete=False) as stream:
+                    temporary = stream.name
+                    stream.write(key_id)
+                os.replace(temporary, path)
+        except OSError:
+            note('metadata_unavailable')
+        finally:
+            if temporary:
+                try:
+                    Path(temporary).unlink(missing_ok=True)
+                except OSError:
+                    note('cleanup_failed')
+
     def load(self, body, diagnostic=None):
         def note(reason):
             if diagnostic:
                 diagnostic(reason)
         if self.root is None:
-            note('disabled')
-            return None
+            result = self._memory.get(self.identity(body))
+            note('local_reuse' if result is not None else 'disabled')
+            return deepcopy(result)
+        self._metadata(note)
         identity = self.identity(body)
         try:
             record = json.loads((self.root / (identity + '.json')).read_text())
+            if record.get('format') != 3:
+                note('format_changed')
+                return None
             payload = record['payload']
             created_at = record['created_at']
             if not _valid_timestamp(created_at):
@@ -121,7 +188,11 @@ class ReviewCache:
             if diagnostic:
                 diagnostic(reason)
         if self.root is None:
+            self._memory[self.identity(body)] = deepcopy(data)
             note('disabled')
+            return
+        if self.load(body) is not None:
+            note('immutable_existing')
             return
         created_at = _clock(diagnostic=note)
         if created_at is None:
@@ -129,7 +200,7 @@ class ReviewCache:
             return
         identity = self.identity(body)
         payload = json.dumps(data, sort_keys=True)
-        record = {'payload': payload, 'created_at': created_at,
+        record = {'format': 3, 'payload': payload, 'created_at': created_at,
                   'signature': self._signature(identity, created_at, payload)}
         temporary = None
         try:

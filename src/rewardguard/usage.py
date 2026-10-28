@@ -10,7 +10,7 @@ _REASONS = {'started', 'disabled', 'invalid_timestamp', 'integrity_failure', 'cl
             'clock_system_error', 'clock_invalid_value', 'clock_unexpected_error', 'clock_warning_write_failed',
             'malformed', 'invalid_response', 'saved', 'write_failed', 'cleanup_failed',
             'finding_not_cacheable', 'exhausted', 'response_received', 'retryable_http_error',
-            'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json'}
+            'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json', 'local_reuse', 'immutable_existing', 'format_changed', 'signing_key_changed', 'metadata_unavailable'}
 _NUMBERS = {'state_characters', 'question_characters', 'question_count', 'request_bytes', 'attempt',
             'input_tokens_available', 'output_tokens_available', 'cached_input_tokens_available',
             'input_tokens', 'output_tokens', 'cached_input_tokens', 'http_status'}
@@ -119,6 +119,16 @@ class UsageTracker:
                     row['input_tokens'] += tokens
                 else:
                     row['usage_missing'] += 1
+
+    def explanation(self, phase, counter):
+        if counter not in ('requests', 'invocations', 'cache_hits'):
+            return
+        with self._lock:
+            row = self._phases.setdefault(phase, self._empty())
+            usage = row.setdefault('explanations', {'requests': 0, 'invocations': 0, 'cache_hits': 0,
+                                                   'provider_attempts': 'unavailable',
+                                                   'provider_billed_tokens': 'unavailable'})
+            usage[counter] += 1
 
     def snapshot(self):
         with self._lock:

@@ -343,7 +343,7 @@ def key_block_notes(chunks: list[Chunk]) -> list[str]:
 
 
 class JevClient:
-    def __init__(self, cfg: Config, api_key: str | None = None, opener=None, usage=None, phase="code"):
+    def __init__(self, cfg: Config, api_key: str | None = None, opener=None, usage=None, phase="code", cache_namespace=None, repository=None):
         self.cfg = cfg
         self.api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
         if not self.api_key:
@@ -355,10 +355,15 @@ class JevClient:
         self.usage.configure(cfg.max_attempts, cfg.max_request_bytes)
         self.phase = phase
         from .review_cache import ReviewCache
-        self.cache = ReviewCache(self.api_key, cfg.api_url, cfg.cache_epoch, cfg.cache_max_age_seconds)
+        self.cache = ReviewCache(self.api_key, cfg.api_url, cfg.cache_epoch, cfg.cache_max_age_seconds, namespace=cache_namespace or phase, repository=repository)
         self.cache_hits = 0
 
     def ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
+        identity = json.dumps({'state': state, 'questions': questions}, sort_keys=True).encode()
+        with self.cache.coordinate(identity):
+            return self._ask(state, questions)
+
+    def _ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
         if len(state) > self.cfg.max_state_chars:
             raise RewardGuardError("Jev state exceeds judge.max_state_chars; no partial context was submitted.")
         body = json.dumps({
@@ -435,16 +440,11 @@ class JevClient:
         except RewardGuardError:
             note('response_validation', 'invalid_response')
             raise
-        routing = all(k == "content_task" or k.startswith(("pack_", "variant_", "applies_", "literal_"))
-                      for k in questions)
-        if routing or all(p < WARN_AT for p in answers.values()):
-            model = data.get("model")
-            if not isinstance(model, str) or not re.fullmatch(r'jev-[0-9]+(?:\.[0-9]+){1,3}', model):
-                model = None
-            self.cache.save(body, {"model": model, "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}},
-                            diagnostic=lambda reason: note('result_cache_write', reason))
-        else:
-            note('result_cache_write', 'finding_not_cacheable')
+        model = data.get("model")
+        if not isinstance(model, str) or not re.fullmatch(r'jev-[0-9]+(?:\.[0-9]+){1,3}', model):
+            model = None
+        self.cache.save(body, {"model": model, "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}},
+                        diagnostic=lambda reason: note('result_cache_write', reason))
         return answers
 
     def _validate(self, data: dict, questions: dict[str, str]) -> dict[str, float]:

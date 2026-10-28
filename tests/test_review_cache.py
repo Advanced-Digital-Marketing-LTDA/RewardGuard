@@ -15,13 +15,13 @@ def test_clean_review_is_reused_across_clients(tmp_path, monkeypatch):
     assert len(api.calls) == 2
 
 
-def test_findings_are_not_cached(tmp_path, monkeypatch):
+def test_validated_findings_are_cached(tmp_path, monkeypatch):
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
     cfg = config.parse('run_tests = false\n')
     api = FakeJev(rules={('q', 'evidence'): .9})
     for _ in range(2):
         assert judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'}) == {'q': .9}
-    assert len(api.calls) == 2
+    assert len(api.calls) == 1
 
 
 def test_tampered_cache_and_changed_key_are_not_trusted(tmp_path, monkeypatch):
