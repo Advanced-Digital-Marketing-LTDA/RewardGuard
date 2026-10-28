@@ -9,6 +9,68 @@ from .models import FAIL, Report
 
 MARKER = "<!-- rewardguard-report -->"
 
+# Exact internal reason strings map to fixed labels. Unknown text is never
+# copied into diagnostics, even if a caller supplies a branch-authored reason.
+_OMISSION_REASONS = {
+    'Unsafe or excluded repository path': 'excluded_path',
+    'Repository evidence excluded by path safety or content.evidence_exclude': 'excluded_path',
+    'File not available at revision': 'unavailable_at_revision',
+    'Blob exceeds 160000 byte read limit': 'blob_read_limit',
+    'Binary or undecodable blob': 'binary_or_undecodable',
+    'Whole evidence unit exceeds per-file or remaining total budget': 'unit_budget',
+    'Whole relevant configured section exceeds per-file allowance': 'configured_section_budget',
+    'No whole relevant configured Markdown unit admitted': 'configured_unit_unavailable',
+    'Artifact-dependent installed-skill relevance analysis unavailable: proposed source not available': 'artifact_unavailable',
+    'Local policy-reference discovery capped at 30 candidate documents': 'policy_discovery_limit',
+    'Business-context allowance exhausted; writing-policy space reserved': 'business_context_budget',
+    'Relevant whole section exceeds per-document budget': 'document_budget',
+    'Automatic documentation scan capped at 16 documents': 'document_scan_limit',
+    'Automatic documentation candidate limit; some candidate documents unscanned': 'document_candidate_limit',
+    'Local-link inventory prioritization unavailable: proposed source not available': 'artifact_unavailable',
+    'File inventory capped at 40 paths': 'inventory_limit',
+    'Changed-line anchor collection capped at 200 lines in this hunk; primary diff remains independent': 'changed_anchor_limit',
+    'Whole-section selection capped at 200 changed-line anchors; primary diff remains independent': 'section_anchor_limit',
+    'No whole changed source section fits the evidence budget; primary diff is supplied independently': 'source_section_unavailable',
+    'Full artifact exceeds source budget; only admitted whole sections are supplied': 'artifact_budget',
+    'Static HTML observations capped at 80': 'html_observation_limit',
+    'Static import discovery unavailable: affected source not available': 'artifact_unavailable',
+    'Related-section relevance analysis unavailable: affected source not available': 'artifact_unavailable',
+    'Full related source exceeds per-file budget; only whole sections defining referenced symbols may be supplied': 'related_source_budget',
+    'Related-source collection capped at 6 files': 'related_source_limit',
+    'Git history metadata capped at five commits; additional older history exists': 'history_limit',
+}
+_GAP_REASONS = {
+    'Relevant check lacks specific supporting evidence after repository discovery': 'missing_evidence_after_discovery',
+    'Supplied sources do not establish this specific target/claim or required condition': 'insufficient_target_evidence',
+    'No textual source; binary/visual evidence is unavailable': 'binary_or_no_text',
+}
+
+
+def evidence_diagnostics(content: dict) -> dict:
+    """Summarize coverage and omitted units without retaining source text or paths."""
+    counts = dict.fromkeys(('eligible', 'evaluated', 'skipped', 'not_applicable', 'not_evaluated', 'unknown'), 0)
+    gaps = Counter()
+    for row in content.get('coverage', []):
+        status = row.get('status') if isinstance(row, dict) else None
+        counts[status if isinstance(status, str) and status in counts else 'unknown'] += 1
+        if status == 'not_evaluated':
+            reason = row.get('reason')
+            gaps[_GAP_REASONS.get(reason, 'unknown') if isinstance(reason, str) else 'unknown'] += 1
+    reasons = Counter()
+    for row in content.get('omissions', []):
+        reason = row.get('reason') if isinstance(row, dict) else None
+        label = _OMISSION_REASONS.get(reason, 'other_or_unknown') if isinstance(reason, str) else 'other_or_unknown'
+        reasons[label] += 1
+    status = content.get('status')
+    return {'status': status if status in ('reviewed', 'skipped', 'not_evaluated', 'error') else 'unknown',
+            'coverage': counts, 'omission_count': sum(reasons.values()),
+            'omission_reasons': dict(sorted(reasons.items())), 'not_evaluated_reasons': dict(gaps)}
+
+
+def _diagnostics(report: Report) -> dict:
+    return {**report.diagnostics, 'provider_cache_accounting': 'only when explicitly returned per response; otherwise unavailable',
+            'evidence': evidence_diagnostics(report.content)}
+
 
 def _loc(f) -> str:
     if not f.file:
@@ -18,6 +80,8 @@ def _loc(f) -> str:
 
 def terminal(report: Report) -> str:
     out = []
+    if report.run_identity:
+        out.append('run    ' + ' '.join(f'{key}={value}' for key, value in report.run_identity.items()))
     for e in report.errors:
         out.append(f"ERROR  {e}")
     for f in sorted(report.findings, key=lambda x: (x.severity != FAIL, x.file or "", x.line or 0)):
@@ -36,6 +100,28 @@ def terminal(report: Report) -> str:
         out.append(f"usage  Jev {phase}: {u['requests']} responses, {u['input_tokens']} reported input tokens, "
                    f"{u['usage_missing']} without usage; {u['state_characters']} state characters, "
                    f"{u['question_characters']} question characters")
+        out.append(f"usage  Jev {phase}: {u.get('attempts', 0)} HTTP attempts, "
+                   f"{u.get('request_bytes', 0)} serialized request bytes, "
+                   f"{u.get('cache_hits', 0)} cache hits, {u.get('budget_denials', 0)} budget denials")
+        for stage, s in sorted(u.get('stages', {}).items()):
+            out.append(f"usage  Jev {phase}/{stage}: {s['attempts']} HTTP attempts, {s['request_bytes']} request bytes, "
+                       f"{s['requests']} responses, {s['input_tokens']} reported input tokens, "
+                       f"{s['usage_missing']} missing usage, {s['cache_hits']} cache hits, {s['budget_denials']} budget denials")
+    diagnostic = _diagnostics(report)
+    evidence = diagnostic['evidence']
+    out.append('scope  content=' + evidence['status'] + ' ' +
+               ' '.join(f'{key}={count}' for key, count in evidence['coverage'].items()))
+    if evidence['omission_count']:
+        out.append('scope  omitted evidence units=' + str(evidence['omission_count']) + ': ' +
+                   ', '.join(f'{key}={count}' for key, count in evidence['omission_reasons'].items()))
+    if evidence['not_evaluated_reasons']:
+        out.append('scope  not evaluated reasons: ' +
+                   ', '.join(f'{key}={count}' for key, count in sorted(evidence['not_evaluated_reasons'].items())))
+    for event in diagnostic.get('events', []):
+        out.append('diag   ' + json.dumps(event, sort_keys=True, separators=(',', ':')))
+    out.append(f"diag   {len(diagnostic.get('events', []))} request/cache events, "
+               f"{diagnostic.get('events_dropped', 0)} events dropped; provider cache accounting "
+               'only when explicitly returned per response; otherwise unavailable')
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
     verdict = "FAILED" if report.failed else "PASSED"
@@ -126,7 +212,19 @@ def markdown(report: Report) -> str:
                   "|---|---:|---:|---:|---:|---:|"]
         for phase, u in sorted(report.usage.items()):
             lines.append(f"| {safe(phase)} | {u['requests']} | {u['input_tokens']} | {u['usage_missing']} | {u['state_characters']} | {u['question_characters']} |")
-        lines += ["", "Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
+        lines += ["", "| Phase | HTTP attempts | Serialized request bytes | Cache hits | Budget denials |",
+                  "|---|---:|---:|---:|---:|"]
+        for phase, u in sorted(report.usage.items()):
+            lines.append(f"| {safe(phase)} | {u.get('attempts', 0)} | {u.get('request_bytes', 0)} | {u.get('cache_hits', 0)} | {u.get('budget_denials', 0)} |")
+        stage_rows = [(phase, stage, s) for phase, u in sorted(report.usage.items())
+                      for stage, s in sorted(u.get('stages', {}).items())]
+        if stage_rows:
+            lines += ["", "| Phase / stage | Attempts | Request bytes | Responses | Reported input tokens | Missing usage | Cache hits | Budget denials |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|"]
+            for phase, stage, s in stage_rows:
+                lines.append(f"| {safe(phase)} / {safe(stage)} | {s['attempts']} | {s['request_bytes']} | {s['requests']} | {s['input_tokens']} | {s['usage_missing']} | {s['cache_hits']} | {s['budget_denials']} |")
+        lines += ["", "Attempts and request bytes include retries and failed calls; cache hits send no request. "
+                  "Bytes are not tokens or billing. Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
     if report.errors:
         lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
@@ -156,4 +254,6 @@ def as_json(report: Report) -> str:
         "notes": report.notes,
         "content": report.content,
         "usage": report.usage,
+        "run_identity": report.run_identity,
+        "diagnostics": _diagnostics(report),
     }, indent=2)

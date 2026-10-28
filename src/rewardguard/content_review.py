@@ -227,21 +227,26 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
     # Preserve the actual task requirements first; evidence omissions are explicit.
     evidence_allowance = max(1024, (cfg.max_state_chars - len(context) - 8000) // 2)
     for cf in selected:
+        full = gitops.show_file(repo, head, cf.path)
+        complete = full is not None and len(full) <= min(32000, cfg.max_state_chars // 3, evidence_allowance)
+        shared_artifact = _safe(full) if complete else None
         # Sources are discovered per affected artifact. This keeps adjacent source,
         # policies and product facts focused rather than loading all installed skills.
         bundle = content_evidence.collect(repo, trusted_base or base, head, cf.path, cfg,
-                                          max_chars=min(24000, cfg.max_state_chars // 3, evidence_allowance))
+                                          max_chars=min(24000, cfg.max_state_chars // 3, evidence_allowance),
+                                          shared_artifact=shared_artifact)
         for source in bundle.provenance:
             identity = tuple(str(source.get(k, '')) for k in ('path', 'commit', 'role', 'start_line', 'end_line'))
             if identity not in source_seen:
                 result.provenance.append(source)
                 source_seen.add(identity)
         result.omissions.extend({'file': cf.path, **item} for item in bundle.omissions)
-        full = gitops.show_file(repo, head, cf.path)
-        complete = full is not None and len(full) <= min(32000, cfg.max_state_chars // 3, evidence_allowance)
-        suffix = ('\n--- complete proposed source artifact (not a runtime observation) ---\n' + _safe(full)) if complete else ''
+        suffix = ('\n--- complete proposed source artifact (not a runtime observation) ---\n' + shared_artifact) if complete else ''
         suffix += '\n--- automatically collected repository evidence (scoped claims and source data) ---\n' + bundle.text
-        budget = cfg.max_state_chars - len(suffix) - 3000
+        # Keep the same chunk boundaries as the uncompressed evidence: savings
+        # must not merge separately reviewed changes into a different instance.
+        original_suffix_length = len(suffix) - len(bundle.text) + bundle.budgeted_characters
+        budget = cfg.max_state_chars - original_suffix_length - 3000
         if budget < 4000:
             raise RewardGuardError('Content state budget is too small for the required evidence')
         chunks = judge._file_chunks(repo, base, head, replace(cfg, max_state_chars=budget), cf, OTHER,

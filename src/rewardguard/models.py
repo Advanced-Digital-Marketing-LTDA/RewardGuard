@@ -56,6 +56,8 @@ class Report:
     notes: list[str] = field(default_factory=list)
     content: dict = field(default_factory=dict)
     usage: dict = field(default_factory=dict)
+    run_identity: dict = field(default_factory=dict)
+    diagnostics: dict = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:

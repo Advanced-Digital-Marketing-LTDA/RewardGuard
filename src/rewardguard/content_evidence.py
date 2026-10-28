@@ -23,6 +23,9 @@ class EvidenceBundle:
     provenance: list[dict] = field(default_factory=list)
     omissions: list[dict] = field(default_factory=list)
     source_observations: list[dict] = field(default_factory=list)
+    # Original admitted piece sizes preserve the prior diff-chunk budget even
+    # when the transmitted representation uses shorter self-contained aliases.
+    budgeted_characters: int = 0
 
 
 # Even explicitly configured paths cannot opt credentials or private exports in.
@@ -144,7 +147,8 @@ class _LiteralHTML(HTMLParser):
                                   'tag': tag, 'attributes': literals, 'source_only': True})
 
 
-def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> EvidenceBundle:
+def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000,
+            shared_artifact=None, deduplicate=True) -> EvidenceBundle:
     """Collect scoped evidence for one affected FILE without executing repository code.
 
     Only configured context may provide R/M/S. Automatic B/P derives from eligible
@@ -153,6 +157,7 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
     """
     bundle = EvidenceBundle()
     pieces: list[str] = []
+    supplied_text: dict[str, dict] = {}
     remaining = max(0, int(max_chars))
     per_file = min(6500, remaining)
     if not _safe_path(path) or content_path_excluded(path, cfg.content.evidence_exclude):
@@ -214,8 +219,25 @@ def collect(repo, trusted_base, head, path, cfg, *, max_chars=18000) -> Evidence
             omit(file, 'Whole evidence unit exceeds per-file or remaining total budget',
                  commit=commit, scope=scope, start_line=start, end_line=record['end_line'], chars=len(text))
             return False
-        pieces.append(piece)
+        # Preserve the original admission decision and budget accounting: making
+        # a payload smaller must not silently bring a different set of evidence
+        # into the review. Every reference retains its own provenance header.
+        reference = None
+        if deduplicate and role == 'proposed_artifact' and shared_artifact and text in shared_artifact:
+            reference = 'the complete proposed source artifact above (the exact text is present there)'
+        elif deduplicate and text in supplied_text:
+            original = supplied_text[text]
+            identity = {k: original[k] for k in ('path', 'commit', 'role', 'start_line', 'end_line')}
+            reference = 'the earlier evidence with provenance ' + json.dumps(identity, ensure_ascii=True) + ' (identical text)'
+        alias = (header + '[Exact text is in ' + reference + '; retain this unit\'s distinct provenance.]\n'
+                 if reference else piece)
+        if len(alias) < len(piece):
+            pieces.append(alias)
+        else:
+            pieces.append(piece)
+            supplied_text.setdefault(text, record)
         remaining -= len(piece)
+        bundle.budgeted_characters += len(piece)
         bundle.provenance.append(record)
         bundle.available.update(codes)
         return True

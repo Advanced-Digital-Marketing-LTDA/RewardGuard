@@ -350,10 +350,12 @@ class JevClient:
             raise RewardGuardError("TYPESAFE_API_KEY is not set")
         self.opener = opener or urllib.request.urlopen
         self.models_seen: set[str] = set()
-        self.usage = usage
+        from .usage import UsageTracker
+        self.usage = usage if usage is not None else UsageTracker()
+        self.usage.configure(cfg.max_attempts, cfg.max_request_bytes)
         self.phase = phase
         from .review_cache import ReviewCache
-        self.cache = ReviewCache(self.api_key, cfg.api_url)
+        self.cache = ReviewCache(self.api_key, cfg.api_url, cfg.cache_epoch, cfg.cache_max_age_seconds)
         self.cache_hits = 0
 
     def ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
@@ -364,54 +366,101 @@ class JevClient:
             "state": state,
             "questions": {k: {"type": "noul", "instructions": v} for k, v in questions.items()},
         }).encode()
-        cached = self.cache.load(body)
+        stage = None
+        if self.phase == 'content':
+            if set(questions) == {'content_task'}:
+                stage = 'classification'
+            elif questions and all(k.startswith(('pack_', 'variant_')) for k in questions):
+                stage = 'routing'
+            elif questions and all(k.startswith(('applies_', 'literal_')) for k in questions):
+                stage = 'applicability'
+            else:
+                stage = 'evaluation'
+        request_id = self.usage.start_request(self.phase, stage, state, questions, len(body))
+        def note(category, reason, **numbers):
+            self.usage.event(request_id, self.phase, stage, category, reason, **numbers)
+        cached = self.cache.load(body, diagnostic=lambda reason: note('result_cache_lookup', reason))
         if cached is not None:
-            answers = self._validate(cached, questions)
+            try:
+                answers = self._validate(cached, questions)
+            except RewardGuardError:
+                note('result_cache_validation', 'invalid_response')
+                raise
             self.cache_hits += 1
+            self.usage.cache_hit(self.phase, stage)
             return answers
         delay = 2.0
         for attempt in range(4):
+            try:
+                self.usage.reserve(self.phase, len(body), stage)
+            except RewardGuardError:
+                note('budget', 'exhausted', attempt=attempt + 1)
+                raise
+            note('http_attempt', 'started', attempt=attempt + 1, request_bytes=len(body))
             req = urllib.request.Request(self.cfg.api_url, data=body, method="POST", headers={
                 "Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
             })
             try:
                 with self.opener(req, timeout=self.cfg.timeout_seconds) as resp:
                     data = json.loads(resp.read().decode())
-                if self.usage is not None:
-                    self.usage.record(self.phase, state, questions, data)
+                self.usage.record(self.phase, state, questions, data, stage)
+                usage = data.get('usage') if isinstance(data, dict) else None
+                usage = usage if isinstance(usage, dict) else {}
+                token_counts = {name: usage.get(name) for name in ('input_tokens', 'output_tokens', 'cached_input_tokens')}
+                token_counts = {name: value for name, value in token_counts.items() if type(value) is int and value >= 0}
+                note('http_attempt', 'response_received', attempt=attempt + 1,
+                     input_tokens_available=int('input_tokens' in token_counts),
+                     output_tokens_available=int('output_tokens' in token_counts),
+                     cached_input_tokens_available=int('cached_input_tokens' in token_counts), **token_counts)
                 break
             except urllib.error.HTTPError as e:
-                detail = e.read().decode(errors="replace")[:500]
-                transient = e.code == 429 or e.code >= 500
+                status = e.code if type(e.code) is int and 100 <= e.code <= 599 else 0
+                transient = status == 429 or status >= 500
+                note('http_attempt', 'retryable_http_error' if transient else 'permanent_http_error',
+                     attempt=attempt + 1, http_status=status)
                 if not transient or attempt == 3:
-                    raise RewardGuardError(f"Jev API returned HTTP {e.code}: {detail}") from e
+                    raise RewardGuardError(f"Jev API returned HTTP {status or 'unknown'}; review incomplete") from e
                 retry_after = e.headers.get("Retry-After") if e.headers else None
+                note('retry', 'scheduled', attempt=attempt + 1)
                 time.sleep(float(retry_after) if retry_after and retry_after.isdigit() else delay)
                 delay *= 2
             except (urllib.error.URLError, TimeoutError) as e:
-                raise RewardGuardError(f"Jev API request failed: {e}") from e
+                note('http_attempt', 'transport_failure', attempt=attempt + 1)
+                raise RewardGuardError("Jev API request failed; review incomplete") from e
             except json.JSONDecodeError as e:
-                raise RewardGuardError(f"Jev API returned invalid JSON: {e}") from e
-        answers = self._validate(data, questions)
+                note('http_attempt', 'invalid_json', attempt=attempt + 1)
+                raise RewardGuardError("Jev API returned invalid JSON; review incomplete") from e
+        try:
+            answers = self._validate(data, questions)
+        except RewardGuardError:
+            note('response_validation', 'invalid_response')
+            raise
         routing = all(k == "content_task" or k.startswith(("pack_", "variant_", "applies_", "literal_"))
                       for k in questions)
         if routing or all(p < WARN_AT for p in answers.values()):
-            self.cache.save(body, {"model": data.get("model"), "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}})
+            model = data.get("model")
+            if not isinstance(model, str) or not re.fullmatch(r'jev-[0-9]+(?:\.[0-9]+){1,3}', model):
+                model = None
+            self.cache.save(body, {"model": model, "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}},
+                            diagnostic=lambda reason: note('result_cache_write', reason))
+        else:
+            note('result_cache_write', 'finding_not_cacheable')
         return answers
 
     def _validate(self, data: dict, questions: dict[str, str]) -> dict[str, float]:
         if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):
-            raise RewardGuardError(f"Jev response has no answers object: {str(data)[:300]}")
-        if data.get("model"):
-            self.models_seen.add(str(data["model"]))
+            raise RewardGuardError("Jev response has no answers object")
+        model = data.get("model")
+        if isinstance(model, str) and re.fullmatch(r'jev-[0-9]+(?:\.[0-9]+){1,3}', model):
+            self.models_seen.add(model)
         out = {}
         for key in questions:
             ans = data["answers"].get(key)
             if not isinstance(ans, dict) or ans.get("type") != "noul":
-                raise RewardGuardError(f"Jev gave no usable answer for '{key}': {str(ans)[:200]}")
+                raise RewardGuardError("Jev gave no usable answer")
             p = ans.get("noul")
             if isinstance(p, bool) or not isinstance(p, (int, float)) or not 0 <= p <= 1:
-                raise RewardGuardError(f"Jev answer for '{key}' is not a probability: {p!r}")
+                raise RewardGuardError("Jev answer is not a probability")
             out[key] = float(p)
         return out
 

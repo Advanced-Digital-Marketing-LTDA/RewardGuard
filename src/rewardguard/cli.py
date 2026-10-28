@@ -3,11 +3,37 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
 from . import __version__, codex_hook, config, explainer, gitops, judge, report, runner, static_checks
 from .models import CLEAR_CUT, FAIL, WARN, Finding, Report, RewardGuardError
+
+
+def _run_identity(args, *, base=None, head=None, policy=None, cfg=None) -> dict:
+    """Record only fixed event labels, resolved object IDs and versioned model IDs."""
+    events = {'pull_request', 'pull_request_target', 'push', 'workflow_dispatch',
+              'workflow_call', 'schedule', 'merge_group', 'repository_dispatch'}
+    actions = {'opened', 'synchronize', 'reopened', 'edited', 'closed', 'ready_for_review',
+               'converted_to_draft', 'labeled', 'unlabeled', 'enqueued', 'dequeued',
+               'checks_requested', 'destroyed', 'created', 'deleted'}
+    def commit(value):
+        return value.lower() if isinstance(value, str) and re.fullmatch(r'[0-9a-fA-F]{40}|[0-9a-fA-F]{64}', value) else 'unknown'
+    def run_number(name):
+        value = os.environ.get(name)
+        return value if isinstance(value, str) and re.fullmatch(r'[1-9][0-9]{0,19}', value) else 'unknown'
+    event = os.environ.get('GITHUB_EVENT_NAME')
+    action = os.environ.get('REWARDGUARD_EVENT_ACTION')
+    model = getattr(cfg, 'model', None)
+    return {'event': event if event in events else 'unknown',
+            'action': action if action in actions else 'unknown',
+            'action_revision': commit(os.environ.get('REWARDGUARD_ACTION_REVISION')),
+            'run_id': run_number('GITHUB_RUN_ID'), 'run_attempt': run_number('GITHUB_RUN_ATTEMPT'),
+            'base': commit(base), 'head': commit(head), 'trusted_policy': commit(policy),
+            'model': model if isinstance(model, str) and re.fullmatch(r'jev-[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}', model) else 'unknown',
+            'review_mode': 'staged' if getattr(args, 'staged', False) else
+                           'content_only' if getattr(args, 'content_only', False) else 'full'}
 
 
 def _description(args, *, head=None, notes=None) -> str:
@@ -79,7 +105,7 @@ def run_tests(args) -> int:
 
 def check(args) -> int:
     repo = str(Path(args.repo).resolve())
-    rep = Report()
+    rep = Report(run_identity=_run_identity(args))
     from .usage import UsageTracker
     usage = UsageTracker()
     log = (lambda *_: None) if args.quiet else (lambda m: print(m, file=sys.stderr))
@@ -89,7 +115,10 @@ def check(args) -> int:
     except RewardGuardError as e:
         rep.errors.append(str(e))
         rep.content = {"status": "error", "coverage": [], "reason": "Review preflight failed: " + str(e)}
-        return _finish(rep, args)
+        return _finish(rep, args, usage)
+
+    rep.run_identity = _run_identity(args, base=base, head=head,
+                                     policy=getattr(args, 'config_base', base), cfg=cfg)
 
     if getattr(args, "staged", False):
         config_base = getattr(args, "config_base", base)
@@ -103,7 +132,7 @@ def check(args) -> int:
     if not changed:
         rep.notes.append("No changes between base and head.")
         rep.content = {"status": "skipped", "coverage": [], "reason": "No changes between base and head."}
-        return _finish(rep, args)
+        return _finish(rep, args, usage)
 
     # Resolve once so code/content classification, justification, confirmation,
     # and Haiku all see the same task context and provenance.
@@ -127,7 +156,7 @@ def check(args) -> int:
         rep.content = {"status": "error", "coverage": []}
     if getattr(args, "content_only", False):
         rep.usage = usage.snapshot()
-        return _finish(rep, args)
+        return _finish(rep, args, usage)
 
     log("rewardguard: static checks")
     found, kinds = static_checks.run(static_checks.StaticContext(repo, base, head, cfg), changed)
@@ -176,10 +205,13 @@ def check(args) -> int:
         rep.errors.append(f"Judge: {e}")
 
     rep.usage = usage.snapshot()
-    return _finish(rep, args)
+    return _finish(rep, args, usage)
 
 
-def _finish(rep: Report, args) -> int:
+def _finish(rep: Report, args, usage=None) -> int:
+    if usage is not None:
+        rep.usage = usage.snapshot()
+        rep.diagnostics = usage.diagnostics()
     print(report.terminal(rep))
     if args.markdown:
         Path(args.markdown).write_text(report.markdown(rep))
