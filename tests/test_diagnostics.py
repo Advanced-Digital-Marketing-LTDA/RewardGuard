@@ -125,3 +125,23 @@ def test_cache_clock_failure_records_safe_specific_reason_and_falls_back(tmp_pat
     reasons = [e['reason'] for e in events(usage)]
     assert 'clock_system_error' in reasons and 'clock_unavailable' in reasons
     assert 'private clock detail' not in json.dumps(usage.diagnostics())
+
+
+def test_broken_clock_warning_stream_is_reported_in_structured_diagnostics(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    usage, api = UsageTracker(), FakeJev()
+    client = judge.JevClient(config.parse('run_tests = false\n'), api_key='key', opener=api, usage=usage)
+    client.ask('state', {'q': 'question'})
+
+    def fail(*args):
+        raise OSError('private stream or clock detail')
+
+    monkeypatch.setattr(review_cache, 'time', SimpleNamespace(time=fail))
+    monkeypatch.setattr(review_cache, 'sys', SimpleNamespace(stderr=SimpleNamespace(write=fail)))
+    client.ask('state', {'q': 'question'})
+    reasons = [e['reason'] for e in events(usage)]
+    assert len(api.calls) == 2
+    assert 'clock_warning_write_failed' in reasons and 'clock_system_error' in reasons
+    assert 'private stream or clock detail' not in json.dumps(usage.diagnostics())

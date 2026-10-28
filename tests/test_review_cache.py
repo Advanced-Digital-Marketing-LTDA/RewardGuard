@@ -254,4 +254,19 @@ def test_broken_warning_stream_does_not_break_clock_fallback(monkeypatch):
     monkeypatch.setattr(review_cache, 'sys', SimpleNamespace(stderr=SimpleNamespace(write=fail)))
     events = []
     assert review_cache._clock(diagnostic=events.append) is None
-    assert events == ['clock_system_error']
+    assert events == ['clock_warning_write_failed', 'clock_system_error']
+
+
+def test_overflowing_cache_timestamp_reports_invalidation(tmp_path, monkeypatch):
+    from rewardguard import review_cache
+
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    cache = review_cache.ReviewCache('key', 'endpoint')
+    cache.save(b'body', {'ok': True})
+    path = next(tmp_path.glob('*.json'))
+    record = json.loads(path.read_text())
+    record['created_at'] = 10 ** 400
+    path.write_text(json.dumps(record))
+    events = []
+    assert cache.load(b'body', diagnostic=events.append) is None
+    assert events == ['invalid_timestamp']

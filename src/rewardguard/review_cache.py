@@ -26,7 +26,8 @@ def _clock(diagnostic=None):
         try:
             sys.stderr.write("RewardGuard cache clock unavailable; reviewing again\n")
         except (OSError, ValueError):
-            pass  # A broken output stream must not prevent a fresh review.
+            if diagnostic:
+                diagnostic('clock_warning_write_failed')
         if diagnostic:
             diagnostic(reason)
     try:
