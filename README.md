@@ -28,6 +28,18 @@ The code review path has the layers below. Configuration is always read from the
 
 Each run reports Jev's provider-reported input tokens and request context sizes separately for code and content review, in the terminal, Markdown and JSON reports. State and question sizes are character counts, not token estimates. Responses without valid usage are counted separately; failed or interrupted requests may also be missing from these totals, so consult the provider's billing records for actual charges. The report does not retain the prompts in its usage totals. Content review may submit the same state repeatedly for classification, routing, applicability and batches of checks; all reported input tokens are added per response.
 
+The same reports include HTTP attempts, serialized request-body bytes, authenticated cache hits, and denied requests per phase and per content stage (classification, routing, applicability and evaluation). Attempts and request bytes are reserved before each provider call and include retries, failures and requests whose responses are lost. Cache hits do not use an HTTP attempt. Bytes are a payload measure, not a token or billing estimate.
+
+Optional trusted-base `[judge]` settings `max_attempts` and `max_request_bytes` limit the combined code and content review across the entire run. Both must be positive integers; omitting a setting leaves that budget unlimited. For example:
+
+```toml
+[judge]
+max_attempts = 100
+max_request_bytes = 2000000
+```
+
+Budget exhaustion fails the check visibly as an incomplete review, without silently skipping the remaining work. The byte limit applies to JSON request bodies including retries, not provider-reported tokens, HTTP headers or charges. Choose limits from observed workloads rather than assuming an arbitrary default is safe for every repository.
+
 Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
 
 ## What it catches
@@ -269,6 +281,17 @@ therefore trigger fresh requests. Entries are authenticated with the existing
 Jev API key; edited or unsigned entries are ignored, and key rotation invalidates
 old entries. Cache files contain probabilities and model identifiers, not source
 text or credentials. Only the secret-bearing review job uses this cache.
+
+Each entry has a signed creation time and expires after 24 hours. An older entry
+without a signed timestamp is ignored. A missing or invalid clock, or an entry
+dated in the future, also forces a fresh review instead of a cached result. A
+persistently wrong but otherwise valid system clock cannot establish real age.
+Expiry limits stale reuse but may increase provider calls and input. For model
+changes that keep the same provider model identifier, increment the trusted-base
+`[judge] cache_epoch` value (default `"v1"`), for example `cache_epoch = "v2"`.
+It accepts 1–64 ASCII letters, digits, dots, underscores or hyphens; changing it
+invalidates all previous entries. Neither expiry nor the epoch can automatically
+detect an undisclosed model change within the 24-hour window.
 
 For local checks, set `REWARDGUARD_CACHE_DIR` to a persistent directory to enable
 reuse. Leave it unset locally to always call the provider. Delete that directory

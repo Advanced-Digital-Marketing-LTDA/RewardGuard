@@ -1,5 +1,7 @@
 from rewardguard import config, judge
 from conftest import FakeJev
+import json
+import pytest
 
 
 def test_clean_review_is_reused_across_clients(tmp_path, monkeypatch):
@@ -84,3 +86,102 @@ def test_large_metadata_batches_preserve_all_questions():
     batches = list(_batches(questions, state='state'))
     assert len(batches) > 1
     assert [q for batch in batches for q in batch] == questions
+
+
+def test_cache_expires_at_24_hours(tmp_path, monkeypatch):
+    from rewardguard import review_cache
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    now = [100_000.0]
+    monkeypatch.setattr(review_cache.time, 'time', lambda: now[0])
+    cfg, api = config.parse('run_tests = false\n'), FakeJev()
+    client = judge.JevClient(cfg, api_key='key', opener=api)
+    client.ask('source', {'q': 'question'})
+    now[0] += 24 * 60 * 60 - 0.001
+    client.ask('source', {'q': 'question'})
+    assert len(api.calls) == 1
+    now[0] += 0.001
+    client.ask('source', {'q': 'question'})
+    assert len(api.calls) == 2
+
+
+def test_timestamp_is_authenticated_and_legacy_records_are_not_reused(tmp_path, monkeypatch):
+    from rewardguard import review_cache
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(review_cache.time, 'time', lambda: 100_000.0)
+    cfg, api = config.parse('run_tests = false\n'), FakeJev()
+    client = judge.JevClient(cfg, api_key='key', opener=api)
+    client.ask('sensitive source text', {'q': 'rule'})
+    path = next(tmp_path.glob('*.json'))
+    record = json.loads(path.read_text())
+    assert 'sensitive source text' not in path.read_text() and '"key"' not in path.read_text()
+    record['created_at'] -= 1
+    path.write_text(json.dumps(record))
+    client.ask('sensitive source text', {'q': 'rule'})
+    assert len(api.calls) == 2
+    record = json.loads(path.read_text())
+    del record['created_at']
+    path.write_text(json.dumps(record))
+    client.ask('sensitive source text', {'q': 'rule'})
+    assert len(api.calls) == 3
+
+
+def test_cache_epoch_forces_fresh_request_and_rejects_copied_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    old = config.parse('run_tests = false\n[judge]\ncache_epoch = "provider-2026a"\n')
+    new = config.parse('run_tests = false\n[judge]\ncache_epoch = "provider-2026b"\n')
+    api = FakeJev()
+    a = judge.JevClient(old, api_key='key', opener=api)
+    b = judge.JevClient(new, api_key='key', opener=api)
+    a.ask('state', {'q': 'question'})
+    old_path = next(tmp_path.glob('*.json'))
+    body = json.dumps({'model': new.model, 'state': 'state',
+                       'questions': {'q': {'type': 'noul', 'instructions': 'question'}}}).encode()
+    (tmp_path / (b.cache.identity(body) + '.json')).write_bytes(old_path.read_bytes())
+    b.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+    a.ask('state', {'q': 'question'})
+    b.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+
+
+@pytest.mark.parametrize('epoch', ['""', '"contains space"', 'true', '123', '"' + 'x' * 65 + '"'])
+def test_cache_epoch_rejects_invalid_trusted_config(epoch):
+    from rewardguard.models import RewardGuardError
+    with pytest.raises(RewardGuardError, match='cache_epoch'):
+        config.parse(f'run_tests = false\n[judge]\ncache_epoch = {epoch}\n')
+
+
+@pytest.mark.parametrize('bad_clock', [float('nan'), float('inf'), -1, None])
+def test_invalid_clock_disables_cache_read_and_write(tmp_path, monkeypatch, bad_clock):
+    from rewardguard import review_cache
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(review_cache.time, 'time', lambda: 100_000.0)
+    cfg, api = config.parse('run_tests = false\n'), FakeJev()
+    client = judge.JevClient(cfg, api_key='key', opener=api)
+    client.ask('state', {'q': 'question'})
+    path = next(tmp_path.glob('*.json'))
+    before = path.read_bytes()
+    monkeypatch.setattr(review_cache.time, 'time', lambda: bad_clock)
+    client.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+    assert path.read_bytes() == before
+
+
+def test_clock_error_and_backwards_clock_miss_safely(tmp_path, monkeypatch):
+    from rewardguard import review_cache
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    monkeypatch.setattr(review_cache.time, 'time', lambda: 100_000.0)
+    cfg, api = config.parse('run_tests = false\n'), FakeJev()
+    client = judge.JevClient(cfg, api_key='key', opener=api)
+    client.ask('state', {'q': 'question'})
+    monkeypatch.setattr(review_cache.time, 'time', lambda: 99_999.0)
+    client.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+    path = next(tmp_path.glob('*.json'))
+    before = path.read_bytes()
+    def broken_clock():
+        raise OSError('clock unavailable')
+    monkeypatch.setattr(review_cache.time, 'time', broken_clock)
+    client.ask('state', {'q': 'question'})
+    assert len(api.calls) == 3
+    assert path.read_bytes() == before

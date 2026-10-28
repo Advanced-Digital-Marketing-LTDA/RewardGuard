@@ -132,8 +132,11 @@ class Config:
     judge_include: list[str] = field(default_factory=lambda: list(DEFAULT_JUDGE_INCLUDE))
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE))
     model: str = "jev-1.13.0"
+    cache_epoch: str = "v1"  # Change on provider model behavior changes not reflected in model name.
     api_url: str = "https://api.typesafe.ai/v1/systemone"
     max_state_chars: int = 90_000  # ~22k tokens; Jev allows 32k for state + longest question
+    max_attempts: int | None = None  # Across code and content, including retries; None means unlimited.
+    max_request_bytes: int | None = None  # Serialized request bodies across all attempts; not a token limit.
     context_lines: int = 20
     concurrency: int = 4
     timeout_seconds: int = 60
@@ -169,6 +172,13 @@ def _content_list(section: dict, key: str, default: list[str], *, scope: str = "
                     f"{CONFIG_FILE}: '{label}' must contain relative repository paths "
                     "without absolute paths or '..' components")
     return list(values)
+
+
+def _optional_positive_int(section: dict, key: str) -> int | None:
+    value = section.get(key)
+    if value is not None and (type(value) is not int or value <= 0):
+        raise RewardGuardError(f"{CONFIG_FILE}: judge.{key} must be a positive integer")
+    return value
 
 
 def _parse_content(section: object) -> ContentConfig:
@@ -246,8 +256,11 @@ def parse(text: str) -> Config:
         judge_include=_list(paths, "judge_include", DEFAULT_JUDGE_INCLUDE),
         exclude=_list(paths, "exclude", DEFAULT_EXCLUDE),
         model=str(judge.get("model", "jev-1.13.0")),
+        cache_epoch=judge.get("cache_epoch", "v1"),
         api_url=str(judge.get("api_url", "https://api.typesafe.ai/v1/systemone")),
         max_state_chars=int(judge.get("max_state_chars", 90_000)),
+        max_attempts=_optional_positive_int(judge, "max_attempts"),
+        max_request_bytes=_optional_positive_int(judge, "max_request_bytes"),
         context_lines=int(judge.get("context_lines", 20)),
         concurrency=int(judge.get("concurrency", 4)),
         timeout_seconds=int(judge.get("timeout_seconds", 60)),
@@ -265,6 +278,8 @@ def parse(text: str) -> Config:
 def _validate(cfg: Config) -> None:
     if cfg.model == "jev-latest":
         raise RewardGuardError(f"{CONFIG_FILE}: pin a versioned Jev model, not jev-latest")
+    if not isinstance(cfg.cache_epoch, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", cfg.cache_epoch):
+        raise RewardGuardError(f"{CONFIG_FILE}: judge.cache_epoch must be 1-64 letters, digits, dots, underscores or hyphens")
     if cfg.explainer_effort not in ("low", "medium", "high", "xhigh", "max"):
         raise RewardGuardError(f"{CONFIG_FILE}: explainer effort must be low, medium, high, xhigh or max")
 

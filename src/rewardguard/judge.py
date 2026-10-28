@@ -350,10 +350,12 @@ class JevClient:
             raise RewardGuardError("TYPESAFE_API_KEY is not set")
         self.opener = opener or urllib.request.urlopen
         self.models_seen: set[str] = set()
-        self.usage = usage
+        from .usage import UsageTracker
+        self.usage = usage if usage is not None else UsageTracker()
+        self.usage.configure(cfg.max_attempts, cfg.max_request_bytes)
         self.phase = phase
         from .review_cache import ReviewCache
-        self.cache = ReviewCache(self.api_key, cfg.api_url)
+        self.cache = ReviewCache(self.api_key, cfg.api_url, cfg.cache_epoch)
         self.cache_hits = 0
 
     def ask(self, state: str, questions: dict[str, str]) -> dict[str, float]:
@@ -364,21 +366,32 @@ class JevClient:
             "state": state,
             "questions": {k: {"type": "noul", "instructions": v} for k, v in questions.items()},
         }).encode()
+        stage = None
+        if self.phase == 'content':
+            if set(questions) == {'content_task'}:
+                stage = 'classification'
+            elif questions and all(k.startswith(('pack_', 'variant_')) for k in questions):
+                stage = 'routing'
+            elif questions and all(k.startswith(('applies_', 'literal_')) for k in questions):
+                stage = 'applicability'
+            else:
+                stage = 'evaluation'
         cached = self.cache.load(body)
         if cached is not None:
             answers = self._validate(cached, questions)
             self.cache_hits += 1
+            self.usage.cache_hit(self.phase, stage)
             return answers
         delay = 2.0
         for attempt in range(4):
+            self.usage.reserve(self.phase, len(body), stage)
             req = urllib.request.Request(self.cfg.api_url, data=body, method="POST", headers={
                 "Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
             })
             try:
                 with self.opener(req, timeout=self.cfg.timeout_seconds) as resp:
                     data = json.loads(resp.read().decode())
-                if self.usage is not None:
-                    self.usage.record(self.phase, state, questions, data)
+                self.usage.record(self.phase, state, questions, data, stage)
                 break
             except urllib.error.HTTPError as e:
                 detail = e.read().decode(errors="replace")[:500]

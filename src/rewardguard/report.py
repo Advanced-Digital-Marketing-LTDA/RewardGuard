@@ -36,6 +36,13 @@ def terminal(report: Report) -> str:
         out.append(f"usage  Jev {phase}: {u['requests']} responses, {u['input_tokens']} reported input tokens, "
                    f"{u['usage_missing']} without usage; {u['state_characters']} state characters, "
                    f"{u['question_characters']} question characters")
+        out.append(f"usage  Jev {phase}: {u.get('attempts', 0)} HTTP attempts, "
+                   f"{u.get('request_bytes', 0)} serialized request bytes, "
+                   f"{u.get('cache_hits', 0)} cache hits, {u.get('budget_denials', 0)} budget denials")
+        for stage, s in sorted(u.get('stages', {}).items()):
+            out.append(f"usage  Jev {phase}/{stage}: {s['attempts']} HTTP attempts, {s['request_bytes']} request bytes, "
+                       f"{s['requests']} responses, {s['input_tokens']} reported input tokens, "
+                       f"{s['usage_missing']} missing usage, {s['cache_hits']} cache hits, {s['budget_denials']} budget denials")
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
     verdict = "FAILED" if report.failed else "PASSED"
@@ -126,7 +133,19 @@ def markdown(report: Report) -> str:
                   "|---|---:|---:|---:|---:|---:|"]
         for phase, u in sorted(report.usage.items()):
             lines.append(f"| {safe(phase)} | {u['requests']} | {u['input_tokens']} | {u['usage_missing']} | {u['state_characters']} | {u['question_characters']} |")
-        lines += ["", "Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
+        lines += ["", "| Phase | HTTP attempts | Serialized request bytes | Cache hits | Budget denials |",
+                  "|---|---:|---:|---:|---:|"]
+        for phase, u in sorted(report.usage.items()):
+            lines.append(f"| {safe(phase)} | {u.get('attempts', 0)} | {u.get('request_bytes', 0)} | {u.get('cache_hits', 0)} | {u.get('budget_denials', 0)} |")
+        stage_rows = [(phase, stage, s) for phase, u in sorted(report.usage.items())
+                      for stage, s in sorted(u.get('stages', {}).items())]
+        if stage_rows:
+            lines += ["", "| Phase / stage | Attempts | Request bytes | Responses | Reported input tokens | Missing usage | Cache hits | Budget denials |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|"]
+            for phase, stage, s in stage_rows:
+                lines.append(f"| {safe(phase)} / {safe(stage)} | {s['attempts']} | {s['request_bytes']} | {s['requests']} | {s['input_tokens']} | {s['usage_missing']} | {s['cache_hits']} | {s['budget_denials']} |")
+        lines += ["", "Attempts and request bytes include retries and failed calls; cache hits send no request. "
+                  "Bytes are not tokens or billing. Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
     if report.errors:
         lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
