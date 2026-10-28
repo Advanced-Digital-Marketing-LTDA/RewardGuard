@@ -63,7 +63,29 @@ def test_restore_hit_reports_archive_and_counts_regular_entry_files(steps, tmp_p
     rows = [json.loads(line) for line in out.splitlines() if line.startswith('{')]
     assert rows == [{'kind': 'jev_archive_restore', 'requested_key': 'rewardguard-jev-v1-Linux-123-1',
                      'prefix': 'rewardguard-jev-v1-Linux-', 'matched_key': matched, 'outcome': 'success',
-                     'status': expected, 'restored_count': 1}]
+                     'status': expected, 'restored_count': 1, 'entry_count_error': None}]
+
+
+def test_restore_count_failure_reports_safe_reason_without_path(steps, tmp_path):
+    missing = tmp_path / 'sensitive-folder-name'
+    out = invoke(steps['Report Jev archive restore'], CACHE_REQUESTED='rewardguard-jev-v1-Linux-123-1',
+                 CACHE_PREFIX='rewardguard-jev-v1-Linux-', CACHE_MATCHED='rewardguard-jev-v1-Linux-123-1',
+                 CACHE_HIT='true', CACHE_OUTCOME='success', CACHE_DIR=str(missing))
+    assert 'Jev archive entry count failure: directory_missing' in out
+    assert 'sensitive-folder-name' not in out
+    row = json.loads(out.splitlines()[-1])
+    assert row['entry_count_error'] == 'directory_missing' and row['restored_count'] is None
+
+
+def test_restore_count_filesystem_error_does_not_expose_path(steps, tmp_path):
+    not_a_directory = tmp_path / 'sensitive-file-name'
+    not_a_directory.write_text('')
+    out = invoke(steps['Report Jev archive restore'], CACHE_REQUESTED='rewardguard-jev-v1-Linux-123-1',
+                 CACHE_PREFIX='rewardguard-jev-v1-Linux-', CACHE_MATCHED='rewardguard-jev-v1-Linux-123-1',
+                 CACHE_HIT='true', CACHE_OUTCOME='success', CACHE_DIR=str(not_a_directory))
+    assert 'sensitive-file-name' not in out
+    row = json.loads(out.splitlines()[-1])
+    assert row['entry_count_error'] == 'filesystem_error' and row['restored_count'] is None
 
 
 def test_miss_and_failed_restore_do_not_claim_a_cache_hit(steps, tmp_path):

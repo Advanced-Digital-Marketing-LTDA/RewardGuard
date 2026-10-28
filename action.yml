@@ -118,6 +118,7 @@ runs:
         print('Jev archive restore prefix:', prefix if safe_prefix else 'unavailable')
         print('Jev archive restore step outcome:', outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable')
         print('Jev archive matched key:', matched if safe_matched else 'unavailable')
+        count_error = None
         if outcome == 'success' and safe_matched:
             status = 'exact hit' if hit == 'true' and matched == requested else 'prefix hit' if hit == 'false' and matched != requested else 'restored; match type unavailable'
             count = 0
@@ -125,20 +126,37 @@ runs:
                 with os.scandir(os.environ['CACHE_DIR']) as entries:
                     for index, entry in enumerate(entries):
                         if index >= 100000:
-                            raise ValueError('too many entries')
+                            count = None
+                            count_error = 'entry_limit_exceeded'
+                            break
                         if re.fullmatch(r'[0-9a-f]{64}\.json', entry.name) and entry.is_file(follow_symlinks=False):
                             count += 1
-            except (OSError, KeyError, ValueError):
+            except FileNotFoundError:
                 count = None
+                count_error = 'directory_missing'
+            except PermissionError:
+                count = None
+                count_error = 'permission_denied'
+            except OSError:
+                count = None
+                count_error = 'filesystem_error'
+            except KeyError:
+                count = None
+                count_error = 'directory_unavailable'
+            except ValueError:
+                count = None
+                count_error = 'invalid_directory'
         else:
             status = 'miss (no matched key reported)' if outcome == 'success' and not matched else 'unavailable'
             count = None
         print('Jev archive restore:', status)
         print('Jev archive restored entry files:', count if count is not None else 'unavailable', '(not authenticated-result hits)')
+        if count_error:
+            print('Jev archive entry count failure:', count_error)
         print(json.dumps({'kind': 'jev_archive_restore', 'requested_key': requested if safe_requested else None,
                           'prefix': prefix if safe_prefix else None, 'matched_key': matched if outcome == 'success' and safe_matched else None,
                           'outcome': outcome if outcome in ('success', 'failure', 'cancelled', 'skipped') else 'unavailable',
-                          'status': status, 'restored_count': count}, separators=(',', ':'), sort_keys=True))
+                          'status': status, 'restored_count': count, 'entry_count_error': count_error}, separators=(',', ':'), sort_keys=True))
         PY
 
     - name: Resolve base
