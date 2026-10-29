@@ -76,13 +76,13 @@ def publication_for(path, cfg):
     return p, None
 
 
-def _unit(kind, text, line, *, context='', field='', anchors=None, line_map=None):
+def _unit(kind, text, line, *, context='', field='', anchors=None, line_map=None, allow_empty=False):
     if anchors is None:
         line += text[:len(text) - len(text.lstrip())].count('\n')
     text = text.strip()
-    if not text:
+    if not text and not allow_empty:
         return None
-    anchor_text = text.splitlines() if anchors is None else anchors
+    anchor_text = (text.splitlines() or ['']) if anchors is None else anchors
     return {'kind': kind, 'text': text, 'context': context, 'field': field,
             'identity': digest([EXTRACTOR_REVISION, kind, field, context, text]),
             'line': line, 'anchors': {i + 1: v for i, v in enumerate(anchor_text)},
@@ -151,11 +151,14 @@ class _HTML(HTMLParser):
                 continue
             kind = 'link' if name in {'href', 'src'} else 'metadata' if tag in {'meta', 'link', 'html'} else 'alt' if name == 'alt' else 'copy'
             field = (attrs.get('name') or attrs.get('property') or name) if tag == 'meta' else name
+            allow_empty = False
             if kind == 'link':
                 # Relationship and element type change the claim even at the same URL.
                 rel = ' '.join(sorted(set((attrs.get('rel') or '').lower().split())))
                 field = f'{tag}[rel={rel}].{name}'
-            self.add(kind, value, line + raw[:raw.find(value)].count('\n'), field=field)
+                allow_empty = tag == 'link' and name == 'href' and 'canonical' in rel.split()
+            self.add(kind, value, line + raw[:raw.find(value)].count('\n'), field=field,
+                     allow_empty=allow_empty)
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)

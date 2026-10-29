@@ -216,6 +216,13 @@ def _rule_state(rule, unit, artifact, plan, bundle, description):
             {'type': a['type'], 'units': [_semantic(u) for u in a['units']], 'record_complete': False,
              'extraction_limits': sorted({limit['reason'] for limit in a['limitations']})}
             for a in plan['artifacts'] if a['id'] in artifact['resolved_dependencies']]
+    if rule.id == 'CG_CANONICAL_CONFLICT':
+        content['canonical_declarations'] = [
+            _semantic(candidate) for candidate in artifact['units']
+            if candidate['kind'] == 'link'
+            and candidate['field'].startswith('link[rel=')
+            and 'canonical' in candidate['field'].split('].', 1)[0].split('=', 1)[1].split()
+        ]
     if rule.pack == 'editing':
         content['baseline_reader_artifact'] = [_semantic(u) for u in artifact['baseline_units']]
     if rule.pack in ROUTE_PACKS or 'I' in needed:

@@ -446,6 +446,55 @@ def test_html_link_roles_change_identity_and_review_state(repo):
     assert 'canonical' in str(states[0]) and 'alternate' in str(states[1])
 
 
+def test_empty_canonical_is_kept_and_routed_to_review(repo):
+    from rewardguard import content_publications
+    (repo / 'public').mkdir()
+    (repo / 'public/page.html').write_text('<link rel="canonical" href="">\n')
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'empty canonical')
+    base, head = git(repo, 'rev-parse', 'HEAD~1'), git(repo, 'rev-parse', 'HEAD')
+    c = cfg()
+    c.content.packs = ['canonicals']
+    plan = content_publications.manifest(str(repo), base, head, c, gitops.changed_files(str(repo), base, head))
+    artifact = next(a for a in plan['artifacts'] if a['path'] == 'public/page.html')
+    canonical = next(u for u in artifact['units'] if u['field'].startswith('link[rel=canonical]'))
+    assert canonical['text'] == '' and canonical['line'] == 1
+    calls = []
+    class Client:
+        def ask(self, state, questions):
+            calls.append(state)
+            return {key: .9 if key.startswith(('applies_', 'literal_')) else .1 for key in questions}
+    result = content_review.review(str(repo), base, head, c, gitops.changed_files(str(repo), base, head), client=Client())
+    assert calls and any(row.get('rule') == 'CG_CANONICAL_OUTPUT_INVALID' for row in result.coverage)
+
+
+def test_canonical_conflict_state_tracks_sibling_declaration_relationship(repo):
+    from rewardguard import content_publications, content_rules
+    from rewardguard.content_evidence import EvidenceBundle
+    base_html = '<link rel="canonical" href="/one">\n'
+    (repo / 'public').mkdir()
+    (repo / 'public/page.html').write_text(base_html)
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'one canonical')
+    base = git(repo, 'rev-parse', 'HEAD')
+    (repo / 'public/page.html').write_text(base_html + '<link rel="canonical" href="/two">\n')
+    git(repo, 'commit', '-qam', 'conflicting canonical')
+    c = cfg()
+    conflict_plan = content_publications.manifest(str(repo), base, 'HEAD', c)
+    conflict_artifact = next(a for a in conflict_plan['artifacts'] if a['path'] == 'public/page.html')
+    rule = next(r for r in content_rules.all_rules() if r.id == 'CG_CANONICAL_CONFLICT')
+    primary = next(u for u in conflict_artifact['units'] if u['text'] == '/one')
+    conflict_state = content_review._rule_state(rule, primary, conflict_artifact, conflict_plan, EvidenceBundle(), '')
+    (repo / 'public/page.html').write_text(base_html + '<a href="/two">other link</a>\n')
+    git(repo, 'commit', '-qam', 'unrelated link')
+    link_plan = content_publications.manifest(str(repo), base, 'HEAD', c)
+    link_artifact = next(a for a in link_plan['artifacts'] if a['path'] == 'public/page.html')
+    primary = next(u for u in link_artifact['units'] if u['text'] == '/one')
+    link_state = content_review._rule_state(rule, primary, link_artifact, link_plan, EvidenceBundle(), '')
+    assert conflict_state != link_state
+    assert 'canonical_declarations' in conflict_state
+
+
 @pytest.mark.parametrize('example', ['```yaml\ndraft: true\n```', '~~~yaml\npublished: false\n~~~', '> draft: true', 'draft: true'])
 def test_body_draft_examples_do_not_exclude_public_markdown(repo, example):
     from rewardguard.content_publications import manifest
