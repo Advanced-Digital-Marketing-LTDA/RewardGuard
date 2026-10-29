@@ -37,11 +37,16 @@ class ContentResults:
             'instruction': explainer.CONTENT_INSTRUCTION, 'schema': explainer._schema(rule.id),
             'rubric': rule.rubric, 'rule_revision': rule.revision})
 
+    def _explained_body(self, body, rule):
+        return body + b'\0content-explanation:' + self.explanation_identity(rule).encode()
+
     def load(self, body, rule, unit, *, preserve_grade=False):
         if self.cache is None:
             return None
         reasons = []
-        payload = self.cache.load(body, diagnostic=reasons.append)
+        payload = self.cache.load(self._explained_body(body, rule), diagnostic=reasons.append)
+        if payload is None:
+            payload = self.cache.load(body, diagnostic=reasons.append)
         self.reason = reasons[-1] if reasons else 'record_absent'
         if payload is None:
             return self._load_checkpoint(body, rule, unit) if preserve_grade else None
@@ -51,12 +56,9 @@ class ContentResults:
             return self._load_checkpoint(body, rule, unit) if preserve_grade else None
         if payload['findings'] and payload['explanation_identity'] != self.explanation_identity(rule):
             self.reason = 'explanation_inputs_changed'
-            if preserve_grade:
-                # A changed explainer never clears a previously authenticated Jev grade.
-                # Cache-only scopes omit old details and disclose the explanation gap.
-                return {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
-                        'explanation_stale': True}
-            return None
+            # Keep the authenticated grade and let the caller refresh only its explanation.
+            return {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
+                    'explanation_stale': True}
         return payload
 
     @staticmethod
@@ -108,7 +110,12 @@ class ContentResults:
             return
         payload = self._payload(rule, unit, coverage, findings)
         if self._valid(payload, rule, unit):
-            self.cache.save(body, payload)
+            target = self._explained_body(body, rule) if findings else body
+            self.cache.save(target, payload)
+
+    def save_refreshed_explanations(self, body, rule, unit, payload):
+        if self.cache is not None and self._valid(payload, rule, unit):
+            self.cache.save(self._explained_body(body, rule), payload)
 
     def checkpoint(self, body, rule, unit, coverage, findings):
         """Persist completed Jev propositions before any explanation can fail."""

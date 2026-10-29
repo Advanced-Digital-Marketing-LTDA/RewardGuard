@@ -103,6 +103,7 @@ class _HTML(HTMLParser):
         self.fragments = []
         self.fragment_kind = 'copy'
         self.incomplete = False
+        self.target_ids = set()
 
     def flush(self):
         if self.fragments and not self.incomplete:
@@ -132,6 +133,11 @@ class _HTML(HTMLParser):
             self.flush()
         line = self.getpos()[0]
         attrs = dict(attrs)
+        if attrs.get('id'):
+            if _DYNAMIC.search(attrs['id']) or attrs['id'] not in self.get_starttag_text():
+                self.limits.append(_limit(self.getpos()[0], 'Dynamic anchor target requires resolved output'))
+            else:
+                self.target_ids.add(attrs['id'])
         if tag not in {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}:
             self.stack.append(tag)
         if tag == 'script':
@@ -227,7 +233,7 @@ def _mask_expressions(text):
     return ''.join(out), limits
 
 
-def extract(path, text, publication):
+def extract(path, text, publication, *, target_ids=None):
     suffix = PurePosixPath(path).suffix.lower()
     units, limits = [], []
     if suffix in {'.html', '.htm', '.astro', '.svelte', '.vue', '.jsx', '.tsx'}:
@@ -257,6 +263,8 @@ def extract(path, text, publication):
         parser.feed(text)
         parser.flush()
         units, limits = parser.units, parser.limits + expression_limits
+        if target_ids is not None and suffix in {'.html', '.htm'}:
+            target_ids.extend(sorted(parser.target_ids))
         if parser.template and not units:
             limits.append(_limit(1, 'No supported static reader-facing template units'))
     elif suffix in {'.md', '.mdx'}:
@@ -371,21 +379,25 @@ def _artifacts(repo, revision, cfg):
             continue
         text, reason = read_blob(repo, entry)
         if text is None:
-            exclusions.append({'path': path, 'reason': reason})
+            route = publication.route.replace('{stem}', PurePosixPath(path).stem).replace('{path}', str(PurePosixPath(path).with_suffix('')))
+            exclusions.append({'path': path, 'reason': reason, 'publication': publication.id,
+                               'type': publication.type, 'route': route})
             continue
         if not publication.drafts and _draft_metadata(path, text):
             exclusions.append({'path': path, 'reason': 'Draft metadata requires explicit opt-in'})
             continue
-        units, limits = extract(path, text, publication)
+        target_ids = []
+        units, limits = extract(path, text, publication, target_ids=target_ids)
         route = publication.route.replace('{stem}', PurePosixPath(path).stem).replace('{path}', str(PurePosixPath(path).with_suffix('')))
         artifact = {'id': publication.id, 'path': path, 'type': publication.type, 'route': route,
                           'source_format': PurePosixPath(path).suffix.lower(),
                           'units': units, 'limitations': limits, 'dependencies': list(publication.dependencies),
+                          'target_ids': target_ids, 'target_ids_complete': PurePosixPath(path).suffix.lower() in {'.html', '.htm'} and not limits,
                           'evidence': list(publication.evidence), 'source_digest': entry[2],
                           'semantic_digest': ''}
         # URL limitations belong in the semantic identity and both revision manifests.
         referenced_routes(artifact)
-        artifact['semantic_digest'] = digest([publication.type, route, [(u['kind'], u['identity']) for u in units], [limit['reason'] for limit in limits]])
+        artifact['semantic_digest'] = digest([publication.type, route, [(u['kind'], u['identity']) for u in units], [limit['reason'] for limit in limits], target_ids, artifact['target_ids_complete']])
         artifacts.append(artifact)
     return resolved, artifacts, exclusions
 

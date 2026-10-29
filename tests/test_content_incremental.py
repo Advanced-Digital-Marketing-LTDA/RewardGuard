@@ -157,8 +157,9 @@ def test_move_only_uncached_local_units_are_explicitly_unreviewed(setup):
     move_base = git(repo, 'rev-parse', 'HEAD')
     git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move-only PR')
     client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    haiku = explainer.HaikuExplainer(cfg, token='fake-oauth', cache_signing_key='signing-key', repository='test/repo')
     result = content_review.review(str(repo), move_base, 'HEAD', cfg,
-        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client)
+        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client, haiku=haiku)
     assert not api.calls and not calls
     assert not result.findings and result.status == 'skipped'
     assert all(row['status'] == 'unchanged' for row in result.coverage)
@@ -209,13 +210,32 @@ def test_move_with_changed_explainer_preserves_authenticated_jev_findings(setup)
     git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move-only PR')
     cfg.explainer_model = 'changed-explainer'
     client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    haiku = explainer.HaikuExplainer(cfg, token='fake-oauth', cache_signing_key='signing-key', repository='test/repo')
     result = content_review.review(str(repo), move_base, 'HEAD', cfg,
-        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client)
-    assert (len(api.calls), len(calls)) == before
+        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client, haiku=haiku)
+    assert len(api.calls) == before[0] and len(calls) == before[1] + 4
     assert len(result.findings) == len(original.findings) == 4
-    assert all(f.probability == .8 and f.severity == 'fail' for f in result.findings)
-    assert all(not f.details for f in result.findings)
-    assert all(row['explanation_status'] == 'not_evaluated' for row in result.coverage if row['status'] == 'evaluated')
+    assert all(f.probability == .8 and f.severity == 'fail' and f.details for f in result.findings)
+    assert all(row['explanation_status'] == 'completed' for row in result.coverage if row['status'] == 'evaluated')
+
+
+def test_refreshed_explanations_are_reused_after_a_move(setup):
+    repo, cfg, rules, api, calls, review = setup
+    original = review()
+    cfg.explainer_model = 'changed-explainer'
+    refreshed = review()
+    assert refreshed.status == 'reviewed' and all(f.details for f in refreshed.findings)
+    after_refresh = len(api.calls), len(calls)
+    assert len(calls) == 8 and len(api.calls) == after_refresh[0]
+    move_base = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move after refreshed explanation')
+    client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    haiku = explainer.HaikuExplainer(cfg, token='fake-oauth', cache_signing_key='signing-key', repository='test/repo')
+    moved = content_review.review(str(repo), move_base, 'HEAD', cfg,
+        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client, haiku=haiku)
+    assert moved.status == 'reviewed' and len(moved.findings) == len(original.findings) == 4
+    assert all(f.details for f in moved.findings)
+    assert (len(api.calls), len(calls)) == after_refresh
 
 
 @pytest.mark.parametrize('multiple_fields', [False, True])
@@ -301,7 +321,7 @@ def test_later_completed_grade_survives_checkpoint_and_move(setup, monkeypatch):
     assert restored[1]['explanation_status'] == 'not_evaluated'
 
 
-@pytest.mark.parametrize('probability,expected_exit', [(.1, 0), (.65, 3), (.85, 3)])
+@pytest.mark.parametrize('probability,expected_exit', [(.1, 0), (.65, 0), (.85, 1)])
 def test_changed_explainer_cache_replay_has_truthful_required_ci_status(setup, tmp_path, probability, expected_exit):
     import argparse
     from rewardguard import cli, report, content_checks
@@ -315,21 +335,24 @@ def test_changed_explainer_cache_replay_has_truthful_required_ci_status(setup, t
     git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move-only')
     cfg.explainer_model = 'changed-explainer'
     client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    haiku = explainer.HaikuExplainer(cfg, token='fake-oauth', cache_signing_key='signing-key', repository='test/repo')
     result = content_review.review(str(repo), base, 'HEAD', cfg,
-        gitops.changed_files(str(repo), base, 'HEAD'), client=client)
-    assert (len(api.calls), len(calls)) == before
+        gitops.changed_files(str(repo), base, 'HEAD'), client=client, haiku=haiku)
+    assert len(api.calls) == before[0] and len(calls) == before[1] + (4 if probability >= .6 else 0), result.errors
     rep = Report(findings=result.findings, errors=result.errors, content=result.to_dict())
     target = tmp_path / 'report.json'
     assert cli._finish(rep, argparse.Namespace(require_complete=True, json=str(target), markdown=None)) == expected_exit
     data = json.loads(target.read_text())
     assert data['errors'] == []
     if probability >= .6:
-        assert data['status'] == 'incomplete'
+        assert data['status'] == ('failed' if probability >= .8 else 'passed')
         assert len(data['findings']) == 4
-        assert all(f['probability'] == probability and not f['details'] for f in data['findings'])
-        assert all(r['explanation_status'] == 'not_evaluated' for r in data['content']['coverage'] if r['status'] == 'evaluated')
-        assert 'INCOMPLETE' in report.terminal(rep)
+        assert all(f['probability'] == probability and f['details'] for f in data['findings'])
+        assert all(r['explanation_status'] == 'completed' for r in data['content']['coverage'] if r['status'] == 'evaluated')
+        assert ('FAILED' if probability >= .8 else 'PASSED') in report.terminal(rep)
         checks = content_checks.build_checks(data)
-        assert all('2 incomplete result(s)' in c['output']['summary'] for c in checks if c['name'].endswith(tuple(r.id for r in rules)))
+        rule_checks = [c for c in checks if c['name'].endswith(tuple(r.id for r in rules))]
+        assert rule_checks and all('0 incomplete result(s)' in c['output']['summary']
+                                   and 'evaluated proposition(s)' in c['output']['summary'] for c in rule_checks)
     else:
         assert data['status'] == 'passed' and data['findings'] == []

@@ -52,6 +52,72 @@ def test_manifest_is_local_stable_and_preserves_source_anchors(repo):
     assert before['cache']['availability'] in {'disabled', 'configured'}
 
 
+def test_oversized_changed_publication_is_required_incomplete_coverage(repo):
+    from rewardguard import report
+    from rewardguard.models import Report
+    import argparse
+    page = repo / 'page.md'
+    page.write_text('Reader paragraph.\n' + ('x' * 160001))
+    git(repo, 'commit', '-qam', 'grow public source beyond extraction limit')
+    base = git(repo, 'rev-parse', 'HEAD~1')
+    result = content_review.review(str(repo), base, 'HEAD', cfg(), gitops.changed_files(str(repo), base, 'HEAD'),
+                                  client=object(), log=lambda _: None)
+    assert result.status == 'not_evaluated'
+    assert result.eligibility[0]['status'] == 'not_evaluated'
+    assert result.coverage[0]['reason'] == 'Blob exceeds 160000 byte extraction limit'
+    rep = Report(content=result.to_dict(), findings=result.findings, errors=result.errors)
+    assert report.status(rep) == 'incomplete'
+    from rewardguard import cli
+    assert cli._finish(rep, argparse.Namespace(require_complete=True, json=None, markdown=None)) == 3
+
+
+def test_fragment_rule_state_tracks_complete_literal_target_ids(repo):
+    from rewardguard import content_publications, content_rules
+    from rewardguard.content_evidence import EvidenceBundle
+    page = repo / 'public/page.html'
+    page.parent.mkdir()
+    page.write_text('<a href="#install">Install</a><h2 id="install">Install</h2>\n')
+    git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'static html targets')
+    base = git(repo, 'rev-parse', 'HEAD')
+    rule = next(r for r in content_rules.all_rules() if r.id == 'CG_LINK_FRAGMENT')
+    before = content_publications.manifest(str(repo), base, 'HEAD', cfg())
+    artifact = next(a for a in before['artifacts'] if a['path'] == 'public/page.html')
+    link = next(u for u in artifact['units'] if u['kind'] == 'link')
+    old_state = content_review._rule_state(rule, link, artifact, before, EvidenceBundle(), '')
+    assert artifact['target_ids'] == ['install'] and artifact['target_ids_complete'] is True
+    page.write_text('<a href="#install">Install</a><h2 id="setup">Install</h2>\n')
+    git(repo, 'commit', '-qam', 'rename target only')
+    after = content_publications.manifest(str(repo), base, 'HEAD', cfg())
+    updated = next(a for a in after['artifacts'] if a['path'] == 'public/page.html')
+    link = next(u for u in updated['units'] if u['kind'] == 'link')
+    new_state = content_review._rule_state(rule, link, updated, after, EvidenceBundle(), '')
+    assert updated['affected'] and updated['target_ids'] == ['setup']
+    assert old_state != new_state and 'fragment_targets_complete' in new_state
+
+
+def test_h1_promise_rule_runs_on_heading_units(repo, monkeypatch):
+    from rewardguard import content_rules
+    page = repo / 'public/page.html'
+    page.parent.mkdir()
+    page.write_text('<h1>Free forever</h1><p>The service costs $10 monthly.</p>\n')
+    git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'add h1 and body')
+    base = git(repo, 'rev-parse', 'HEAD~1')
+    rule = next(r for r in content_rules.all_rules() if r.id == 'CG_META_PROMISE_CONFLICT')
+    monkeypatch.setattr(content_rules, 'all_rules', lambda: [rule])
+    class Client:
+        def __init__(self): self.calls = []
+        def ask(self, state, questions):
+            self.calls.append((state, questions))
+            return {key: .9 if key.startswith(('applies_', 'ready_')) else .01 for key in questions}
+    client = Client()
+    result = content_review.review(str(repo), base, 'HEAD', cfg(), gitops.changed_files(str(repo), base, 'HEAD'),
+                                  client=client, log=lambda _: None)
+    rows = [row for row in result.coverage if row.get('rule') == rule.id]
+    assert rows and any(row.get('line') == 1 for row in rows), rows
+    assert any('"kind": "heading"' in state and any('applies_' in key for key in questions)
+               for state, questions in client.calls)
+
+
 def test_explicit_mapping_never_overrides_required_denials_or_symlinks(repo):
     from rewardguard.content_publications import manifest
     for path in ('README.md', 'Docs/private.md', 'public/.env', 'public/Tests/a.md', 'src/a.test.ts'):

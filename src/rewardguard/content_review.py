@@ -181,6 +181,7 @@ ROUTE_PACKS = frozenset({'links', 'canonicals', 'locale', 'access', 'generated'}
 KIND_PACKS = {'metadata': {'metadata'}, 'schema': {'schema'},
               'links': {'link'}, 'canonicals': {'link', 'metadata'},
               'media': {'alt', 'link'}, 'assets': {'alt', 'link'}}
+RULE_KINDS = {'CG_META_PROMISE_CONFLICT': {'metadata', 'heading'}}
 
 
 def _semantic(unit):
@@ -223,6 +224,9 @@ def _rule_state(rule, unit, artifact, plan, bundle, description):
             and candidate['field'].startswith('link[rel=')
             and 'canonical' in candidate['field'].split('].', 1)[0].split('=', 1)[1].split()
         ]
+    if rule.id == 'CG_LINK_FRAGMENT':
+        content['fragment_targets'] = artifact['target_ids']
+        content['fragment_targets_complete'] = artifact['target_ids_complete']
     if rule.pack == 'editing':
         content['baseline_reader_artifact'] = [_semantic(u) for u in artifact['baseline_units']]
     if rule.pack in ROUTE_PACKS or 'I' in needed:
@@ -244,6 +248,46 @@ def _rule_state(rule, unit, artifact, plan, bundle, description):
                  + json.dumps(content, sort_keys=True, ensure_ascii=True))
 
 
+def _refresh_cached_explanations(payload, body, rule, state, unit, cfg, repository, usage, haiku,
+                                 completed, cat):
+    graded = [row for row in payload['coverage']
+              if row.get('status') == 'evaluated' and grade(row.get('probability')) is not None]
+    if len(graded) != len(payload['findings']):
+        return payload, haiku, 'Cached findings do not match their authenticated grades'
+    refreshed = {**payload, 'coverage': [dict(row) for row in payload['coverage']],
+                 'findings': [dict(f, details=[]) for f in payload['findings']]}
+    try:
+        if haiku is None:
+            haiku = explainer.HaikuExplainer(cfg, repository=repository, usage=usage)
+        for row, finding in zip(graded, refreshed['findings']):
+            prop = row.get('instance', '')
+            source_only = row.get('source_only') is True
+            contract = rule.source_evidence if source_only else rule.evidence
+            statement = (rule.statement + (f' Evaluate only the named field/mechanism: {prop}.' if prop else '')
+                         + f' Evaluate only this evidenced scope: {contract}.' + BOUNDARY)
+            rubric = focused_rubric(rule, rule.skill, prop, cat)
+            if source_only:
+                rubric += '\nEvaluate only the literal source subtype: ' + rule.source_evidence
+            finding['details'] = _ground_details(
+                haiku.explain_content(state, rule.id, statement, rubric, anchors=unit['anchors']), unit['anchors'])
+            row['explanation_status'] = 'completed' if finding['details'] else 'not_evaluated'
+            row['explanation_reused'] = False
+            if not finding['details']:
+                row['explanation_reason'] = 'Refreshed explanation lacked grounded details'
+    except RewardGuardError as error:
+        return payload, haiku, str(error)
+    if not all(finding['details'] for finding in refreshed['findings']):
+        return refreshed, haiku, None
+    refreshed.pop('grade_checkpoint', None)
+    for row in refreshed['coverage']:
+        row.pop('result_complete', None)
+        row.pop('reuse_stage', None)
+    refreshed['explanation_identity'] = completed.explanation_identity(rule)
+    completed.save_refreshed_explanations(body, rule, unit, refreshed)
+    refreshed.pop('explanation_stale', None)
+    return refreshed, haiku, None
+
+
 def review(repo: str, base: str, head: str, cfg: Config, changed, description='', *,
            trusted_base=None, client=None, haiku=None, log=print, usage=None) -> ContentResult:
     from . import content_evidence, content_rules
@@ -256,10 +300,22 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
         return result
     plan = manifest(repo, base, head, cfg, changed)
     selected = [a for a in plan['artifacts'] if a['affected']]
+    changed_paths = {cf.path for cf in changed} | {cf.old_path for cf in changed if cf.old_path}
+    unavailable = [item for item in plan['exclusions']
+                   if item.get('publication') and item['path'] in changed_paths]
+    for item in unavailable:
+        row = {'file': item['path'], 'publication': item['publication'], 'route': item['route'],
+               'status': 'not_evaluated', 'reason': item['reason']}
+        result.eligibility.append(row)
+        result.coverage.append({'file': item['path'], 'status': 'not_evaluated', 'reason': item['reason']})
     result.eligibility = [{'file': a['path'], 'publication': a['id'], 'route': a['route'],
-                           'status': 'eligible', 'cache_only': a['cache_only'], 'semantic_changed': a['semantic_changed'], 'reasons': a['reasons']} for a in selected]
+                           'status': 'eligible', 'cache_only': a['cache_only'], 'semantic_changed': a['semantic_changed'], 'reasons': a['reasons']} for a in selected] + result.eligibility
     if not selected:
-        result.notes.append('Content review skipped: no affected trusted publication mappings.')
+        if unavailable:
+            result.status = 'not_evaluated'
+            result.notes.append('Content review incomplete: affected declared public source could not be extracted.')
+        else:
+            result.notes.append('Content review skipped: no affected trusted publication mappings.')
         return result
     routes = content_rules.pack_routes()
     unknown = set(cfg.content.packs) - set(routes)
@@ -289,7 +345,7 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
             for rule in rules:
                 if artifact['type'] not in rule.artifact_types:
                     continue
-                kinds = KIND_PACKS.get(rule.pack)
+                kinds = RULE_KINDS.get(rule.id, KIND_PACKS.get(rule.pack))
                 if kinds and unit['kind'] not in kinds:
                     continue
                 unchanged_local = artifact['cache_only']
@@ -317,7 +373,17 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                     cache_body = completed.body(state, rule)
                     cached = completed.load(cache_body, rule, unit, preserve_grade=unchanged_local)
                     if cached is not None:
+                        refresh_error = None
+                        if cached.get('explanation_stale'):
+                            cached, haiku, refresh_error = _refresh_cached_explanations(
+                                cached, cache_body, rule, state, unit, cfg, repository, usage,
+                                haiku, completed, cat)
                         completed.restore(cached, result, cf.path, unit)
+                        if refresh_error:
+                            result.errors.append(f'Cached {rule.id} explanation refresh failed: {refresh_error}')
+                            result.status = 'error'
+                            result.notes.append('Authenticated Jev grades were retained; explanation refresh failed.')
+                            return result
                         continue
                     if unchanged_local:
                         result.coverage.append({**row, 'status': 'unchanged',
