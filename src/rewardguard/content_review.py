@@ -56,12 +56,13 @@ class ContentResult:
     errors: list[str] = field(default_factory=list)
     eligibility: list[dict] = field(default_factory=list)
     result_cache_hits: int = 0
+    grade_cache_hits: int = 0
 
     def to_dict(self):
         return {'status': self.status, 'coverage': self.coverage,
                 'provenance': self.provenance, 'omissions': self.omissions,
                 'errors': self.errors, 'eligibility': self.eligibility,
-                'result_cache_hits': self.result_cache_hits}
+                'result_cache_hits': self.result_cache_hits, 'grade_cache_hits': self.grade_cache_hits}
 
 
 def _safe(text: str) -> str:
@@ -364,11 +365,15 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                             'probability': probability, 'applicability': ap, 'source_only': selected_source})
                         severity = grade(probability)
                         if severity is None:
+                            completed.checkpoint(cache_body, rule, unit, result.coverage[coverage_start:], result.findings[findings_start:])
                             continue
                         # Preserve Jev's grade even if explanation fails; Haiku cannot clear it.
                         finding = Finding(rule.id, severity, 'Jev: ' + rule.statement + (f' [{prop}]' if prop else ''),
                                           file=cf.path, source='content', probability=probability)
                         result.findings.append(finding)
+                        result.coverage[-1]['explanation_status'] = 'not_evaluated'
+                        result.coverage[-1]['explanation_reason'] = 'Explanation has not completed; authenticated Jev grade retained'
+                        completed.checkpoint(cache_body, rule, unit, result.coverage[coverage_start:], result.findings[findings_start:])
                         if haiku is None:
                             haiku = explainer.HaikuExplainer(cfg, repository=repository, usage=usage)
                         rubric = focused_rubric(rule, rule.skill, prop, cat)
@@ -378,6 +383,9 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                                                   anchors=unit['anchors']), unit['anchors'])
                         finding.details = [{**detail, 'line': unit['line_map'][detail['line']]} for detail in details]
                         finding.line = finding.details[0]['line'] if finding.details else None
+                        result.coverage[-1]['explanation_status'] = 'completed'
+                        result.coverage[-1].pop('explanation_reason', None)
+                        completed.checkpoint(cache_body, rule, unit, result.coverage[coverage_start:], result.findings[findings_start:])
                 except RewardGuardError as exc:
                     result.errors.append(str(exc))
                     result.coverage.append({**row, 'status': 'not_evaluated',

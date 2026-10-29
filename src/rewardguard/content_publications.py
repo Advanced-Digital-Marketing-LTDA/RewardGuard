@@ -18,7 +18,7 @@ from . import gitops, globs
 from .config import DEFAULT_CONTENT_EXCLUDE, content_path_excluded
 from .content_evidence import _safe_path, _safe
 
-EXTRACTOR_REVISION = 'public-units-1'
+EXTRACTOR_REVISION = 'public-units-2'
 _READER_FIELDS = {'title', 'description', 'summary', 'heading', 'text', 'label', 'caption',
                   'alt', 'placeholder', 'aria-label', 'href', 'url', 'canonical', 'robots'}
 _DYNAMIC = re.compile(r'[{}]|<%|\$\{|\bv-(?:if|for|bind)\b|\b(?:export|import)\s')
@@ -204,25 +204,17 @@ _HTML_TAGS = set('html head body title meta link main article section header foo
 
 
 def _mask_expressions(text):
-    """Remove balanced template expressions before HTML tokenization, retaining lines."""
+    """Remove complete template expressions using the same conservative JS lexer."""
+    from .content_syntax import group_end, UnsupportedSyntax
     out, limits, i = [], [], 0
     while i < len(text):
         if text[i] != '{':
             out.append(text[i]); i += 1; continue
-        start, depth, quote, escaped = i, 0, None, False
-        while i < len(text):
-            c = text[i]
-            if quote:
-                if escaped: escaped = False
-                elif c == '\\': escaped = True
-                elif c == quote: quote = None
-            elif c in ('"', "'", '`'): quote = c
-            elif c == '{': depth += 1
-            elif c == '}':
-                depth -= 1
-                if depth == 0:
-                    i += 1; break
-            i += 1
+        start = i
+        try:
+            i = group_end(text, start)
+        except UnsupportedSyntax:
+            i = len(text)
         limits.append(_limit(text.count('\n', 0, start) + 1, 'Dynamic expression requires resolved output'))
         out.append('{}' + '\n' * text[start:i].count('\n'))
     return ''.join(out), limits
@@ -239,12 +231,11 @@ def extract(path, text, publication):
             if match:
                 text = '\n' * match.group().count('\n') + text[match.end():]
         if suffix in {'.jsx', '.tsx'}:
-            start = re.search(r'(?:\breturn\s*\(?|=>\s*\(?)\s*(?=<[A-Za-z])', text)
-            if start:
-                prefix = text[:start.end()]
-                text = '\n' * prefix.count('\n') + text[start.end():]
-            elif not text.lstrip().startswith('<'):
-                return [], [_limit(1, 'No supported static JSX return expression')]
+            from .content_syntax import jsx_expression, UnsupportedSyntax
+            try:
+                text = jsx_expression(text)
+            except UnsupportedSyntax as exc:
+                return [], [_limit(1, str(exc))]
         expression_limits = []
         if parser.template:
             # Script blocks are suppressed by the parser except static JSON-LD.
@@ -262,6 +253,10 @@ def extract(path, text, publication):
         if parser.template and not units:
             limits.append(_limit(1, 'No supported static reader-facing template units'))
     elif suffix in {'.md', '.mdx'}:
+        if suffix == '.mdx':
+            from .content_syntax import omit_mdx_regions
+            text, omitted = omit_mdx_regions(text)
+            limits.extend(omitted)
         lines = text.splitlines()
         i, heading, fenced, comment = 0, '', False, False
         if lines and lines[0].strip() == '---':

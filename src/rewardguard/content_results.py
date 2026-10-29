@@ -44,11 +44,11 @@ class ContentResults:
         payload = self.cache.load(body, diagnostic=reasons.append)
         self.reason = reasons[-1] if reasons else 'record_absent'
         if payload is None:
-            return None
+            return self._load_checkpoint(body, rule, unit) if preserve_grade else None
         if not self._valid(payload, rule, unit):
             self.cache.reject(body)
             self.reason = 'invalid_completed_unit_result'
-            return None
+            return self._load_checkpoint(body, rule, unit) if preserve_grade else None
         if payload['findings'] and payload['explanation_identity'] != self.explanation_identity(rule):
             self.reason = 'explanation_inputs_changed'
             if preserve_grade:
@@ -94,22 +94,64 @@ class ContentResults:
         return sum(row['status'] == 'evaluated' and grade(row['probability']) is not None
                    for row in payload['coverage']) == len(payload['findings'])
 
-    def save(self, body, rule, unit, coverage, findings):
-        if self.cache is None or not coverage:
-            return
+    def _payload(self, rule, unit, coverage, findings):
         def relative(detail):
             return next(number for number, source in unit['line_map'].items()
                         if source == detail['line'] and detail['code'].strip() in unit['anchors'][number].strip())
-        payload = {'coverage': [{k: v for k, v in row.items() if k not in {'file', 'line', 'unit'}} for row in coverage],
+        return {'coverage': [{k: v for k, v in row.items() if k not in {'file', 'line', 'unit'}} for row in coverage],
             'findings': [{'rule': f.rule, 'probability': f.probability, 'message': f.message,
                           'details': [{**d, 'line': relative(d)} for d in f.details or []]} for f in findings],
             'explanation_identity': self.explanation_identity(rule)}
+
+    def save(self, body, rule, unit, coverage, findings):
+        if self.cache is None or not coverage:
+            return
+        payload = self._payload(rule, unit, coverage, findings)
         if self._valid(payload, rule, unit):
             self.cache.save(body, payload)
 
+    def checkpoint(self, body, rule, unit, coverage, findings):
+        """Persist completed Jev propositions before any explanation can fail."""
+        from .content_review import FIELDS
+        if self.cache is None or not any(row['status'] == 'evaluated' for row in coverage):
+            return
+        payload = self._payload(rule, unit, coverage, findings)
+        rows = payload['coverage']
+        finished = {row.get('instance') for row in rows}
+        for instance in FIELDS.get(rule.id, ('',)):
+            if instance not in finished:
+                rows.append({'rule': rule.id, 'instance': instance, 'status': 'not_evaluated',
+                             'reason': 'Required proposition was not completed before the previous evaluation stopped'})
+        for row in rows:
+            row['result_complete'] = False
+            row['reuse_stage'] = 'jev_grade_checkpoint'
+        if self._valid(payload, rule, unit):
+            self.cache.save(b'grade-checkpoint-1\0' + body, payload)
+
+    def _load_checkpoint(self, body, rule, unit):
+        from .content_review import FIELDS
+        checkpoint_body = b'grade-checkpoint-1\0' + body
+        payload = self.cache.load(checkpoint_body)
+        if payload is None:
+            return None
+        if (not self._valid(payload, rule, unit)
+                or {row.get('instance') for row in payload['coverage']} != set(FIELDS.get(rule.id, ('',)))
+                or any(row.get('result_complete') is not False for row in payload['coverage'])):
+            self.cache.reject(checkpoint_body)
+            self.reason = 'invalid_jev_grade_checkpoint'
+            return None
+        if payload['explanation_identity'] != self.explanation_identity(rule):
+            payload = {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
+                       'explanation_stale': True}
+        return {**payload, 'grade_checkpoint': True}
+
     @staticmethod
     def restore(payload, result, path, unit):
-        result.result_cache_hits += 1
+        if payload.get('grade_checkpoint'):
+            result.grade_cache_hits += 1
+            result.notes.append('Authenticated completed Jev propositions restored; unfinished propositions/explanations remain explicitly unverified.')
+        else:
+            result.result_cache_hits += 1
         explanation = ({'explanation_status': 'not_evaluated', 'explanation_reused': False,
                         'explanation_reason': 'Explanation inputs changed; authenticated Jev grade retained'}
                        if payload.get('explanation_stale') else {})

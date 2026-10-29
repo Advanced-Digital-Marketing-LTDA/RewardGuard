@@ -216,3 +216,60 @@ def test_move_with_changed_explainer_preserves_authenticated_jev_findings(setup)
     assert all(f.probability == .8 and f.severity == 'fail' for f in result.findings)
     assert all(not f.details for f in result.findings)
     assert all(row['explanation_status'] == 'not_evaluated' for row in result.coverage if row['status'] == 'evaluated')
+
+
+@pytest.mark.parametrize('multiple_fields', [False, True])
+def test_explanation_failure_then_move_recovers_known_jev_grade_only(setup, monkeypatch, multiple_fields):
+    repo, cfg, rules, api, calls, review = setup
+    rules[:] = rules[:1]
+    if multiple_fields:
+        monkeypatch.setitem(content_review.FIELDS, rules[0].id, ('first', 'pending'))
+        api.rules[(rules[0].id + '__first', '')] = .8
+        api.rules[(rules[0].id + '__pending', '')] = .2
+    def fail(*args, **kwargs):
+        raise OSError('simulated explanation failure')
+    monkeypatch.setattr(explainer, '_run', fail)
+    original = review()
+    assert original.status == 'error' and original.findings[0].probability == .8
+    before = len(api.calls), len(calls)
+    move_base = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move after failure')
+    client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    result = content_review.review(str(repo), move_base, 'HEAD', cfg,
+        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client)
+    assert (len(api.calls), len(calls)) == before
+    assert len(result.findings) == 1 and result.findings[0].probability == .8
+    assert result.findings[0].severity == 'fail' and result.findings[0].file == 'moved.md'
+    evaluated = [row for row in result.coverage if row['status'] == 'evaluated']
+    assert evaluated and all(row['explanation_status'] == 'not_evaluated' for row in evaluated)
+    if multiple_fields:
+        assert any(row.get('instance') == 'pending' and row['status'] == 'not_evaluated'
+                   for row in result.coverage)
+
+
+def test_partial_clean_grade_replay_keeps_other_required_fields_unverified(setup, monkeypatch):
+    from rewardguard import content_checks
+    repo, cfg, rules, api, calls, review = setup
+    rules[:] = rules[:1]
+    monkeypatch.setitem(content_review.FIELDS, rules[0].id, ('first', 'pending'))
+    api.rules[(rules[0].id + '__first', '')] = .2
+    original_ask = judge.JevClient.ask
+    def stop_on_pending(self, state, questions):
+        if rules[0].id + '__pending' in questions:
+            raise RewardGuardError('simulated later Jev failure')
+        return original_ask(self, state, questions)
+    monkeypatch.setattr(judge.JevClient, 'ask', stop_on_pending)
+    first = review()
+    assert first.status == 'error' and not first.findings
+    before = len(api.calls), len(calls)
+    move_base = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move partial evaluation')
+    client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    result = content_review.review(str(repo), move_base, 'HEAD', cfg,
+        gitops.changed_files(str(repo), move_base, 'HEAD'), client=client)
+    assert (len(api.calls), len(calls)) == before
+    assert result.grade_cache_hits == 1 and result.result_cache_hits == 0
+    assert any(row['status'] == 'evaluated' and row['probability'] == .2 and not row['result_complete'] for row in result.coverage)
+    assert any(row.get('instance') == 'pending' and row['status'] == 'not_evaluated' for row in result.coverage)
+    checks = content_checks.build_checks({'content': result.to_dict(), 'findings': [], 'notes': result.notes})
+    assert next(check for check in checks if check['name'].endswith(rules[0].id))['conclusion'] == 'neutral'

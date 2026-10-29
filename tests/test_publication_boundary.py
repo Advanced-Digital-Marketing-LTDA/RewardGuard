@@ -300,3 +300,52 @@ def test_complete_literal_schema_record_can_prove_adopted_required_property_omis
     assert len(result.findings) == 1 and result.findings[0].severity == 'fail'
     assert result.findings[0].line == 1
     assert all(row['source_only'] for row in result.coverage if row['status'] == 'evaluated')
+
+
+@pytest.mark.parametrize('prefix,suffix', [
+    ('const example = "return <p>PRIVATE BEFORE</p>";\n', ''),
+    ('// return <p>PRIVATE COMMENT</p>\n', ''),
+    ('/* return <p>PRIVATE BLOCK COMMENT</p> */\n', ''),
+    ('', '\nconst internal = "<p>PRIVATE AFTER</p>";'),
+])
+def test_jsx_expression_boundary_excludes_implementation_strings_and_comments(prefix, suffix):
+    from rewardguard.content_publications import extract
+    publication = config.Publication('page', ('src/**',), 'page', '/')
+    source = prefix + 'export default () => <p>PUBLIC PARAGRAPH</p>;' + suffix
+    units, limits = extract('src/page.tsx', source, publication)
+    assert [u['text'] for u in units] == ['PUBLIC PARAGRAPH']
+    assert units[0]['line'] == prefix.count('\n') + 1
+
+
+@pytest.mark.parametrize('implementation', [
+    'export const internal = `\nPRIVATE IMPLEMENTATION STRING\n`;\n',
+    '{\n(() => {\nconst internal = "PRIVATE EXPRESSION BODY";\nreturn internal;\n})()\n}\n',
+])
+def test_mdx_unsupported_regions_are_omitted_whole(implementation):
+    from rewardguard.content_publications import extract
+    publication = config.Publication('page', ('src/**',), 'article', '/')
+    source = implementation + '\n# Public headline\n\nPUBLIC PARAGRAPH\n'
+    units, limits = extract('src/page.mdx', source, publication)
+    assert [u['text'] for u in units] == ['# Public headline', 'PUBLIC PARAGRAPH']
+    assert units[-1]['line'] == source.splitlines().index('PUBLIC PARAGRAPH') + 1
+    assert limits and all(limit['status'] == 'not_evaluated' for limit in limits)
+
+
+@pytest.mark.parametrize('source', [
+    'export default () => <p>Public</p> + "<p>PRIVATE CONCATENATED</p>";',
+    'const pattern = /return <p>PRIVATE REGEX/; export default () => <p>Public</p>;',
+    'function helper(){return <p>Private helper</p>;} export default () => <p>Public</p>;',
+])
+def test_ambiguous_jsx_regions_fail_closed(source):
+    from rewardguard.content_publications import extract
+    units, limits = extract('page.tsx', source, config.Publication('page', ('page.tsx',), 'page', '/'))
+    assert not units
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
+def test_parenthesized_jsx_keeps_only_bounded_expression_and_exact_lines():
+    from rewardguard.content_publications import extract
+    source = 'export default function Page() {\nreturn (\n<section><p>Public text.</p></section>\n);\n}\nconst x="<p>PRIVATE TRAILING</p>";'
+    units, _ = extract('page.tsx', source, config.Publication('page', ('page.tsx',), 'page', '/'))
+    assert [u['text'] for u in units] == ['Public text.']
+    assert units[0]['line'] == 3
