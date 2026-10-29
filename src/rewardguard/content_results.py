@@ -126,24 +126,44 @@ class ContentResults:
             row['result_complete'] = False
             row['reuse_stage'] = 'jev_grade_checkpoint'
         if self._valid(payload, rule, unit):
-            self.cache.save(b'grade-checkpoint-1\0' + body, payload)
+            self.cache.save(self._checkpoint_body(body, self._checkpoint_stage(rows)), payload)
+
+    @staticmethod
+    def _checkpoint_stage(rows):
+        # Each completed proposition advances an immutable snapshot. A completed
+        # explanation advances it once more, without replacing a signed grade.
+        return sum(2 if row['status'] == 'evaluated' else 0 for row in rows) + sum(
+            row.get('explanation_status') == 'completed' for row in rows)
+
+    @staticmethod
+    def _checkpoint_body(body, stage):
+        return json.dumps({'checkpoint_revision': 2, 'stage': stage,
+                           'body': body.decode('utf-8')}, sort_keys=True).encode()
 
     def _load_checkpoint(self, body, rule, unit):
         from .content_review import FIELDS
-        checkpoint_body = b'grade-checkpoint-1\0' + body
-        payload = self.cache.load(checkpoint_body)
-        if payload is None:
-            return None
-        if (not self._valid(payload, rule, unit)
-                or {row.get('instance') for row in payload['coverage']} != set(FIELDS.get(rule.id, ('',)))
-                or any(row.get('result_complete') is not False for row in payload['coverage'])):
-            self.cache.reject(checkpoint_body)
-            self.reason = 'invalid_jev_grade_checkpoint'
-            return None
-        if payload['explanation_identity'] != self.explanation_identity(rule):
-            payload = {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
-                       'explanation_stale': True}
-        return {**payload, 'grade_checkpoint': True}
+        fields = set(FIELDS.get(rule.id, ('',)))
+        # Highest progress wins; simultaneous writers cannot erase earlier stages.
+        candidates = [(self._checkpoint_body(body, stage), stage)
+                      for stage in range(3 * len(fields), 1, -1)]
+        candidates.append((b'grade-checkpoint-1\0' + body, None))
+        for checkpoint_body, stage in candidates:
+            payload = self.cache.load(checkpoint_body)
+            if payload is None:
+                continue
+            if (not self._valid(payload, rule, unit)
+                    or {row.get('instance') for row in payload['coverage']} != fields
+                    or len(payload['coverage']) != len(fields)
+                    or any(row.get('result_complete') is not False for row in payload['coverage'])
+                    or (stage is not None and self._checkpoint_stage(payload['coverage']) != stage)):
+                self.cache.reject(checkpoint_body)
+                self.reason = 'invalid_jev_grade_checkpoint'
+                continue
+            if payload['explanation_identity'] != self.explanation_identity(rule):
+                payload = {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
+                           'explanation_stale': True}
+            return {**payload, 'grade_checkpoint': True}
+        return None
 
     @staticmethod
     def restore(payload, result, path, unit):

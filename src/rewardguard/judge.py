@@ -657,6 +657,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
 
     if not ready and chunks:
         gap('SPECULATIVE_TEST_HEDGING', 'complete PR task context for this review range is unavailable.')
+        gap('LIMIT_RAISED', 'complete PR task context for this review range is unavailable.')
         gap('SCOPE_CREEP', 'complete PR task context for this review range is unavailable.')
         gap('DESCRIPTION_OVERCLAIM', 'complete PR task context for this review range is unavailable.')
     elif chunks and not full_task_diff:
@@ -666,6 +667,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
         qs = _questions_for(chunk.kind)
         qs.pop('scope_creep', None)
         qs.pop('test_hedging', None)
+        qs.pop('limit_raised', None)
         return chunk, qs, client.ask(chunk.text, {k: v[1] + EVIDENCE_NOTE for k, v in qs.items()})
 
     def consume(chunk, qs, answers, state):
@@ -716,7 +718,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
             try:
                 if 'scope_creep' not in _questions_for(chunk.kind):
                     continue
-                qs = {key: SOURCE_QUESTIONS[key] for key in ('scope_creep', 'test_hedging')}
+                qs = {key: SOURCE_QUESTIONS[key] for key in ('scope_creep', 'test_hedging', 'limit_raised')}
                 state = f"Quoted PR task context:\n{_desc(description, _context_limit(cfg))}\n\n{chunk.text}"
                 if len(state) > cfg.max_state_chars:
                     raise RewardGuardError('Complete scope context exceeds review state budget')

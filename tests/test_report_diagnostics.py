@@ -112,3 +112,14 @@ def test_terminal_prints_each_sanitized_diagnostic_event_without_sensitive_value
     assert 'private' not in terminal
     assert 'private' not in json.dumps(json.loads(report.as_json(rep))['diagnostics'])
     assert '0 events dropped' in terminal
+
+
+def test_unchanged_is_separate_from_unknown_and_required_gaps():
+    # Public ContentResult contract: unchanged means no new work, never a verdict
+    # or missing required evidence. Unknown legacy statuses remain unknown.
+    coverage = [{'status':'evaluated'}, {'status':'legacy-status'}, {'status':'not_evaluated'}]
+    baseline = report.evidence_diagnostics({'coverage':coverage})['coverage']
+    assert baseline['unchanged'] == 0 and baseline['unknown'] == 1
+    advanced = report.evidence_diagnostics({'coverage':coverage + [{'status':'unchanged'}]})['coverage']
+    assert advanced == {**baseline, 'unchanged':1}
+    assert advanced['not_evaluated'] == baseline['not_evaluated'] == 1

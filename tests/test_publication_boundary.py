@@ -432,3 +432,35 @@ def test_changed_routes_surface_unresolvable_unchanged_link_scope(repo):
                                   gitops.changed_files(str(repo), before, 'HEAD'), client=NoCalls())
     assert any(row.get('file') == 'page.md' and row.get('status') == 'not_evaluated'
                and row.get('reason') == page['limitations'][0]['reason'] for row in result.coverage)
+
+
+def test_html_link_roles_change_identity_and_review_state(repo):
+    from rewardguard.content_publications import extract
+    from rewardguard.content_review import _semantic
+    p = cfg().content.publications[0]
+    units = [extract('public/page.html', html, p)[0][0] for html in (
+        '<link rel="canonical" href="/one">', '<link rel="alternate" href="/one">', '<a href="/one"></a>')]
+    assert len({u['identity'] for u in units}) == 3
+    states = [_semantic(u) for u in units]
+    assert len({str(s) for s in states}) == 3
+    assert 'canonical' in str(states[0]) and 'alternate' in str(states[1])
+
+
+@pytest.mark.parametrize('example', ['```yaml\ndraft: true\n```', '~~~yaml\npublished: false\n~~~', '> draft: true', 'draft: true'])
+def test_body_draft_examples_do_not_exclude_public_markdown(repo, example):
+    from rewardguard.content_publications import manifest
+    (repo / 'page.md').write_text('---\ndraft: false\n---\n# Published guide\n\nReader paragraph.\n\n' + example + '\n')
+    git(repo, 'commit', '-qam', 'document draft metadata')
+    m = manifest(str(repo), 'HEAD~1', 'HEAD', cfg())
+    assert [a['path'] for a in m['artifacts']] == ['page.md']
+    assert 'Reader paragraph.' in str(m['artifacts'][0]['units'])
+
+
+@pytest.mark.parametrize('metadata', ['draft: true', 'published: false'])
+def test_actual_frontmatter_draft_still_excluded(repo, metadata):
+    from rewardguard.content_publications import manifest
+    (repo / 'page.md').write_text('---\n' + metadata + '\n---\nUnpublished reader paragraph.\n')
+    git(repo, 'commit', '-qam', 'draft')
+    m = manifest(str(repo), 'HEAD~1', 'HEAD', cfg())
+    assert m['artifacts'] == []
+    assert any(x['reason'] == 'Draft metadata requires explicit opt-in' for x in m['exclusions'])

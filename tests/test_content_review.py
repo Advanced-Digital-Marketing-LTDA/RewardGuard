@@ -250,7 +250,7 @@ def test_large_diff_classifies_every_chunk_including_last_change(repo):
     assert any('FINAL CONTENT CHANGE' in state for state, _ in client.calls)
 
 
-def test_oversize_changed_line_is_an_error_not_silently_skipped(repo):
+def test_oversize_changed_line_is_incomplete_and_fails_required_ci(repo, tmp_path):
     changed = commit(repo, 'page.md', 'Reader facing ' * 2000)
     cfg = public_config(max_state_chars=12000)
     cfg.content.packs = ['writing']  # Assert the exact six bounded writing contracts.
@@ -264,6 +264,17 @@ def test_oversize_changed_line_is_an_error_not_silently_skipped(repo):
         'CG_INTERNAL_CONTRADICTION', 'CG_SECTION_PROMISE_MISMATCH', 'CG_VALUE_EXPLANATION_GAP'}
     assert all(row['status'] == 'not_evaluated' and row['reason'] == 'Whole semantic unit/dependencies exceed state allowance' for row in result.coverage)
     assert not client.calls
+    # The public API preserves partial coverage instead of throwing. Required CI
+    # still fails, while errors=[] accurately separates gaps from execution errors.
+    import argparse, json
+    from rewardguard import cli
+    from rewardguard.models import Report
+    output = tmp_path / 'oversize.json'
+    rep = Report(content=result.to_dict())
+    assert cli._finish(rep, argparse.Namespace(require_complete=True, json=str(output), markdown=None)) == 3
+    encoded = json.loads(output.read_text())
+    assert encoded['status'] == 'incomplete' and encoded['errors'] == []
+    assert encoded['content']['coverage'] == result.coverage
 
 
 @pytest.mark.parametrize('path,text', [
@@ -340,3 +351,13 @@ def test_nonwebsite_sales_rules_never_run_from_catalog_presence(repo):
     assert not any(f.rule == retired.id for f in result.findings)
     assert not any(row.get('rule') == retired.id for row in result.coverage)
     assert not any('CG_ADVISOR_SIMULATION_TRUTH' in key for _, questions in client.calls for key in questions)
+
+
+@pytest.mark.parametrize('obsolete_content_probability', [float('nan'), .01, .60, .99])
+def test_retired_content_classifier_cannot_change_publication_eligibility(repo, obsolete_content_probability):
+    changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
+    client, haiku = Jev(content=obsolete_content_probability), Haiku()
+    result = run(repo, changed, client, haiku)
+    assert result.status == 'reviewed' and result.errors == []
+    assert [(f.rule, f.probability) for f in result.findings] == [('CG_INTERNAL_CONTRADICTION', .8)]
+    assert client.calls and all('content_task' not in q for _, q in client.calls)

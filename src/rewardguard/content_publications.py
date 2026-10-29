@@ -18,7 +18,7 @@ from . import gitops, globs
 from .config import DEFAULT_CONTENT_EXCLUDE, content_path_excluded
 from .content_evidence import _safe_path, _safe
 
-EXTRACTOR_REVISION = 'public-units-5'
+EXTRACTOR_REVISION = 'public-units-6'
 _READER_FIELDS = {'title', 'description', 'summary', 'heading', 'text', 'label', 'caption',
                   'alt', 'placeholder', 'aria-label', 'href', 'url', 'canonical', 'robots'}
 _DYNAMIC = re.compile(r'[{}]|<%|\$\{|\bv-(?:if|for|bind)\b|\b(?:export|import)\s')
@@ -151,6 +151,10 @@ class _HTML(HTMLParser):
                 continue
             kind = 'link' if name in {'href', 'src'} else 'metadata' if tag in {'meta', 'link', 'html'} else 'alt' if name == 'alt' else 'copy'
             field = (attrs.get('name') or attrs.get('property') or name) if tag == 'meta' else name
+            if kind == 'link':
+                # Relationship and element type change the claim even at the same URL.
+                rel = ' '.join(sorted(set((attrs.get('rel') or '').lower().split())))
+                field = f'{tag}[rel={rel}].{name}'
             self.add(kind, value, line + raw[:raw.find(value)].count('\n'), field=field)
 
     def handle_startendtag(self, tag, attrs):
@@ -339,6 +343,21 @@ def extract(path, text, publication):
     return kept, limits
 
 
+def _draft_metadata(path, text):
+    # Only simple root frontmatter keys are supported publication metadata.
+    # Body examples, nested values and template implementation are never metadata.
+    if PurePosixPath(path).suffix.lower() not in {'.md', '.mdx'}:
+        return False
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != '---':
+        return False
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == '---'), None)
+    if end is None:
+        return False
+    return any(re.fullmatch(r'(?:draft\s*:\s*true|published\s*:\s*false)\s*(?:#.*)?', line, re.I)
+               for line in lines[1:end])
+
+
 def _artifacts(repo, revision, cfg):
     resolved, entries = tree(repo, revision)
     artifacts, exclusions = [], []
@@ -351,7 +370,7 @@ def _artifacts(repo, revision, cfg):
         if text is None:
             exclusions.append({'path': path, 'reason': reason})
             continue
-        if not publication.drafts and re.search(r'(?im)^\s*(?:draft\s*:\s*true|published\s*:\s*false)\s*$', text):
+        if not publication.drafts and _draft_metadata(path, text):
             exclusions.append({'path': path, 'reason': 'Draft metadata requires explicit opt-in'})
             continue
         units, limits = extract(path, text, publication)

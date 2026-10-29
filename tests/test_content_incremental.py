@@ -273,3 +273,29 @@ def test_partial_clean_grade_replay_keeps_other_required_fields_unverified(setup
     assert any(row.get('instance') == 'pending' and row['status'] == 'not_evaluated' for row in result.coverage)
     checks = content_checks.build_checks({'content': result.to_dict(), 'findings': [], 'notes': result.notes})
     assert next(check for check in checks if check['name'].endswith(rules[0].id))['conclusion'] == 'neutral'
+
+
+def test_later_completed_grade_survives_checkpoint_and_move(setup, monkeypatch):
+    repo, cfg, rules, api, calls, review = setup
+    rules[:] = rules[:1]
+    monkeypatch.setitem(content_review.FIELDS, rules[0].id, ('amount', 'currency'))
+    api.rules[(rules[0].id + '__amount', '')] = .2
+    api.rules[(rules[0].id + '__currency', '')] = .95
+    def fail(*args, **kwargs):
+        raise OSError('explanation unavailable')
+    monkeypatch.setattr(explainer, '_run', fail)
+    original = review()
+    assert original.status == 'error'
+    assert [f.probability for f in original.findings] == [.95]
+    before = len(api.calls), len(calls)
+    base = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move')
+    client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    result = content_review.review(str(repo), base, 'HEAD', cfg,
+        gitops.changed_files(str(repo), base, 'HEAD'), client=client)
+    assert (len(api.calls), len(calls)) == before
+    assert [f.probability for f in result.findings] == [.95]
+    restored = [r for r in result.coverage if r.get('reused')]
+    assert [(r['instance'], r['probability']) for r in restored] == [('amount', .2), ('currency', .95)]
+    assert all(r['result_complete'] is False for r in restored)
+    assert restored[1]['explanation_status'] == 'not_evaluated'

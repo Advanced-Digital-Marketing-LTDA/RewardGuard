@@ -80,3 +80,14 @@ def test_legacy_publisher_ignores_untrusted_api_endpoint(monkeypatch):
     monkeypatch.setattr(github.urllib.request, 'build_opener', lambda *a: Opener())
     assert content_checks.main(['--preflight','--head','a'*40,'--repo','owner/repo','--pr','29']) == 0
     assert seen == ['https://api.github.com/repos/owner/repo/pulls/29']
+
+
+def test_cache_metadata_io_failure_is_visible_without_callback(monkeypatch, caplog, tmp_path):
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path / 'cache'))
+    cache = review_cache.ReviewCache('key', 'https://api.test', repository='owner/repo')
+    def fail(*a, **kw): raise OSError('private-path-secret')
+    monkeypatch.setattr(review_cache.tempfile, 'NamedTemporaryFile', fail)
+    with caplog.at_level(logging.WARNING):
+        assert cache.load(b'{}') is None
+    assert 'cache metadata unavailable' in caplog.text
+    assert 'private-path-secret' not in caplog.text

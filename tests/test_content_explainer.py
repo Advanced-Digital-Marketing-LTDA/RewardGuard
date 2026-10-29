@@ -192,3 +192,14 @@ def test_failure_metadata_is_actionable_without_echoing_cli_output(content_expla
         client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7:'Try it free for 30 days.'})
     assert diagnostic in str(caught.value)
     assert 'private-source-and-token' not in str(caught.value)
+
+
+@pytest.mark.parametrize('line,quote,accepted', [(17, 'return 42;', True), (18, 'return 42;', False), (17, 'invented', False)])
+def test_code_grounding_uses_fixed_external_response_not_fake_hunk_parser(content_explainer, line, quote, accepted):
+    issue = {'rule':'HARDCODED_OUTPUT', 'line':line, 'code':quote, 'problem':'fixed output', 'fix':'compute result'}
+    client, boundary = content_explainer(answer([issue]))
+    result = client.explain('File: a.py\n@@ -17 +17 @@\n-return value;\n+return 42;',
+        {'HARDCODED_OUTPUT':'Hardcoded output'}, anchors={17:'return 42;'})
+    expected = [{k:v for k,v in issue.items() if k != 'rule'}] if accepted else []
+    assert result == {'HARDCODED_OUTPUT':expected}
+    assert len(boundary.calls) == 1

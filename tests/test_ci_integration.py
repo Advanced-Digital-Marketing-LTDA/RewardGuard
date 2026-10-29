@@ -224,17 +224,77 @@ def test_malformed_artifact_preserves_earlier_content_findings(history, monkeypa
     finding = Finding('CG_TEST', 'fail', 'completed content finding', source='content', probability=.9)
     monkeypatch.setattr(content_review, 'review', lambda *a, **kw: SimpleNamespace(
         findings=[finding], notes=[], errors=[], to_dict=lambda: {'status':'reviewed', 'coverage':[]}))
-    monkeypatch.setattr(cli.static_checks, 'run', lambda *a: ([], {}))
-    monkeypatch.setattr(cli.judge, 'JevClient', lambda *a, **kw: SimpleNamespace(cache_hits=0, models_seen=[]))
-    monkeypatch.setattr(cli.explainer, 'HaikuExplainer', lambda *a, **kw: object())
-    monkeypatch.setattr(cli.judge, 'run', lambda *a, **kw: judge.JudgeResult())
-    def invalid(*a):
-        return run_artifacts.validate_results({'findings': [{'rule': [], 'severity': 'fail', 'source':'run', 'message':'malformed'}], 'errors': []}, {})
-    monkeypatch.setattr(run_artifacts, 'load_authenticated', invalid)
+    # Content is seeded before the failure; real static/judging, origin association,
+    # redirect isolation, digest, ZIP and result validation execute below.
+    import hashlib, io, zipfile, urllib.error
+    from rewardguard import github
+    class Jev:
+        cache_hits = 0
+        models_seen = []
+        def ask(self, state, questions):
+            return {key: .91 if key == 'hardcoded' else .1 for key in questions}
+    class Haiku:
+        def explain(self, state, statements, **kw): return {key: [] for key in statements}
+    monkeypatch.setattr(cli.judge, 'JevClient', lambda *a, **kw: Jev())
+    monkeypatch.setattr(cli.explainer, 'HaikuExplainer', lambda *a, **kw: Haiku())
+    for key, value in {'GITHUB_RUN_ID':'123', 'GITHUB_RUN_ATTEMPT':'1', 'GITHUB_REPOSITORY':'o/r',
+                       'GITHUB_EVENT_NAME':'pull_request', 'GITHUB_SHA':head, 'GH_TOKEN':'test-token'}.items():
+        monkeypatch.setenv(key, value)
+    payload = {**run_artifacts.identity(base, head, base), 'findings': [
+        {'rule': [], 'severity': 'fail', 'source':'run', 'message':'malformed'}], 'errors': []}
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, 'w') as z:
+        z.writestr('rewardguard-run.json', json.dumps(payload))
+    raw = archive.getvalue()
+    requests = []
+    class Opener:
+        def open(self, request, **kwargs):
+            requests.append(request.full_url)
+            if request.full_url.startswith('https://test.blob.core.windows.net/'):
+                assert request.get_header('Authorization') is None
+                return io.BytesIO(raw)
+            assert request.get_header('Authorization') == 'Bearer test-token'
+            if request.full_url.endswith('/zip'):
+                raise urllib.error.HTTPError(request.full_url, 302, 'redirect',
+                    {'Location':'https://test.blob.core.windows.net/results?sig=opaque'}, None)
+            if '/artifacts?' in request.full_url:
+                data = {'artifacts':[{'id':7, 'name':'rewardguard-run-123-1', 'expired':False,
+                    'size_in_bytes':len(raw), 'digest':'sha256:' + hashlib.sha256(raw).hexdigest(),
+                    'workflow_run':{'id':123, 'head_sha':head, 'repository_id':1, 'head_repository_id':2}}]}
+            else:
+                data = {'id':123, 'run_attempt':1, 'event':'pull_request', 'head_sha':head,
+                        'repository':{'id':1, 'full_name':'o/r'}, 'head_repository':{'id':2}}
+            return io.BytesIO(json.dumps(data).encode())
+    monkeypatch.setattr(github.urllib.request, 'build_opener', lambda *a: Opener())
     target = tmp_path/'retained.json'
     markdown = tmp_path/'retained.md'
     assert cli.main(['check', '--repo', str(repo), '--test-artifact', '--json', str(target), '--markdown', str(markdown)]) == 2
     data = json.loads(target.read_text())
-    assert data['findings'][0]['probability'] == .9
-    assert any('artifact' in e for e in data['errors'])
+    assert any(f['probability'] == .9 and f['source'] == 'content' for f in data['findings'])
+    assert any(f['probability'] == .91 and f['rule'] == 'HARDCODED_OUTPUT' for f in data['findings'])
+    assert len(requests) == 4
+    assert any('invalid finding schema/rule' in e for e in data['errors'])
     assert 'completed content finding' in markdown.read_text()
+
+
+@pytest.mark.parametrize('description,complete', [('Timeout increased for measured latency', True), ('', True), ('partial explanation', False)])
+def test_limit_raised_requires_complete_task_context(history, description, complete):
+    repo, base, _, head = history
+    calls = []
+    class Jev:
+        def ask(self, state, questions):
+            calls.append((state, questions))
+            return {k: .1 for k in questions}
+    class Haiku:
+        def explain(self, *a, **kw): raise AssertionError('clean grade')
+    result = judge.run(str(repo), base, head, config.parse('run_tests=false'),
+        gitops.changed_files(str(repo), base, head), {'a.py':'source'}, description, Jev(), Haiku(),
+        task_context_complete=complete)
+    dependent = [(state, q) for state, q in calls if 'limit_raised' in q]
+    assert all('limit_raised' not in q for _, q in calls if 'hardcoded' in q)
+    if description and complete:
+        assert len(dependent) == 1 and description in dependent[0][0]
+        assert 'scope_creep' in dependent[0][1]
+    else:
+        assert dependent == []
+        assert any(r['rule'] == 'LIMIT_RAISED' and r['status'] == 'not_evaluated' for r in result.coverage)

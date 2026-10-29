@@ -126,6 +126,7 @@ class ReviewCache:
                 previous = path.read_text() if path.exists() else None
             except UnicodeError:
                 note('metadata_invalid')
+                logging.warning('RewardGuard cache metadata invalid; signed entries still require verification')
                 previous = None
             if previous is not None and previous != key_id:
                 note('signing_key_changed')
@@ -137,12 +138,14 @@ class ReviewCache:
                 os.replace(temporary, path)
         except OSError:
             note('metadata_unavailable')
+            logging.warning('RewardGuard cache metadata unavailable; signed entries still require verification')
         finally:
             if temporary:
                 try:
                     Path(temporary).unlink(missing_ok=True)
                 except OSError:
                     note('cleanup_failed')
+                    logging.warning('RewardGuard could not remove temporary cache metadata')
 
     def reject(self, body):
         identity = self.identity(body)
