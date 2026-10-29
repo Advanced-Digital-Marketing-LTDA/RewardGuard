@@ -315,3 +315,17 @@ def test_action_preserves_incomplete_outcome_and_fails_job(tmp_path):
              'PUBLISH_ENABLED':'true', 'EVIDENCE_OUTCOME':'success', 'GITHUB_OUTPUT':str(output)})
     assert result.returncode == 3
     assert output.read_text().splitlines()[-1] == 'result=incomplete'
+
+
+def test_canary_evidence_outputs_expose_independent_failure_outcomes():
+    action = _load('action.yml')
+    outputs = action['outputs']
+    assert outputs['publication-outcome']['value'] == '${{ steps.content_checks.outcome }}'
+    assert outputs['review-upload-outcome']['value'] == '${{ steps.review_upload.outcome }}'
+    assert outputs['judge-exit']['value'] == '${{ steps.check.outputs.exit_code }}'
+    # Neither finding-bearing exits nor publisher/upload errors may be disguised
+    # as one overall result when the release gate checks canary execution.
+    steps = {s.get('id'): s for s in action['runs']['steps'] if s.get('id')}
+    for step in ('content_checks', 'review_upload'):
+        assert 'always()' in steps[step]['if']
+        assert steps[step]['continue-on-error'] is True

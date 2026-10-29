@@ -67,6 +67,15 @@ outputs:
   review-artifact-digest:
     description: Uploaded report archive digest; does not prove model correctness.
     value: ${{ steps.review_upload.outputs.artifact-digest }}
+  publication-outcome:
+    description: Actual scoped-check/comment publication outcome, independent of judge findings.
+    value: ${{ steps.content_checks.outcome }}
+  review-upload-outcome:
+    description: Actual trusted review report upload outcome.
+    value: ${{ steps.review_upload.outcome }}
+  judge-exit:
+    description: Original judge exit code, independent of later publication/upload failures.
+    value: ${{ steps.check.outputs.exit_code }}
   result:
     description: '"passed", "failed", "incomplete" or "skipped" (check mode)'
     value: ${{ steps.final_result.outputs.result }}
