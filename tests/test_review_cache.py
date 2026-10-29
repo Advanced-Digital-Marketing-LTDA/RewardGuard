@@ -270,3 +270,20 @@ def test_overflowing_cache_timestamp_reports_invalidation(tmp_path, monkeypatch)
     events = []
     assert cache.load(b'body', diagnostic=events.append) is None
     assert events == ['invalid_timestamp']
+
+
+@pytest.mark.parametrize(('contents', 'message'), [
+    ('null', 'malformed cache entry'),
+    (json.dumps({'format': 2}), 'incompatible format'),
+])
+def test_invalid_checkpoint_cache_without_report_callback_is_logged(tmp_path, monkeypatch, caplog, contents, message):
+    import logging
+    from rewardguard import review_cache
+
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    cache = review_cache.ReviewCache('key', 'endpoint')
+    cache.save(b'body', {'ok': True})
+    next(tmp_path.glob('*.json')).write_text(contents)
+    with caplog.at_level(logging.WARNING):
+        assert cache.load(b'body') is None
+    assert any(message in record.message for record in caplog.records)

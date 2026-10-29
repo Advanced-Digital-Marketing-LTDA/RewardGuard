@@ -179,9 +179,13 @@ class ReviewCache:
             record = json.loads((self.root / (identity + '.json')).read_text())
             if not isinstance(record, dict):
                 note('malformed')
+                if diagnostic is None:
+                    logging.warning('RewardGuard ignored a malformed cache entry')
                 return None
             if record.get('format') != 3:
                 note('format_changed')
+                if diagnostic is None:
+                    logging.warning('RewardGuard ignored a cache entry with an incompatible format')
                 return None
             payload = record['payload']
             created_at = record['created_at']
