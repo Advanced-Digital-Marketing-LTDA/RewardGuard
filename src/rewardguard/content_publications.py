@@ -18,7 +18,7 @@ from . import gitops, globs
 from .config import DEFAULT_CONTENT_EXCLUDE, content_path_excluded
 from .content_evidence import _safe_path, _safe
 
-EXTRACTOR_REVISION = 'public-units-3'
+EXTRACTOR_REVISION = 'public-units-4'
 _READER_FIELDS = {'title', 'description', 'summary', 'heading', 'text', 'label', 'caption',
                   'alt', 'placeholder', 'aria-label', 'href', 'url', 'canonical', 'robots'}
 _DYNAMIC = re.compile(r'[{}]|<%|\$\{|\bv-(?:if|for|bind)\b|\b(?:export|import)\s')

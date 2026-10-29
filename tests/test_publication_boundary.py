@@ -367,6 +367,31 @@ def test_mdx_without_established_esm_boundary_omits_remaining_region():
     assert limits and all(row['status'] == 'not_evaluated' for row in limits)
 
 
+@pytest.mark.parametrize('tail', [
+    ' export const internal = `\nPRIVATE IMPLEMENTATION STRING\n`;',
+    '\nconst internal = `\nPRIVATE IMPLEMENTATION STRING\n`;',
+])
+def test_mdx_unexamined_esm_tail_cannot_resume_markdown(tail):
+    from rewardguard.content_publications import extract
+    source = 'export const first = 1;' + tail + '\n\n# Public headline\n'
+    units, limits = extract('page.mdx', source,
+                            config.Publication('page', ('page.mdx',), 'article', '/'))
+    # Chained statements are unsupported: retain no reader text from an
+    # unexamined tail, even if it appears to contain a later Markdown heading.
+    assert not units
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
+def test_mdx_safe_esm_whitespace_tail_preserves_subsequent_markdown():
+    from rewardguard.content_publications import extract
+    source = 'export const internal = "PRIVATE"; \t\n \t\n# Public headline\n\nPublic paragraph.\n'
+    units, limits = extract('page.mdx', source,
+                            config.Publication('page', ('page.mdx',), 'article', '/'))
+    assert [u['text'] for u in units] == ['# Public headline', 'Public paragraph.']
+    assert [u['line'] for u in units] == [3, 5]
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
 @pytest.mark.parametrize('source', [
     'export default () => <p>Public</p> + "<p>PRIVATE CONCATENATED</p>";',
     'const pattern = /return <p>PRIVATE REGEX/; export default () => <p>Public</p>;',

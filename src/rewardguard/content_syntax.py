@@ -131,16 +131,24 @@ def jsx_expression(text):
 
 
 def _esm_end(text, start):
-    """Require an explicit statement terminator outside literals/comments/groups.
+    """Require a terminated statement and a fully examined whitespace-only tail.
 
     Whitespace never proves completion: assignments, operators and declarations
     can continue after blank lines. Automatic semicolon insertion and declarations
-    without a terminator are deliberately unsupported here.
+    without a terminator are deliberately unsupported here. Chained statements
+    are also unsupported: only a blank-line separator or EOF after the terminator
+    establishes a safe boundary; never discard an unexamined physical-line tail.
     """
     i = start
     while i < len(text):
         if text[i] == ';':
-            return i + 1
+            tail = text[i + 1:]
+            if re.fullmatch(r'[ \t\r\n]*', tail):
+                return len(text)
+            separator = re.match(r'[ \t]*\r?\n[ \t]*\r?\n', tail)
+            if separator:
+                return i + 1 + separator.end()
+            raise UnsupportedSyntax('Unexamined MDX ESM statement tail')
         end = _atom_end(text, i)
         if end != i:
             i = end
@@ -165,7 +173,7 @@ def omit_mdx_regions(text):
         if esm or brace >= 0:
             try:
                 end = _esm_end(text, offset) if esm else group_end(text, offset + brace)
-                if end < len(text) and text[end] != '\n':
+                if not esm and end < len(text) and text[end] != '\n':
                     end = text.find('\n', end)
                     end = len(text) if end < 0 else end
             except UnsupportedSyntax:
