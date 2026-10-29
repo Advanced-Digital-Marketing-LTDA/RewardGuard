@@ -412,8 +412,8 @@ runs:
         echo "result=failed" >> "$GITHUB_OUTPUT"
         if [ "$FRESHNESS" = stale ]; then
           echo "::notice::Superseded head: no providers or publication were run."
-          echo "result=skipped" >> "$GITHUB_OUTPUT"
-          exit 0
+          echo "result=incomplete" >> "$GITHUB_OUTPUT"
+          exit 3
         fi
         case "$JUDGE_EXIT" in
           0) ;;

@@ -410,3 +410,25 @@ def test_parenthesized_jsx_keeps_only_bounded_expression_and_exact_lines():
     units, _ = extract('page.tsx', source, config.Publication('page', ('page.tsx',), 'page', '/'))
     assert [u['text'] for u in units] == ['Public text.']
     assert units[0]['line'] == 3
+
+
+def test_changed_routes_surface_unresolvable_unchanged_link_scope(repo):
+    from rewardguard.content_publications import manifest
+    (repo / 'page.md').write_text('[Unresolved destination](http://[)\n')
+    (repo / 'target.md').write_text('Published target.\n')
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'published routes')
+    before = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'rm', 'target.md')
+    git(repo, 'commit', '-qm', 'delete public route')
+    plan = manifest(str(repo), before, 'HEAD', cfg())
+    page = next(a for a in plan['artifacts'] if a['path'] == 'page.md')
+    assert page['affected'] and page['cache_only']
+    assert page['limitations'] == [{'line':1, 'status':'not_evaluated',
+        'reason':'Invalid literal URL; public route dependency could not be resolved'}]
+    class NoCalls:
+        def ask(self, *a): pytest.fail('unchanged unresolved link must not trigger paid regrading')
+    result = content_review.review(str(repo), before, 'HEAD', cfg(),
+                                  gitops.changed_files(str(repo), before, 'HEAD'), client=NoCalls())
+    assert any(row.get('file') == 'page.md' and row.get('status') == 'not_evaluated'
+               and row.get('reason') == page['limitations'][0]['reason'] for row in result.coverage)

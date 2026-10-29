@@ -132,16 +132,19 @@ def test_output_failure_preserves_original_error_and_writes_json(tmp_path, capsy
 def test_later_chunk_failure_keeps_completed_raw_grade(history, monkeypatch):
     repo, base, _, head = history
     cfg = config.parse('run_tests = false\n[judge]\nconcurrency = 1\n')
-    chunks = [judge.Chunk('first.js', 'source', 'first', 1, 'first'),
-              judge.Chunk('later.js', 'source', 'later', 1, 'later')]
-    monkeypatch.setattr(judge, 'build_chunks', lambda *a: chunks)
+    (repo / 'first.js').write_text('export const first = 1;\n')
+    (repo / 'later.js').write_text('export const later = 2;\n')
+    git(repo, 'add', 'first.js', 'later.js')
+    git(repo, 'commit', '-qm', 'two real review chunks')
+    head = git(repo, 'rev-parse', 'HEAD')
+    changes = gitops.changed_files(str(repo), base, head)
     class Jev:
         def ask(self, state, questions):
-            if state == 'later': raise RewardGuardError('later chunk failed')
+            if 'File: later.js\n' in state: raise RewardGuardError('later chunk failed')
             return {key: .9 if key == 'hardcoded' else .1 for key in questions}
     class Haiku:
         def explain(self, state, statements, **kw): return {key: [] for key in statements}
-    result = judge.run(str(repo), base, head, cfg, [], {'first.js':'source'}, '', Jev(), Haiku())
+    result = judge.run(str(repo), base, head, cfg, changes, {'first.js':'source', 'later.js':'source'}, '', Jev(), Haiku())
     assert [(f.rule, f.probability) for f in result.findings] == [('HARDCODED_OUTPUT', .9)]
     assert any('later chunk failed' in e for e in result.errors)
 
@@ -164,12 +167,15 @@ def test_expected_justification_failure_retains_score(history, monkeypatch):
 def test_completed_confirmation_survives_later_confirmation_failure(history, monkeypatch):
     repo, base, _, head = history
     cfg = config.parse('run_tests = false\n')
-    monkeypatch.setattr(judge, '_file_chunks', lambda repo, base, head, cfg, cf, kind, desc:
-                        [judge.Chunk(cf.path, kind, cf.path, 1, 'diff')])
-    changes = [gitops.ChangedFile('M', 'first.js'), gitops.ChangedFile('M', 'later.js')]
+    (repo / 'first.js').write_text('export const first = 1;\n')
+    (repo / 'later.js').write_text('export const later = 2;\n')
+    git(repo, 'add', 'first.js', 'later.js')
+    git(repo, 'commit', '-qm', 'two real confirmation chunks')
+    head = git(repo, 'rev-parse', 'HEAD')
+    changes = gitops.changed_files(str(repo), base, head)
     class Jev:
         def ask(self, state, questions):
-            if state == 'later.js': raise RewardGuardError('later confirmation unavailable')
+            if 'File: later.js\n' in state: raise RewardGuardError('later confirmation unavailable')
             return {k: .9 for k in questions}
     errors, coverage = [], []
     findings, _ = judge.confirm(str(repo), base, head, cfg, changes, {'first.js':'source', 'later.js':'source'}, '',

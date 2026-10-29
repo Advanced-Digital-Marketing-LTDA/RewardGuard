@@ -57,9 +57,15 @@ def repository_identity(repo=None):
     if repository and repo is None:
         return repository.strip().lower().removesuffix('.git')
     try:
-        remote = subprocess.run(['git', '-C', str(repo or Path.cwd()), 'config', '--get', 'remote.origin.url'],
-                                capture_output=True, text=True, timeout=5, check=False).stdout.strip()
+        lookup = subprocess.run(['git', '-C', str(repo or Path.cwd()), 'config', '--get', 'remote.origin.url'],
+                                capture_output=True, text=True, timeout=5, check=False)
+        remote = lookup.stdout.strip() if lookup.returncode == 0 else ''
+        if lookup.returncode == 1:
+            logging.info('RewardGuard repository identity uses a local path: no origin is configured')
+        elif lookup.returncode != 0:
+            logging.warning('RewardGuard repository identity lookup failed (exit %s); using local path scope', lookup.returncode)
     except (OSError, subprocess.TimeoutExpired):
+        logging.warning('RewardGuard repository identity lookup unavailable; using local path scope')
         remote = ''
     remote = re.sub(r'^git@([^:]+):', r'https://\1/', remote)
     remote = re.sub(r'^https?://(?:[^/@]+@)?', '', remote)
@@ -98,7 +104,7 @@ class ReviewCache:
         try:
             body = json.dumps(json.loads(body), sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
         except (ValueError, TypeError, UnicodeDecodeError):
-            pass
+            logging.warning('RewardGuard cache uses raw-byte identity: input is not canonicalizable JSON')
         identity = json.dumps({'format': 3, 'revision': 'results-1', 'endpoint': self.endpoint,
                                'repository': self.repository, 'scope': self.namespace,
                                'epoch': self.epoch}, sort_keys=True, separators=(',', ':')).encode()

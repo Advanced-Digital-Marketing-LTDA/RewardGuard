@@ -65,6 +65,7 @@ class Haiku:
 
     def explain_content(self, state, rule, statement, rubric, *, anchors=None):
         self.calls.append((state, rule, rubric))
+        self.anchors = anchors
         return [{'line': 1, 'code': 'New public copy.', 'problem': 'Conflicting promise.', 'fix': 'Align the promise.'}]
 
 
@@ -98,6 +99,10 @@ def test_individual_finding_thresholds_and_focused_rubric(repo, probability, sev
     assert [f.severity for f in result.findings] == ([severity] if severity else [])
     if severity:
         assert result.findings[0].rule == 'CG_INTERNAL_CONTRADICTION'
+        assert haiku.anchors == {1: 'New public copy.'}
+        assert result.findings[0].line == 2
+        assert result.findings[0].details == [{'line': 2, 'code': 'New public copy.',
+                                             'problem': 'Conflicting promise.', 'fix': 'Align the promise.'}]
         assert haiku.calls[0][1] == 'CG_INTERNAL_CONTRADICTION'
         assert 'CG_PRICE_BILLING_PERIOD' not in haiku.calls[0][2]
     else:
@@ -109,6 +114,10 @@ def test_publication_does_not_use_model_task_gate(repo):
     client, haiku = Jev(content=.01), Haiku()
     result = run(repo, changed, client, haiku)
     assert result.status == 'reviewed'
+    assert result.errors == []
+    assert client.calls and set(client.calls[0][1]) == {'applies_CG_AMBIGUOUS_MEANING'}
+    assert [(f.rule, f.severity, f.probability) for f in result.findings] == [('CG_INTERNAL_CONTRADICTION', 'fail', .8)]
+    assert len(haiku.calls) == 1
     assert all('content_task' not in questions for _, questions in client.calls)
     assert result.eligibility and all('probability' not in row for row in result.eligibility)
 
@@ -117,8 +126,12 @@ def test_missing_context_is_not_evaluated(repo):
     changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
     client = Jev(pack='proof')
     result = run(repo, changed, client, Haiku(), ['proof'])
-    row = next(c for c in result.coverage if c.get('rule') == 'CG_PRODUCT_FACT_CONFLICT' and c['line'] == 2)
-    assert row['status'] == 'not_evaluated'
+    rows = [c for c in result.coverage if c.get('rule') == 'CG_PRODUCT_FACT_CONFLICT']
+    assert [(row['line'], row['status']) for row in rows] == [(1, 'unchanged'), (2, 'not_evaluated')]
+    row = rows[1]
+    assert row['reason'] == 'Relevant check lacks explicitly bound supporting evidence'
+    assert row['requires'] == [['B', 'D']] and row['available'] == ['D']
+    assert result.findings == []
     assert not any('CG_PRODUCT_FACT_CONFLICT' in qs for _, qs in client.calls)
 
 
@@ -144,7 +157,12 @@ def test_unsupported_metadata_source_is_explicitly_not_evaluated(repo):
     result = run(repo, changed, client, Haiku())
     assert not client.calls
     assert result.status == 'not_evaluated'
-    assert any('Unsupported source format' in row.get('reason', '') for row in result.coverage)
+    assert result.errors == [] and result.findings == []
+    assert result.coverage == [
+        {'file': 'src/metadata.ts', 'line': 1, 'status': 'not_evaluated',
+         'reason': 'Unsupported source format; no implementation-source fallback'},
+        {'file': 'src/metadata.ts', 'status': 'not_evaluated',
+         'reason': 'No supported static public reader units'}]
 
 
 def test_staged_snapshot_excludes_unstaged_copy(repo):
@@ -166,7 +184,9 @@ def test_malformed_probability_fails_closed(repo):
     client, haiku = Jev(probability=float('nan')), Haiku()
     result = run(repo, changed, client, haiku)
     assert result.status == 'error'
-    assert any('probability' in e for e in result.errors)
+    assert result.errors == ['Content judge returned an invalid probability for CG_INTERNAL_CONTRADICTION']
+    assert result.findings == [] and haiku.calls == []
+    assert not any(row.get('rule') == 'CG_INTERNAL_CONTRADICTION' and row['status'] == 'evaluated' for row in result.coverage)
 
 
 def test_content_only_cli_allows_code_only_commit_without_credentials(repo, tmp_path, monkeypatch):
@@ -214,6 +234,7 @@ def test_credentials_never_enter_content_model_state(repo):
     client = Jev(content=.1)
     result = run(repo, changed, client, Haiku())
     assert any('Credential-bearing source omitted' in row.get('reason', '') for row in result.coverage)
+    assert client.calls
     assert all('private-password' not in state for state, _ in client.calls)
 
 
@@ -232,11 +253,16 @@ def test_large_diff_classifies_every_chunk_including_last_change(repo):
 def test_oversize_changed_line_is_an_error_not_silently_skipped(repo):
     changed = commit(repo, 'page.md', 'Reader facing ' * 2000)
     cfg = public_config(max_state_chars=12000)
+    cfg.content.packs = ['writing']  # Assert the exact six bounded writing contracts.
     review, base, head = engine().review, git(repo, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD')
     client, haiku = Jev(content=.1), Haiku()
     result = review(str(repo), base, head, cfg, changed, client=client, haiku=haiku, log=lambda _: None)
     assert result.status == 'not_evaluated'
-    assert any('exceed' in row.get('reason', '') for row in result.coverage)
+    assert result.errors == [] and result.findings == [] and haiku.calls == []
+    assert {row['rule'] for row in result.coverage} == {
+        'CG_AMBIGUOUS_MEANING', 'CG_AUDIENCE_TERM_GAP', 'CG_INSTRUCTION_GAP',
+        'CG_INTERNAL_CONTRADICTION', 'CG_SECTION_PROMISE_MISMATCH', 'CG_VALUE_EXPLANATION_GAP'}
+    assert all(row['status'] == 'not_evaluated' and row['reason'] == 'Whole semantic unit/dependencies exceed state allowance' for row in result.coverage)
     assert not client.calls
 
 
@@ -246,11 +272,12 @@ def test_oversize_changed_line_is_an_error_not_silently_skipped(repo):
     ('src/page.tsx', 'export default () => <p>Continue</p>;\n'),
     ('public/page.html', '<meta name=robots content=noindex>\n'),
 ])
-def test_short_and_non_ascii_content_reaches_classifier(repo, path, text):
+def test_short_and_non_ascii_content_reaches_applicability(repo, path, text):
     changed = commit(repo, path, text)
     client = Jev(content=.1)
     run(repo, changed, client, Haiku())
     assert client.calls
+    assert set(client.calls[0][1]) == {'applies_CG_AMBIGUOUS_MEANING'}
     assert all('content_task' not in questions for _, questions in client.calls)
 
 
@@ -307,5 +334,9 @@ def test_nonwebsite_sales_rules_never_run_from_catalog_presence(repo):
     cfg.content.packs = ['sales']
     client = GapJev()
     result = engine().review(str(repo), 'main', 'HEAD', cfg, changed, client=client, haiku=Haiku(), log=lambda _: None)
-    assert not any(row.get('rule') == 'CG_ADVISOR_SIMULATION_TRUTH' for row in result.coverage)
+    from rewardguard import content_rules
+    retired = next(r for r in content_rules.all_rules() if r.id == 'CG_ADVISOR_SIMULATION_TRUTH')
+    assert retired.scope == 'outside_website'
+    assert not any(f.rule == retired.id for f in result.findings)
+    assert not any(row.get('rule') == retired.id for row in result.coverage)
     assert not any('CG_ADVISOR_SIMULATION_TRUTH' in key for _, questions in client.calls for key in questions)

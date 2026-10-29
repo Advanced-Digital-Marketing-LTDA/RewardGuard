@@ -177,3 +177,18 @@ def test_maximum_bounded_rubric_is_not_silently_truncated(content_explainer):
     assert client.explain_content(STATE, RULE, STATEMENT, rubric) == []
 
     assert rubric in boundary.calls[0]["input"]
+
+
+@pytest.mark.parametrize('payload,kwargs,diagnostic', [
+    (None, {'error': OSError(2, 'private-source-and-token')}, 'errno=2'),
+    (None, {'returncode': 2, 'stdout': 'private-source-and-token'}, 'stdout_chars=24'),
+    (None, {'stdout': 'private-source-and-token'}, 'line=1, column=1'),
+    ({'is_error': True, 'subtype': 'error_during_execution', 'result': 'private-source-and-token'}, {}, 'subtype=error_during_execution'),
+    ({'is_error': False, 'result': 'private-source-and-token', 'structured_output': 'private-source-and-token'}, {}, 'structured_output_type=str'),
+])
+def test_failure_metadata_is_actionable_without_echoing_cli_output(content_explainer, payload, kwargs, diagnostic):
+    client, _ = content_explainer(payload, **kwargs)
+    with pytest.raises(RewardGuardError) as caught:
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7:'Try it free for 30 days.'})
+    assert diagnostic in str(caught.value)
+    assert 'private-source-and-token' not in str(caught.value)

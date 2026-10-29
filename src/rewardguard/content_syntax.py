@@ -171,15 +171,21 @@ def omit_mdx_regions(text):
         esm = not fenced and re.match(r'^\s*(?:import|export)\b', line)
         brace = line.find('{') if not fenced else -1
         if esm or brace >= 0:
+            reason = 'Unsupported MDX ESM/expression region omitted without executing it'
+            omitted_to_end = False
             try:
                 end = _esm_end(text, offset) if esm else group_end(text, offset + brace)
                 if not esm and end < len(text) and text[end] != '\n':
                     end = text.find('\n', end)
                     end = len(text) if end < 0 else end
-            except UnsupportedSyntax:
+            except UnsupportedSyntax as error:
                 end = len(text)  # No trustworthy closing boundary: omit the remaining region.
-            limits.append({'line': text.count('\n', 0, offset) + 1, 'status': 'not_evaluated',
-                           'reason': 'Unsupported MDX ESM/expression region omitted without executing it'})
+                omitted_to_end = True
+                # UnsupportedSyntax carries only fixed lexer reasons, never source text.
+                reason = 'Unsupported MDX ESM/expression region: ' + str(error)
+            limits.append({'line': text.count('\n', 0, offset) + 1,
+                           'end_line': text.count('\n', 0, end) + (0 if end and text[end - 1] == '\n' else 1),
+                           'status': 'not_evaluated', 'reason': reason, 'omitted_to_end': omitted_to_end})
             out.append('\n' * text[offset:end].count('\n'))
             offset = end
         else:

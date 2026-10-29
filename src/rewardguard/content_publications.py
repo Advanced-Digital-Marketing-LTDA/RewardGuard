@@ -18,7 +18,7 @@ from . import gitops, globs
 from .config import DEFAULT_CONTENT_EXCLUDE, content_path_excluded
 from .content_evidence import _safe_path, _safe
 
-EXTRACTOR_REVISION = 'public-units-4'
+EXTRACTOR_REVISION = 'public-units-5'
 _READER_FIELDS = {'title', 'description', 'summary', 'heading', 'text', 'label', 'caption',
                   'alt', 'placeholder', 'aria-label', 'href', 'url', 'canonical', 'robots'}
 _DYNAMIC = re.compile(r'[{}]|<%|\$\{|\bv-(?:if|for|bind)\b|\b(?:export|import)\s')
@@ -356,11 +356,15 @@ def _artifacts(repo, revision, cfg):
             continue
         units, limits = extract(path, text, publication)
         route = publication.route.replace('{stem}', PurePosixPath(path).stem).replace('{path}', str(PurePosixPath(path).with_suffix('')))
-        artifacts.append({'id': publication.id, 'path': path, 'type': publication.type, 'route': route,
+        artifact = {'id': publication.id, 'path': path, 'type': publication.type, 'route': route,
                           'source_format': PurePosixPath(path).suffix.lower(),
                           'units': units, 'limitations': limits, 'dependencies': list(publication.dependencies),
                           'evidence': list(publication.evidence), 'source_digest': entry[2],
-                          'semantic_digest': digest([publication.type, route, [(u['kind'], u['identity']) for u in units], [limit['reason'] for limit in limits]])})
+                          'semantic_digest': ''}
+        # URL limitations belong in the semantic identity and both revision manifests.
+        referenced_routes(artifact)
+        artifact['semantic_digest'] = digest([publication.type, route, [(u['kind'], u['identity']) for u in units], [limit['reason'] for limit in limits]])
+        artifacts.append(artifact)
     return resolved, artifacts, exclusions
 
 
@@ -376,7 +380,10 @@ def referenced_routes(artifact):
                 continue
             targets.add(urlsplit(urljoin(artifact['route'], unit['text'])).path)
         except ValueError:
-            continue  # Invalid URL remains a literal unit, not a guessed dependency.
+            limit = {'line': unit['line'], 'status': 'not_evaluated',
+                     'reason': 'Invalid literal URL; public route dependency could not be resolved'}
+            if limit not in artifact['limitations']:
+                artifact['limitations'].append(limit)
     return targets
 
 
@@ -423,6 +430,10 @@ def manifest(repo, base, head, cfg, changed=None):
         bound = {p for code in a['evidence'] for p in cfg.content.context.get(code, [])}
         if bound & changed_paths:
             a['affected'] = True; a['reasons'].append('Bound evidence changed (trusted-base version still governs)')
+        if changed_routes and any(limit['reason'] == 'Invalid literal URL; public route dependency could not be resolved'
+                                  for limit in a['limitations']):
+            a['affected'] = True
+            a['reasons'].append('Public routes changed; an invalid literal URL prevents dependency resolution')
         if referenced_routes(a) & changed_routes:
             a['affected'] = True; a['cache_only'] = False; a['reasons'].append('Referenced public route changed')
     while True:

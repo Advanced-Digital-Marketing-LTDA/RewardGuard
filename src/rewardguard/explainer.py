@@ -245,19 +245,24 @@ class HaikuExplainer:
         except subprocess.TimeoutExpired as e:
             raise RewardGuardError(f"Haiku (claude CLI) timed out after {self.cfg.explainer_timeout_seconds}s") from e
         except OSError as e:
-            raise RewardGuardError("Haiku (claude CLI) could not run") from e
+            raise RewardGuardError(f"Haiku (claude CLI) could not run (errno={e.errno if type(e.errno) is int else 'unknown'})") from e
         if proc.returncode != 0:
-            raise RewardGuardError(f"Haiku (claude CLI) exited {proc.returncode}")
+            raise RewardGuardError(f"Haiku (claude CLI) exited {proc.returncode} "
+                                   f"(stdout_chars={len(proc.stdout)}, stderr_chars={len(proc.stderr)}; output withheld)")
         try:
             data = json.loads(proc.stdout)
         except json.JSONDecodeError as e:
-            raise RewardGuardError("Haiku (claude CLI) returned invalid JSON") from e
+            raise RewardGuardError(f"Haiku (claude CLI) returned invalid JSON (line={e.lineno}, column={e.colno}; output withheld)") from e
         if not isinstance(data, dict):
             raise RewardGuardError("Haiku (claude CLI) returned a malformed JSON result")
         if data.get("is_error"):
-            raise RewardGuardError("Haiku (claude CLI) returned an error")
+            known = {'error_during_execution', 'error_max_turns', 'error_max_budget_usd',
+                     'error_max_structured_output_retries'}
+            subtype = data.get('subtype')
+            subtype = subtype if isinstance(subtype, str) and subtype in known else 'unknown'
+            raise RewardGuardError(f"Haiku (claude CLI) returned an error (subtype={subtype}; result text withheld)")
         answer = data.get("structured_output")
         if not isinstance(answer, dict) or not isinstance(answer.get("issues"), list):
-            raise RewardGuardError("Haiku returned no structured answer")
+            raise RewardGuardError(f"Haiku returned no structured answer (structured_output_type={type(answer).__name__}; result text withheld)")
 
         return answer
