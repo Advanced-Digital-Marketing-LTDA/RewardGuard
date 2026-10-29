@@ -3,9 +3,9 @@ A pre-commit and pre-merge check for reward hacking behavior in AI coding agents
 
 `rewardguard` checks a branch against its base and fails if an AI coding agent may have gamed its tests: deleting or skipping them, weakening assertions, editing expected values to match a bug, hard-coding answers, swallowing errors, or leaving notes aimed at the checker. It supports **Jest, Vitest and Playwright** projects. **Jev** (TypeSafe) is the judge and only answers yes/no questions; **Claude Haiku** then explains each chunk Jev flags.
 
-The same tool runs locally and as a GitHub Action.
+The same tool runs locally and as a GitHub Action. Version `0.3.0` prepares the explicit-publication contract; publication and shared-channel rollout are pending. [Release verification](docs/shared-ci-release-verification.md) records the gates and caller migration.
 
-This branch also adds content review to the existing `rewardguard check` path: **243 rule signatures in 37 focused packs**, derived from 80 inspected writing, SEO, conversion, channel and research guides. Eligible changes go through a deterministic content gate, a Jev task classifier, and applicable independent checks. Metadata, schema and publication controls are included alongside prose. See [Content checks](docs/content-checks.md) for the catalog, evidence requirements, source audits and configuration.
+Content review shares the existing `rewardguard check` path. Explicit trusted-base publication declarations select public website sources, reader units, metadata and declared dependencies. The catalog retains **243 rule signatures in 37 packs**, derived from 80 inspected guides; the website runtime selects supported rules by artifact type and evidence. Research, advertising, email, sales and other nonwebsite packs remain cataloged outside this initial runtime scope. See [Content checks](docs/content-checks.md) for configuration and [the publication API](docs/shared-ci-public-content.md) for exact source/extraction limits.
 
 Live-provider precision has not been verified. CI rollout needs the published action commit SHA containing this change; a local checkout does not update existing pinned callers.
 
@@ -26,9 +26,9 @@ The code review path has the layers below. Configuration is always read from the
 
 **Fail-closed.** If Jev returns an HTTP error, a malformed answer or a missing answer, the check fails. So does a `claude` CLI failure, an error result or a missing structured answer from Haiku. It also fails if the Jev key, the Claude token or the `claude` CLI is missing, a suite writes no report, or the config is invalid. There is no fallback. Jev retries happen only on HTTP 429/5xx, at most 3 times. Test commands never see `TYPESAFE_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` or GitHub tokens.
 
-Each run reports Jev's provider-reported input tokens and request context sizes separately for code and content review, in the terminal, Markdown and JSON reports. State and question sizes are character counts, not token estimates. Responses without valid usage are counted separately; failed or interrupted requests may also be missing from these totals, so consult the provider's billing records for actual charges. The report does not retain the prompts in its usage totals. Content review may submit the same state repeatedly for classification, routing, applicability and batches of checks; all reported input tokens are added per response.
+Each run reports Jev's provider-reported input tokens and request context sizes separately for code and content review, in the terminal, Markdown and JSON reports. State and question sizes are character counts, not token estimates. Responses without valid usage are counted separately; failed or interrupted requests may also be missing from these totals, so consult the provider's billing records for actual charges. The report does not retain the prompts in its usage totals. Content review may submit the same state repeatedly for applicability and batches of independent checks; all reported input tokens are added per response.
 
-The same reports include HTTP attempts, serialized request-body bytes, authenticated cache hits, and denied requests per phase and per content stage (classification, routing, applicability and evaluation). Attempts and request bytes are reserved before each provider call and include retries, failures and requests whose responses are lost. Cache hits do not use an HTTP attempt. Bytes are a payload measure, not a token or billing estimate.
+The same reports include HTTP attempts, serialized request-body bytes, authenticated cache hits, and denied requests per phase and per recorded content stage (including applicability and evaluation). Attempts and request bytes are reserved before each provider call and include retries, failures and requests whose responses are lost. Cache hits do not use an HTTP attempt. Bytes are a payload measure, not a token or billing estimate.
 
 The terminal and JSON report also include structured per-request cache, retry,
 response and budget events using run-local numeric IDs. They never contain
@@ -51,7 +51,7 @@ max_request_bytes = 2000000
 
 Budget exhaustion fails the check visibly as an incomplete review, without silently skipping the remaining work. The byte limit applies to JSON request bodies including retries, not provider-reported tokens, HTTP headers or charges. Choose limits from observed workloads rather than assuming an arbitrary default is safe for every repository.
 
-Exit codes: `0` pass (warnings allowed), `1` failed, `2` error.
+Exit codes: `0` pass or skip (warnings allowed), `1` failure findings, `2` execution/output error. Local commands retain exit `0` for incomplete evidence without failures/errors, with `status=incomplete` and explicit coverage. CI uses `--require-complete`, which returns `3` for that incomplete state; scoped checks never advertise incomplete coverage as success.
 
 ## What it catches
 
@@ -85,7 +85,7 @@ You can turn any rule off under `[rules]` (`RULE = "off"`); severities can't be 
 
 ## Content review
 
-The normal `check` command includes content review. Its deterministic gate skips changes without eligible content before making content-model calls. For eligible changes, Jev classifies the task: **exactly 0.60 enters review**, and a result below 0.60 skips the content path. Jev then selects applicable packs and independently grades each evidenced claim, field or requirement. Individual findings warn at **0.60 through below 0.80** and fail at **0.80 or higher**. A pack never receives one aggregate quality score.
+The normal `check` command includes content review. Trusted-base `[[content.publications]]` declarations are the publication authority; the default empty list makes arbitrary Markdown, internal docs and JavaScript strings ineligible. Deterministic reader extraction and artifact/rule scope select work without a probabilistic task gate. Jev independently grades applicable evidenced claims, fields and requirements. Individual findings warn at **0.60 through below 0.80** and fail at **0.80 or higher**. A pack never receives one aggregate quality score.
 
 ```bash
 rewardguard check --base main
@@ -93,11 +93,11 @@ rewardguard check --base main --content-only
 rewardguard check --base main --staged --content-only
 ```
 
-`--content-only` selects content review without the coding/test-review layers and returns success for a no-content skip. In a normal run, a content skip leaves the existing code checks in control of the overall result. Missing factual, rendered, measurement or policy evidence is reported as `not_evaluated`, with a coverage reason. It is neither a defect nor a claimed pass. Required reviews still fail closed on provider or configuration errors.
+`--content-only` selects content review without the coding/test-review layers and returns success for a no-content skip. In a normal run, a content skip leaves the existing code checks in control of the overall result. Missing required factual, rendered or measurement evidence is reported as `not_evaluated`, with a coverage reason. Policy-specific rules are locally `not_applicable` when no usable adopted policy is explicitly bound. It is neither a defect nor a claimed pass. Required reviews still fail closed on provider or configuration errors.
 
-Use `[content]` in trusted-base `.rewardguard.toml` for `enabled`, `include`, `source_include`, `exclude`, `evidence_exclude`, and `packs`. Empty `packs = []` makes all packs eligible; artifact applicability and evidence still filter them. `[content.context]` maps B/P/I/S/R/M/H to arrays of trusted-base file paths for product context, adopted policies, inventories, sources, observations, measurements and history. See the [example config](examples/.rewardguard.toml) and [full guide](docs/content-checks.md#configure-content-review).
+Declare each public source with a stable `id`, `sources`, `type` and local `route`; optionally select JSON `fields`, transitive `dependencies` and bound `evidence` codes. Types are `page`, `article`, `product`, `component` and `metadata`. `include` / `source_include` only narrow declarations. Empty `packs = []` allows supported website rules; artifact scope and evidence still filter them. `[content.context]` paths come only from the trusted base and must be bound by each declaration. See the [example config](examples/.rewardguard.toml) and [full guide](docs/content-checks.md#configure-content-review).
 
-Internal docs, agent skills, tests/fixtures, tooling, CI, infrastructure and backend-only paths are excluded from both grading targets and evidence by default. This also filters explicitly configured context paths, reference following, related imports and inventories. Use dedicated `.rewardguard/content-*` files for intentional trusted evidence. See the [path review](docs/content-path-review.md) for the categories and explicit published-docs opt-in.
+Internal docs, agent skills, tests/fixtures, tooling, CI, infrastructure and backend-only paths are mandatory exclusions for grading targets and evidence. Publication mappings, context paths and exclusion-list overrides cannot admit them. Only explicitly bound trusted evidence and declared public dependencies are supplied; documents, skills, references, imports, inventories and Git history are not discovered automatically. Use dedicated `.rewardguard/content-*` files for intentional trusted evidence. See the [path review](docs/content-path-review.md) for the mandatory boundaries and supported public-source layout.
 
 Haiku receives only the relevant rule rubric, inline exclusions, changed evidence and necessary trusted context. Artifact variants select their matching specialist. Source-audit candidates, rigid style preferences and optional marketing tactics do not automatically become enabled checks. Dates are required only when material to the particular claim. The content judge does not execute branch code to collect missing evidence.
 
@@ -124,6 +124,18 @@ rewardguard run-tests --base main --out run.json
 rewardguard check --base main --run-results run.json
 ```
 
+
+### Immutable CI snapshots and content reuse
+
+Pull requests review the full target/head merge-base interval. Pushes preserve their explicit before-to-head interval, including force pushes; trusted policy comes from the previous default tip or a separately resolved default-branch snapshot. `--comparison-mode explicit` requires `--policy-base`; supplied `--head` must match the checkout. Configuration edits cannot authorize their own review.
+
+`rewardguard check --base main --plan` emits provider-free JSON with snapshot identity, selected/excluded code paths, public reader units, dependencies and planned work. It creates no provider clients and reports cache availability without guessing hits.
+
+Authenticated completed content records reuse clean, warning and failure results, probabilities, coverage and explanations. `content.result_cache_hits` and `reused: true` identify completed-record reuse; raw Jev request-cache hits are separate. Unchanged reader semantics use cache-only lookup: a miss is `unchanged`, with no new grading. Changed explanation inputs preserve cached grades and explicitly mark missing explanations. Deleted sources do not replay stale findings. Reports include exact head/base/policy/action revision and partial results when later work fails.
+
+The Action uploads `rewardguard-review-<run_id>-<attempt>/rewardguard.json`, including expected failure findings. Optional test transport authenticates run/attempt, repository, immutable commits and archive digest; it establishes origin, not test honesty. Test code runs in a separate secrets-free job. Callers need `contents: read`, `pull-requests: write`, `checks: write`; enable `actions: read` only when `run-tests: true` needs authenticated test artifacts. The reusable judge inherits these caller-bounded permissions.
+
+Actions cache is interim and may miss or be evicted. It does not guarantee concurrent exactly-once evaluation or durable storage; that work remains REWARD-1. A cache archive hit alone is not an authenticated result hit. See [release verification](docs/shared-ci-release-verification.md) for required real-consumer evidence.
 
 ### PR title and description as task context
 
@@ -193,7 +205,7 @@ To check staged changes before commits Codex makes in any repository, add this h
 }
 ```
 
-Install RewardGuard globally using the command above, make sure `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` are available to the Codex process, then review and trust the hook in Codex's `/hooks` view. The existing hook calls the normal `check` path on the staged snapshot, including the content gate; no second Codex hook is needed. Code checks continue normally, while content-model calls depend on content eligibility and classification. Provider rate limits apply. RewardGuard reads an existing project config from the merge base with `origin/HEAD`, `origin/main`, `origin/master`, local `main` or local `master`, in that order; staged config edits do not affect the check. If none of those refs exist, it uses `HEAD`. When the trusted base has no `.rewardguard.toml`, built-in global defaults run static and model checks with test execution off. Otherwise it uses the trusted base config, including its test suites. The staged index is checked; unstaged edits are excluded. Stage changes in one Codex Bash call, then commit in a separate call. The hook blocks combined staging-and-commit commands, `git commit -a`, pathspec or interactive commit forms that can select content outside the checked index, and explicit `--git-dir`/`--work-tree` overrides that target another repository. Commits issued from a repository subdirectory are checked from the worktree root.
+Install RewardGuard globally using the command above, make sure `TYPESAFE_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` are available to the Codex process, then review and trust the hook in Codex's `/hooks` view. The existing hook calls the normal `check` path on the staged snapshot, including the content gate; no second Codex hook is needed. Code checks continue normally, while content-model calls depend on explicit public-source mappings and deterministic rule eligibility. Provider rate limits apply. RewardGuard reads an existing project config from the merge base with `origin/HEAD`, `origin/main`, `origin/master`, local `main` or local `master`, in that order; staged config edits do not affect the check. If none of those refs exist, it uses `HEAD`. When the trusted base has no `.rewardguard.toml`, built-in global defaults run static and model checks with test execution off. Otherwise it uses the trusted base config, including its test suites. The staged index is checked; unstaged edits are excluded. Stage changes in one Codex Bash call, then commit in a separate call. The hook blocks combined staging-and-commit commands, `git commit -a`, pathspec or interactive commit forms that can select content outside the checked index, and explicit `--git-dir`/`--work-tree` overrides that target another repository. Commits issued from a repository subdirectory are checked from the worktree root.
 
 This is a Codex local-shell hook. It applies across repositories without adding files to each one. It doesn't intercept Git commands you run outside Codex or every possible way a shell script could invoke Git. See [Codex hook coverage](https://developers.openai.com/codex/hooks).
 

@@ -85,7 +85,8 @@ def _scope(row: dict) -> str:
                      (("file", "file"), ("line", "line"), ("instance", "instance"), ("reason", "reason"),
                       ("requires", "requires"), ("available", "available"),
                       ("missing_sources", "missing sources"), ("provenance", "provenance"),
-                      ("source_only", "source only"), ("applicability", "applicability"))
+                      ("reused", "authenticated reuse"), ("explanation_status", "explanation status"),
+                      ("result_complete", "result complete"), ("source_only", "source only"), ("applicability", "applicability"))
                      if row.get(key) is not None) or "Scope unspecified in report"
 
 
@@ -111,9 +112,15 @@ def build_checks(report: dict) -> list[dict]:
             raise ValueError(f"{field} must be an array of objects")
     for row in coverage:
         row_status = row.get("status")
-        if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable"}:
+        if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable", "unchanged"}:
             raise ValueError("unknown content coverage status")
         rule = row.get("rule")
+        if row_status == "unchanged" and (
+                not isinstance(rule, str) or not RULE_ID.fullmatch(rule)
+                or not isinstance(row.get('unit'), str) or not re.fullmatch(r'[0-9a-f]{64}', row['unit'])
+                or type(row.get('line')) is not int or row['line'] < 1
+                or 'probability' in row or row.get('stage') == 'classification' or row.get('reused') is True):
+            raise ValueError('unchanged coverage requires a nonverdict public unit scope')
         if rule is not None and (not isinstance(rule, str) or not RULE_ID.fullmatch(rule)):
             raise ValueError("invalid content rule ID")
         if row_status in {"evaluated", "not_applicable"} and rule is None:
@@ -147,6 +154,13 @@ def build_checks(report: dict) -> list[dict]:
                + "Coverage: " + (", ".join(f"{safe(k)}: {v}" for k, v in sorted(counts.items())) or "no coverage recorded")
                + ".\n\nClassification at p >= 0.60 enters review; it is not a defect score. "
                "Skipped and missing evidence scopes are unverified, never a clean content verdict.")
+    declarations = content.get('eligibility')
+    if isinstance(declarations, list):
+        summary = (f"Content status: {safe(status)}. Trusted publication eligibility: {len(declarations)} artifact(s).\n\n"
+                   "Eligibility is deterministic and has no model probability. "
+                   "Defects warn at 0.60 <= p < 0.80 and fail at p >= 0.80.\n\n"
+                   + "Coverage: " + (", ".join(f"{safe(k)}: {v}" for k, v in sorted(counts.items())) or "no coverage recorded")
+                   + ". Skipped and missing evidence scopes remain unverified.")
     for row in classifiers[:20]:
         summary += f"\n- {_scope(row)}; classification p={safe(row['probability'])}; {safe(row['status'])}"
     if len(classifiers) > 20:
@@ -159,7 +173,7 @@ def build_checks(report: dict) -> list[dict]:
     summary += f"\n\nSources: {source_summary(content.get('provenance', []))}"
     if content.get("omissions"):
         summary += f"\n\nCollection limits: {omission_summary(content['omissions'])}. Missing automatic discovery probes do not require repository setup."
-    for key in ("eligibility", "missing_sources", "reason"):
+    for key in ("missing_sources", "reason"):
         if key in content:
             summary += f"\n\n{safe(key)}: {safe(content[key])}"
     content_notes = [note for note in notes if "content" in note.lower()]
@@ -191,14 +205,17 @@ def build_checks(report: dict) -> list[dict]:
         # Every evaluated/finding score was validated before any presentation limits.
         scores = [float(row["probability"]) for row in evaluated + content_findings[rule]]
         peak = max(scores) if scores else None
-        uncertain = bool(gaps)
+        incomplete = [r for r in rows if r.get('result_complete') is False
+                      or r.get('explanation_status') == 'not_evaluated']
+        uncertain = bool(gaps or incomplete)
         conclusion = "neutral"
         if peak is not None and peak >= .8:
             conclusion = "failure"
         elif peak is not None and peak < .6 and evaluated and not uncertain:
             conclusion = "success"
         title = f"{rule}: " + (f"highest p={peak!r}" if peak is not None else "unverified")
-        summary = (f"{len(evaluated)} evaluated proposition(s); {len(gaps)} missing evidence scope(s). "
+        summary = (f"{len(evaluated)} evaluated proposition(s); {len(gaps)} missing evidence scope(s); "
+                   f"{len(incomplete)} incomplete result(s). "
                    f"Highest defect probability: {peak!r}.\n\n"
                    "p < 0.60 ignored; 0.60 <= p < 0.80 warning (neutral); p >= 0.80 failure. "
                    "A success covers only the evaluated scopes listed here. Missing evidence is unverified.")
@@ -275,61 +292,9 @@ def load_report(report_argument: str) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--report", required=True)
-    parser.add_argument("--head", required=True)
-    parser.add_argument("--repo", required=True)
-    args = parser.parse_args(argv)
-    try:
-        if not re.fullmatch(r"[0-9a-fA-F]{40}", args.head):
-            raise ValueError("head must be a resolved 40-character commit SHA")
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo) or any(x in (".", "..") for x in args.repo.split("/")):
-            raise ValueError("repo must be owner/name")
-        base = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-        parsed = urllib.parse.urlsplit(base)
-        if (parsed.scheme != "https" or parsed.hostname != "api.github.com" or parsed.username or parsed.password
-                or parsed.query or parsed.fragment or parsed.port not in (None, 443)
-                or parsed.path != ""):
-            raise ValueError("GitHub API URL must use the hosted api.github.com HTTPS endpoint")
-        token = os.environ.get("GH_TOKEN", "")
-        if not token or any(ord(c) < 33 or ord(c) > 126 for c in token):
-            print("::error::GH_TOKEN is missing or invalid; content checks require a token with checks:write.", file=sys.stderr)
-            return 2
-        invalid = False
-        try:
-            report = load_report(args.report)
-            checks = build_checks(report)
-        except (OSError, ValueError, TypeError):
-            print("::error::RewardGuard JSON report is absent, outside the allowed directory, oversized, or malformed; content coverage is unavailable. Inspect the original judge error.", file=sys.stderr)
-            invalid = True
-            checks = [error_check("RewardGuard JSON report is absent, outside the allowed directory, oversized, or malformed. Content coverage is unavailable; inspect the original judge step error."),
-                      {"name": "contentguard / eligibility", "conclusion": "neutral", "output": {"title": "Content eligibility unavailable", "summary": "No valid report; no content scope can be claimed reviewed."}}]
-        opener = urllib.request.build_opener(NoRedirect)
-        for check in checks:
-            # GitHub caps text by bytes; bound every output even with multi-byte report text.
-            check["output"]["summary"] = display_limit(check["output"]["summary"], 60000)
-            check["output"]["title"] = display_limit(check["output"]["title"], 250)
-            payload = dict(check, head_sha=args.head, status="completed")
-            request = urllib.request.Request(f"{base}/repos/{args.repo}/check-runs", method="POST",
-                                             data=json.dumps(payload, allow_nan=False).encode(),
-                                             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
-                                                      "Content-Type": "application/json", "X-GitHub-Api-Version": "2022-11-28"})
-            with opener.open(request, timeout=20) as response:
-                if response.status != 201:
-                    raise ValueError("GitHub check creation did not return HTTP 201")
-                response_body = response.read(1_048_577)
-                if len(response_body) > 1_048_576:
-                    raise ValueError("GitHub check response exceeds the 1 MiB limit")
-                result = json.loads(response_body)
-                if not isinstance(result, dict) or type(result.get("id")) is not int or result["id"] <= 0:
-                    raise ValueError("GitHub returned an invalid check ID")
-        print(f"Published {len(checks)} scoped content checks.")
-        return 2 if invalid else 0
-    except urllib.error.HTTPError as exc:
-        print(f"::error::Content check publication failed (HTTP {exc.code}); verify checks:write permission.", file=sys.stderr)
-    except (OSError, ValueError, TypeError, urllib.error.URLError):
-        print("::error::Content check publication failed: invalid inputs, API response, or unavailable API. No complete publication can be claimed.", file=sys.stderr)
-    return 2
+    # Backward-compatible command name, one shared publication boundary.
+    from .publisher import main as publish_main
+    return publish_main(argv)
 
 
 if __name__ == "__main__":

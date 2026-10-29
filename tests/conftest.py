@@ -116,8 +116,9 @@ class FakeHaiku:
     """Stands in for `claude -p` (replaces rewardguard.explainer._run). By default returns one issue per
     flagged statement. `payload` replaces the CLI's JSON output; `returncode` simulates a CLI failure."""
 
-    def __init__(self, payload=None, returncode=0, stdout=None):
+    def __init__(self, payload=None, returncode=0, stdout=None, *, line=3, code="x"):
         self.payload = payload
+        self.line, self.code = line, code
         self.returncode = returncode
         self.stdout = stdout
         self.calls: list[dict] = []
@@ -132,8 +133,9 @@ class FakeHaiku:
             out = json.dumps(self.payload)
         else:
             flagged = re.findall(r"^- ([A-Z_]+):", input, re.M)
+            location, quote = self.line, self.code
             out = json.dumps({"type": "result", "is_error": False, "result": "", "structured_output": {"issues": [
-                {"rule": r, "line": 3, "code": "x", "problem": f"{r} problem", "fix": "fix it"} for r in flagged
+                {"rule": r, "line": location, "code": quote, "problem": f"{r} problem", "fix": "fix it"} for r in flagged
             ]}})
         return subprocess.CompletedProcess(cmd, self.returncode, out, "cli failed" if self.returncode else "")
 

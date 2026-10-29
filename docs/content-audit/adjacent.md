@@ -1,5 +1,7 @@
 # Adjacent marketing and writing provider skill audit
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Audit date: 2026-10-23. Scope: all 19 assigned adjacent skills. This is a source audit for RewardGuard ContentGuard, not execution of the audited workflows.
 
 The cloud catalog was discovered with skills.list using authority cloud and all seven catalog pages (124 entries). Every assigned SKILL.md was read in full; each returned one page with no continuation. Five linked writing or reporting references were also read in full. Sixteen linked user-skill references and two distinct shared Data references could not be opened. Unavailable references supply no inferred rules below.

@@ -1,5 +1,7 @@
 # ContentGuard source audit: channels, campaigns, and visual content
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Research date: 2026-10-23. Scope: twelve channel/content skills; no code, tests, sending, publication, account changes, or live campaign inspection.
 
 This is a catalog of 119 proposed independent defect checks (11 shared and 108 channel-specific), not findings against a submitted marketing campaign. The available local artifacts were the ContentGuard design and implementation plan; no campaign, consent record, listing export, or rendered marketing asset was supplied for this audit. Examples below describe evidence a future review must actually observe.

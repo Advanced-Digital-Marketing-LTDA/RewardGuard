@@ -46,31 +46,48 @@ effort = "low"
 [rules]
 # SNAPSHOT_CHANGED = "off"
 
-# Content review is part of the existing rewardguard check command.
-# Exactly 0.60 enters content review; independent findings warn at 0.60 and fail at 0.80.
-# rewardguard check --content-only returns success when no eligible content changed.
+# Content review uses explicit trusted-base public-source declarations.
+# No declarations (the default) means no content grading; code/test checks continue.
+# Fixed defect thresholds: below 0.60 ignored, [0.60,0.80) warning, >=0.80 failure.
 [content]
 enabled = true
-packs = [] # All packs are eligible; Jev applicability and evidence still filter checks.
+packs = [] # All website-supported packs; artifact scope and evidence still filter rules.
 
-# Optional complete path-list overrides. Omit these to retain packaged defaults.
-# Keep editorial/UI copy, metadata/schema and publication controls in scope as needed.
-# include = ["content/**", "src/pages/**", "public/robots.txt", "public/sitemap*.xml"]
-# source_include = ["src/**/*.astro", "src/**/*.svelte", "src/**/*.tsx"]
-# exclude = ["vendor/**", "generated/vendor/**"]
-# evidence_exclude controls evidence independently; omit it to retain internal-doc
-# exclusions even for explicit [content.context] references. Overrides replace the
-# complete list; preserve internal/test/generated paths when opting in public docs.
+# include/source_include only narrow these declarations. Mandatory exclusions remain.
+# include = ["content/articles/**", "content/products/**", "src/components/**"]
+# source_include = ["src/components/**/*.svelte"]
 
-# Repository-relative files read from the trusted BASE revision, never the candidate.
-# Replace examples with real existing evidence paths. These do not run collectors or scripts.
-# Missing necessary evidence is not_evaluated, not a finding or a claimed pass.
-# Dates are required only when material to the particular claim.
+# Replace these sample public paths/routes with the project's actual publication sources.
+[[content.publications]]
+id = "articles"
+sources = ["content/articles/**/*.md", "content/articles/**/*.mdx"]
+type = "article"
+route = "/articles/{stem}"
+published = true
+drafts = false
+dependencies = ["footer"]
+evidence = ["B", "P"]
+
+[[content.publications]]
+id = "footer"
+sources = ["src/components/Footer.svelte"]
+type = "component"
+route = "/_shared/footer"
+
+[[content.publications]]
+id = "products"
+sources = ["content/products/*.json"]
+type = "product"
+route = "/products/{stem}"
+fields = ["title", "description", "features.*.label"]
+evidence = ["B"]
+
+# Only declared, existing trusted-base paths bound by each publication are supplied.
+# Missing necessary evidence is not_evaluated; it is not an invented finding/pass.
+# No automatic discovery, imports, Git history, builds or network collectors.
 [content.context]
-# B = [".rewardguard/content-context.md"]              # Product/audience/offer facts and brief
-# P = [".rewardguard/content-policy.md"]                 # Explicit adopted artifact/platform policy
-# I = [".rewardguard/content-inventory.json"]                 # Complete relevant route/product/record inventory
-# S = [".rewardguard/content-sources.json"]        # Inspectable proof/source observations
-# R = [".rewardguard/content-rendered.md"]        # Supplied resolved/rendered/runtime observations
-# M = [".rewardguard/content-measurements.json"]       # Inputs, definitions, formulas and denominators
-# H = [".rewardguard/content-history.md"]      # Publication/version/history evidence
+# B = [".rewardguard/content-context.md"] # Product/audience/offer facts
+# P = [".rewardguard/content-policy.md"]  # Explicit adopted artifact policy
+# S = [".rewardguard/content-sources.json"] # Inspectable external fact evidence
+# R = [".rewardguard/content-rendered.md"] # Supplied render/runtime observations
+# M = [".rewardguard/content-measurements.json"] # Supplied measured behavior

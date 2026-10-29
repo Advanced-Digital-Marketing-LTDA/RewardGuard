@@ -8,19 +8,28 @@ name: rewardguard
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   push:
+    branches: [main] # Replace main with this repository's actual default branch.
+
+# Feature pushes are covered by PR events; only the default-branch push runs.
+concurrency:
+  group: rewardguard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   rewardguard-base:
+    if: github.event_name != 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
       base: ${{ steps.resolve.outputs.ref }}
       head: ${{ steps.resolve.outputs.head }}
+      policy: ${{ steps.resolve.outputs.policy }}
     steps:
       - name: Check out event head
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -30,6 +39,7 @@ jobs:
         shell: bash
         env:
           BASE_INPUT: ${{ github.event.pull_request.base.sha || github.event.before }}
+          POLICY_INPUT: ""
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref }}
           PUSH_BEFORE: ${{ github.event.before }}
@@ -40,51 +50,65 @@ jobs:
         run: |
           set -euo pipefail
           fail() { echo "::error::$*" >&2; exit 2; }
-          head="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve the checked-out head commit."
+          git_safe() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
+          head="$(git_safe rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve checked-out head."
           if [ -n "$EXPECTED_HEAD" ] && [ "$head" != "$EXPECTED_HEAD" ]; then
-            fail "Checkout does not match the event head; check out the PR head SHA or github.sha."
+            fail "Checkout does not match the event head; check out the exact reviewed SHA."
           fi
           resolve_ref() {
             local candidate="$1" resolved
-            if resolved="$(git rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
+            if resolved="$(git_safe rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
               printf '%s\n' "$resolved"; return
             fi
-            if resolved="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
+            if resolved="$(git_safe rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
               printf '%s\n' "$resolved"; return
             fi
-            git fetch --no-tags --quiet -- origin "$candidate" || return 1
-            git rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
+            git_safe fetch --no-tags --quiet -- origin "$candidate" || return 1
+            git_safe rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
           }
           base="${BASE_INPUT:-${PR_BASE_SHA:-${BASE_REF:-}}}"
-          if [ "$EVENT_NAME" = "push" ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
-          if [ -z "$base" ] && [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
-            base="$PUSH_BEFORE"
-          fi
-          if [ -n "$base" ]; then
-            base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref; set a valid base input."
-          elif [ "$EVENT_NAME" = "push" ]; then
-            # A new branch compares with the default branch. A first default-branch
-            # push compares with its parent, never silently with itself.
-            [ -n "$DEFAULT_BRANCH" ] || fail "No trusted baseline: the repository default branch is unknown; set base explicitly."
-            default_base="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${DEFAULT_BRANCH}^{commit}")" || default_base=""
-            if [ -z "$default_base" ]; then
-              git fetch --no-tags --quiet -- origin "refs/heads/$DEFAULT_BRANCH" &&
-                default_base="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" || default_base=""
-            fi
-            if [ -n "$default_base" ] && { [ "$default_base" != "$head" ] || [ "$EVENT_REF" != "refs/heads/$DEFAULT_BRANCH" ]; }; then
-              base="$default_base"
-            elif [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
-              base="$(git rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
-                fail "No trusted baseline for the initial root commit; set base to an existing trusted commit."
-            else
-              fail "No trusted default-branch baseline for this first push; set base explicitly."
-            fi
+          policy="${POLICY_INPUT:-}"
+          if [[ "$EVENT_NAME" == pull_request* ]]; then
+            target="${PR_BASE_SHA:-${BASE_REF:-$base}}"
+            [ -n "$target" ] || fail "No trusted PR target snapshot."
+            target="$(resolve_ref "$target")" || fail "Cannot resolve PR target."
+            base="$(git_safe merge-base "$target" "$head")" || fail "PR target and head have no common history."
+            policy="$base"
           else
-            fail "No base commit/ref. Use a pull_request or push event, or set the base input."
+            if [ "$EVENT_NAME" = push ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
+            if [ -z "$base" ] && [ "$EVENT_NAME" = push ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+              base="$PUSH_BEFORE"
+            fi
+            if [ -n "$base" ]; then
+              base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref."
+            fi
+            if [ "$EVENT_NAME" = push ] && [ -z "$policy" ]; then
+              [ -n "$DEFAULT_BRANCH" ] || fail "No trusted policy: default branch is unknown."
+              if [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+                policy="$(resolve_ref "$PUSH_BEFORE")" || fail "Cannot resolve trusted previous default tip."
+              else
+                default_base="$(resolve_ref "refs/remotes/origin/$DEFAULT_BRANCH")" || default_base=""
+                if [ -z "$default_base" ]; then
+                  default_base="$(resolve_ref "refs/heads/$DEFAULT_BRANCH")" || default_base=""
+                fi
+                if [ "$default_base" = "$head" ] && [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+                  default_base="$(git_safe rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
+                    fail "No trusted baseline for the initial root commit; set a trusted policy explicitly."
+                fi
+                [ -n "$default_base" ] || fail "No trusted default-branch baseline."
+                policy="$default_base"
+                if [ -z "$base" ]; then
+                  [ "$default_base" != "$head" ] || fail "A new branch cannot silently compare head with itself."
+                  base="$default_base"
+                fi
+              fi
+            fi
+            [ -n "$base" ] || fail "No base commit/ref. Use a PR/push event or supply a trusted snapshot."
+            # Outside GitHub event resolution, the explicitly supplied base is the caller's trusted policy default.
+            policy="${policy:-$base}"
           fi
-          git merge-base "$base" "$head" >/dev/null ||
-            fail "The selected baseline and head have no common history; set a trusted base explicitly."
-          printf 'ref=%s\nhead=%s\n' "$base" "$head" >> "$GITHUB_OUTPUT"
+          policy="$(resolve_ref "$policy")" || fail "Cannot resolve trusted policy snapshot."
+          printf 'ref=%s\nhead=%s\npolicy=%s\n' "$base" "$head" "$policy" >> "$GITHUB_OUTPUT"
 
   rewardguard-tests:
     needs: rewardguard-base
@@ -92,35 +116,38 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ needs.rewardguard-base.outputs.head }}
           persist-credentials: false   # don't leave the token in .git/config for test code to read
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
 
       # Only if a suite runs Playwright:
       # - run: npx playwright install --with-deps
 
-      # Requires a release containing commit-base support; update this tag on rollout.
-      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
+      # Pin reviewed immutable source; publish and verify the matching release before rollout.
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@da5b01faa3fcbaffa50cd4060c86ef7803fcbcff # tested integration candidate; publication pending
         with:
           mode: tests            # never pass secrets here
           base: ${{ needs.rewardguard-base.outputs.base }}
+          policy-base: ${{ needs.rewardguard-base.outputs.policy }}
+          head: ${{ needs.rewardguard-base.outputs.head }}
 
   rewardguard:
     needs: [rewardguard-base, rewardguard-tests]
     # Run even if the tests job failed, so the check reports it instead of being skipped
     # (a skipped job would count as passing).
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.rewardguard-base.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       checks: write
+      actions: read # Required only for authenticated optional test-artifact retrieval.
     steps:
       - name: Require resolved baseline
         env:
@@ -131,20 +158,22 @@ jobs:
             echo "::error::Review baseline resolution failed; no trusted comparison is available."
             exit 2
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ needs.rewardguard-base.outputs.head }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
 
-      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@da5b01faa3fcbaffa50cd4060c86ef7803fcbcff # tested integration candidate; publication pending
         with:
           mode: check
           base: ${{ needs.rewardguard-base.outputs.base }}
+          policy-base: ${{ needs.rewardguard-base.outputs.policy }}
+          head: ${{ needs.rewardguard-base.outputs.head }}
           comment: ${{ github.event_name == 'pull_request' }}
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

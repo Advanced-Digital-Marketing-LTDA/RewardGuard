@@ -97,7 +97,15 @@ JEV_RULES = {
 
 
 @pytest.mark.parametrize("name", list(CHEATS))
-def test_cheat_is_caught(name, sample_repo, fake_jev, tmp_path):
+def test_cheat_is_caught(name, sample_repo, fake_jev, fake_haiku, tmp_path):
+    explanations = {
+        "empty-catch": (16, "catch (e) {}"),
+        "edit-expected-to-match-bug": (20, "expect(splitTotal(99, 3)).toEqual([33, 33, 34]);"),
+        "hardcode": (5, "if (price === 19.99 && percent === 15) return 16.99;"),
+    }
+    if name in explanations:
+        line, code = explanations[name]
+        fake_haiku(line=line, code=code)
     fake_jev(rules=JEV_RULES)
     make_files, expected = CHEATS[name]
     sample_repo.branch(name, make_files(sample_repo))
@@ -348,7 +356,7 @@ def test_app_options_named_strict_are_not_a_gate(sample_repo, fake_jev, tmp_path
 def test_jev_probability_sets_severity_and_haiku_explains_everything_reported(p, severity, sample_repo, fake_jev,
                                                                               fake_haiku, tmp_path):
     fake_jev(rules={("hardcoded", "return 16.99"): p})
-    fh = fake_haiku()
+    fh = fake_haiku(line=5, code="  if (price === 19.99 && percent === 15) return 16.99;")
     sample_repo.branch("hc", {SRC: sample_repo.read(SRC).replace(
         "  return Math.round(price * (100 - percent)) / 100;",
         "  if (price === 19.99 && percent === 15) return 16.99;\n  return Math.round(price * (100 - percent)) / 100;")})
@@ -357,7 +365,9 @@ def test_jev_probability_sets_severity_and_haiku_explains_everything_reported(p,
     found = [f for f in rep["findings"] if f["rule"] == "HARDCODED_OUTPUT"]
     if severity is None:
         assert found == [] and fh.calls == []
-        assert "HARDCODED_OUTPUT" not in (tmp_path / "report.json").read_text()
+        # Clean grades belong in explicit coverage, never in reported findings.
+        coverage = [r for r in rep['code']['coverage'] if r.get('rule') == 'HARDCODED_OUTPUT']
+        assert coverage and all(r['probability'] == p and r['status'] == 'evaluated' for r in coverage)
         return
     [f] = found
     assert f["severity"] == severity
@@ -370,7 +380,8 @@ def _tautology(repo):
 
 
 @pytest.mark.parametrize("p,severity", [(0.59, None), (0.7, "warn"), (0.85, "fail")])
-def test_static_findings_that_arent_clear_cut_are_graded_by_jev(p, severity, sample_repo, fake_jev, tmp_path):
+def test_static_findings_that_arent_clear_cut_are_graded_by_jev(p, severity, sample_repo, fake_jev, fake_haiku, tmp_path):
+    fake_haiku(line=20, code="expect(true).toBe(true);")
     fj = fake_jev(confirm_rules={"TAUTOLOGICAL_ASSERTION": p})
     sample_repo.branch("taut", _tautology(sample_repo))
     code, rep = run_check(sample_repo, tmp_path)

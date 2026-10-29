@@ -8,10 +8,7 @@ were still read. Installed skill discovery could treat a developer guide named
 `writing-tests.md` as editorial policy. The presence of a file in P provenance
 means it was supplied as policy evidence; it does not mean it was itself graded.
 
-Both entry points now have default exclusions. Evidence filtering runs before
-blob reads, configured evidence admission, automatic discovery, Markdown-reference
-following, static import/related-source admission and inventory selection.
-Known internal paths are not supplied to Jev or Haiku as repository evidence.
+Both targets and evidence require explicit trusted-base declarations. Mandatory safety filters run before blob reads. No automatic discovery, reference/import following or Git inventories admit additional material. A declaration or context path cannot opt internal/private/credential sources into the website reviewer.
 
 ## Reviewed locations
 
@@ -40,41 +37,13 @@ This removes the reported Langlo `docs/content-maintenance.md`,
 `.agents/skills/e2e/references/writing-tests.md` section from evidence under
 the defaults, even when listed in `[content.context]`.
 
-## Content retained
+## Explicit public sources and evidence
 
-Public website pages, marketing/landing pages, blog and article sources,
-templates/components containing user-visible copy, CMS content, translations,
-SEO/schema metadata, robots/sitemaps and publication controls remain eligible
-outside excluded locations. Neither all Markdown nor all JSON/source files are
-disabled. A source match still requires Jev's task classification before review.
-Ambiguous files elsewhere remain subject to classification; filename heuristics
-cannot prove whether every repository file is published.
+Public sources are eligible only when trusted-base `[[content.publications]]` maps their path, artifact type and route. The default empty mapping does not grade arbitrary Markdown, JSON or JavaScript strings. `include` and `source_include` only narrow those declarations. Declared static templates, selected JSON fields, Markdown/HTML reader units and metadata retain explicit extraction limits; there is no whole-source fallback. Runtime output and external facts require supplied evidence.
 
-Focused reviewer skills packaged with RewardGuard remain available. Installed
-repository development skills are not automatically loaded as content policy.
-Code/integrity checks have their own scope and remain unchanged.
+Mandatory exclusions cannot be undone with `exclude=[]`, mappings or context. Sites whose content currently lives under excluded internal directories need a supported public source layout; do not bypass safety by treating all docs as public. Product/policy/source/measurement files under `.rewardguard/content-*` can provide explicitly bound trusted evidence; they are not grading targets. Installed repository development skills never become editorial policy automatically.
 
-## Deliberate evidence and published-docs exceptions
-
-Use `.rewardguard/content-context.md`, `content-policy.md`, `content-inventory`,
-`content-sources`, `content-rendered`, `content-measurements` and `content-history`
-files for intentional, scoped trusted evidence. These dedicated artifacts are
-not content grading targets. Do not copy unrelated engineering instructions into
-them. The implicit `.agents/product-marketing.md` default has been removed.
-
-`content.exclude` controls targets. `content.evidence_exclude` independently
-controls all evidence, including explicitly configured sources. Both lists are
-read from trusted-base configuration. Merely adding a path to `include` or
-`context` does not override an exclusion. Projects genuinely publishing from
-`docs/`, examples or another excluded directory must deliberately replace both
-exclusion lists, admitting only their published subtree and retaining other
-internal/generated/test exclusions. An override in a PR cannot affect that PR's
-own trusted configuration. Private/credential path safety remains non-overridable.
-
-Filtered configured references produce explicit omission records. Missing policy
-or source evidence remains a coverage gap (`not_evaluated` where required), not
-a clean verdict or an invented content defect. Jev's rules, probabilities,
-warning/failure thresholds and Haiku's explanation-only role are unchanged.
+Filtered references and missing required evidence produce explicit omissions/coverage. An unchanged semantic unit without an authenticated completed record is `unchanged`, not a clean finding or missing-evidence error. Missing evidence is `not_evaluated`; an unadopted policy is locally `not_applicable`. Code/test checks and fixed defect thresholds remain intact. See [the publication API](shared-ci-public-content.md) and [configuration](content-checks.md#configure-content-review).
 
 ## Release boundary
 

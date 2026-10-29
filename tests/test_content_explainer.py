@@ -59,7 +59,7 @@ def answer(issues):
 def test_explains_only_the_requested_content_rule(content_explainer):
     client, boundary = content_explainer(answer([ISSUE]))
 
-    issues = client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+    issues = client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
     assert issues == [{
         "line": 7,
@@ -93,7 +93,7 @@ def test_content_cli_keeps_tool_and_billing_isolation(content_explainer, monkeyp
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "inherited-token")
     client, boundary = content_explainer(answer([]))
 
-    assert client.explain_content(STATE, RULE, STATEMENT, RUBRIC) == []
+    assert client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."}) == []
 
     call = boundary.calls[0]
     cmd = call["cmd"]
@@ -144,7 +144,7 @@ def test_malformed_content_answers_fail_closed(content_explainer, payload):
     client, _ = content_explainer(payload)
 
     with pytest.raises(RewardGuardError):
-        client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
 
 @pytest.mark.parametrize("kwargs, message", [
@@ -157,7 +157,7 @@ def test_content_cli_failures_are_rewardguard_errors(content_explainer, kwargs, 
     client, _ = content_explainer(answer([]), **kwargs)
 
     with pytest.raises(RewardGuardError, match=message):
-        client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
 
 @pytest.mark.parametrize("rubric", ["", "   ", "x" * 8001], ids=["empty", "whitespace", "too-long"])
@@ -177,3 +177,29 @@ def test_maximum_bounded_rubric_is_not_silently_truncated(content_explainer):
     assert client.explain_content(STATE, RULE, STATEMENT, rubric) == []
 
     assert rubric in boundary.calls[0]["input"]
+
+
+@pytest.mark.parametrize('payload,kwargs,diagnostic', [
+    (None, {'error': OSError(2, 'private-source-and-token')}, 'errno=2'),
+    (None, {'returncode': 2, 'stdout': 'private-source-and-token'}, 'stdout_chars=24'),
+    (None, {'stdout': 'private-source-and-token'}, 'line=1, column=1'),
+    ({'is_error': True, 'subtype': 'error_during_execution', 'result': 'private-source-and-token'}, {}, 'subtype=error_during_execution'),
+    ({'is_error': False, 'result': 'private-source-and-token', 'structured_output': 'private-source-and-token'}, {}, 'structured_output_type=str'),
+])
+def test_failure_metadata_is_actionable_without_echoing_cli_output(content_explainer, payload, kwargs, diagnostic):
+    client, _ = content_explainer(payload, **kwargs)
+    with pytest.raises(RewardGuardError) as caught:
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7:'Try it free for 30 days.'})
+    assert diagnostic in str(caught.value)
+    assert 'private-source-and-token' not in str(caught.value)
+
+
+@pytest.mark.parametrize('line,quote,accepted', [(17, 'return 42;', True), (18, 'return 42;', False), (17, 'invented', False)])
+def test_code_grounding_uses_fixed_external_response_not_fake_hunk_parser(content_explainer, line, quote, accepted):
+    issue = {'rule':'HARDCODED_OUTPUT', 'line':line, 'code':quote, 'problem':'fixed output', 'fix':'compute result'}
+    client, boundary = content_explainer(answer([issue]))
+    result = client.explain('File: a.py\n@@ -17 +17 @@\n-return value;\n+return 42;',
+        {'HARDCODED_OUTPUT':'Hardcoded output'}, anchors={17:'return 42;'})
+    expected = [{k:v for k,v in issue.items() if k != 'rule'}] if accepted else []
+    assert result == {'HARDCODED_OUTPUT':expected}
+    assert len(boundary.calls) == 1

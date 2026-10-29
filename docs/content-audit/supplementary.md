@@ -1,5 +1,7 @@
 # Supplementary writing and evidence audit
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Reviewed on 2026-10-23. These four main guides were read in full in addition to the 76 guides assigned to the six audit families.
 
 | Skill | Source | Contribution |

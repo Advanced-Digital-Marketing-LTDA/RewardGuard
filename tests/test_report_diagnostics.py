@@ -40,7 +40,9 @@ def test_evidence_diagnostics_count_known_reasons_without_copying_paths_or_unkno
                       {'reason': 'Whole evidence unit exceeds per-file or remaining total budget'},
                       {'reason': 'private source text', 'path': 'secret-file'}]}
     summary = report.evidence_diagnostics(content)
-    assert summary['coverage'] == {'eligible': 0, 'evaluated': 1, 'skipped': 1,
+    # Preserve the original categories; the new public-unit category is tested separately below.
+    assert summary['coverage']['unchanged'] == 0
+    assert {k:v for k,v in summary['coverage'].items() if k != 'unchanged'} == {'eligible': 0, 'evaluated': 1, 'skipped': 1,
                                    'not_applicable': 1, 'not_evaluated': 1, 'unknown': 1}
     assert summary['omission_reasons'] == {'unavailable_at_revision': 2, 'unit_budget': 1,
                                           'other_or_unknown': 1}
@@ -111,3 +113,14 @@ def test_terminal_prints_each_sanitized_diagnostic_event_without_sensitive_value
     assert 'private' not in terminal
     assert 'private' not in json.dumps(json.loads(report.as_json(rep))['diagnostics'])
     assert '0 events dropped' in terminal
+
+
+def test_unchanged_is_separate_from_unknown_and_required_gaps():
+    # Public ContentResult contract: unchanged means no new work, never a verdict
+    # or missing required evidence. Unknown legacy statuses remain unknown.
+    coverage = [{'status':'evaluated'}, {'status':'legacy-status'}, {'status':'not_evaluated'}]
+    baseline = report.evidence_diagnostics({'coverage':coverage})['coverage']
+    assert baseline['unchanged'] == 0 and baseline['unknown'] == 1
+    advanced = report.evidence_diagnostics({'coverage':coverage + [{'status':'unchanged'}]})['coverage']
+    assert advanced == {**baseline, 'unchanged':1}
+    assert advanced['not_evaluated'] == baseline['not_evaluated'] == 1

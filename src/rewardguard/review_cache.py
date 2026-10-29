@@ -10,7 +10,10 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from . import __version__
+import subprocess
+from threading import Lock
+from contextlib import contextmanager
+from copy import deepcopy
 from .models import RewardGuardError
 
 def _valid_timestamp(value):
@@ -49,8 +52,28 @@ def _clock(diagnostic=None):
     return now
 
 
+def repository_identity(repo=None):
+    repository = os.environ.get('GITHUB_REPOSITORY')
+    if repository and repo is None:
+        return repository.strip().lower().removesuffix('.git')
+    try:
+        lookup = subprocess.run(['git', '-C', str(repo or Path.cwd()), 'config', '--get', 'remote.origin.url'],
+                                capture_output=True, text=True, timeout=5, check=False)
+        remote = lookup.stdout.strip() if lookup.returncode == 0 else ''
+        if lookup.returncode == 1:
+            logging.info('RewardGuard repository identity uses a local path: no origin is configured')
+        elif lookup.returncode != 0:
+            logging.warning('RewardGuard repository identity lookup failed (exit %s); using local path scope', lookup.returncode)
+    except (OSError, subprocess.TimeoutExpired):
+        logging.warning('RewardGuard repository identity lookup unavailable; using local path scope')
+        remote = ''
+    remote = re.sub(r'^git@([^:]+):', r'https://\1/', remote)
+    remote = re.sub(r'^https?://(?:[^/@]+@)?', '', remote)
+    return remote.lower().rstrip('/').removesuffix('.git') or str(Path(repo or Path.cwd()).resolve())
+
+
 class ReviewCache:
-    def __init__(self, api_key, endpoint, epoch='v1', max_age_seconds=None):
+    def __init__(self, api_key, endpoint, epoch='v1', max_age_seconds=None, *, namespace='default', repository=None):
         if not isinstance(epoch, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', epoch):
             raise RewardGuardError('Jev cache epoch must be 1-64 letters, digits, dots, underscores or hyphens')
         if max_age_seconds is not None and (type(max_age_seconds) is not int or max_age_seconds <= 0):
@@ -61,15 +84,87 @@ class ReviewCache:
         self.endpoint = endpoint
         self.epoch = epoch
         self.max_age_seconds = max_age_seconds
+        self.namespace = namespace
+        self.repository = repository if repository is not None else repository_identity()
+        self._guard = Lock()
+        self._locks = {}
+        self._memory = {}
+        self._rejected = set()
+
+    @contextmanager
+    def coordinate(self, body):
+        identity = self.identity(body)
+        with self._guard:
+            lock = self._locks.setdefault(identity, Lock())
+        with lock:
+            yield
+
 
     def identity(self, body):
-        return hmac.new(self.key, b'rewardguard-cache-v2\0' + __version__.encode() + b'\0' + self.endpoint.encode() + b'\0' + self.epoch.encode() + b'\0' + body,
-                        hashlib.sha256).hexdigest()
+        try:
+            body = json.dumps(json.loads(body), sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+        except (ValueError, TypeError, UnicodeDecodeError):
+            logging.warning('RewardGuard cache uses raw-byte identity: input is not canonicalizable JSON')
+        identity = json.dumps({'format': 3, 'revision': 'results-1', 'endpoint': self.endpoint,
+                               'repository': self.repository, 'scope': self.namespace,
+                               'epoch': self.epoch}, sort_keys=True, separators=(',', ':')).encode()
+        return hmac.new(self.key, identity + b'\0' + body, hashlib.sha256).hexdigest()
 
     def _signature(self, identity, created_at, payload):
         signed = json.dumps({'identity': identity, 'created_at': created_at, 'payload': payload},
                             sort_keys=True, separators=(',', ':')).encode()
         return hmac.new(self.key, signed, hashlib.sha256).hexdigest()
+
+    def _metadata(self, note):
+        # Advisory only: restored/missing metadata never authorizes a result.
+        scope = json.dumps([self.repository, self.namespace], separators=(',', ':')).encode()
+        path = self.root / ('.key-' + hashlib.sha256(scope).hexdigest())
+        key_id = hmac.new(self.key, b'rewardguard-signing-key-id', hashlib.sha256).hexdigest()
+        temporary = None
+        try:
+            try:
+                previous = path.read_text() if path.exists() else None
+            except UnicodeError:
+                note('metadata_invalid')
+                logging.warning('RewardGuard cache metadata invalid; signed entries still require verification')
+                previous = None
+            if previous is not None and previous != key_id:
+                note('signing_key_changed')
+            if previous != key_id:
+                self.root.mkdir(parents=True, exist_ok=True)
+                with tempfile.NamedTemporaryFile(mode='w', dir=self.root, delete=False) as stream:
+                    temporary = stream.name
+                    stream.write(key_id)
+                os.replace(temporary, path)
+        except OSError:
+            note('metadata_unavailable')
+            logging.warning('RewardGuard cache metadata unavailable; signed entries still require verification')
+        finally:
+            if temporary:
+                try:
+                    Path(temporary).unlink(missing_ok=True)
+                except OSError:
+                    note('cleanup_failed')
+                    logging.warning('RewardGuard could not remove temporary cache metadata')
+
+    def reject(self, body):
+        identity = self.identity(body)
+        self._rejected.add(identity)
+        self._memory.pop(identity, None)
+
+    def _local(self, body, note):
+        entry = self._memory.get(self.identity(body))
+        if entry is None:
+            return None
+        created_at, result = entry
+        now = _clock(diagnostic=note)
+        if now is None or created_at > now:
+            return None
+        if self.max_age_seconds is not None and now - created_at >= self.max_age_seconds:
+            note('expired')
+            return None
+        note('local_reuse')
+        return deepcopy(result)
 
     def load(self, body, diagnostic=None):
         def note(reason):
@@ -77,10 +172,21 @@ class ReviewCache:
                 diagnostic(reason)
         if self.root is None:
             note('disabled')
-            return None
+            return self._local(body, note)
+        self._metadata(note)
         identity = self.identity(body)
         try:
             record = json.loads((self.root / (identity + '.json')).read_text())
+            if not isinstance(record, dict):
+                note('malformed')
+                if diagnostic is None:
+                    logging.warning('RewardGuard ignored a malformed cache entry')
+                return None
+            if record.get('format') != 3:
+                note('format_changed')
+                if diagnostic is None:
+                    logging.warning('RewardGuard ignored a cache entry with an incompatible format')
+                return None
             payload = record['payload']
             created_at = record['created_at']
             if not _valid_timestamp(created_at):
@@ -102,15 +208,16 @@ class ReviewCache:
                 note('expired')
                 return None
             result = json.loads(payload)
+            self._memory[identity] = (created_at, deepcopy(result))
             note('hit')
             return result
         except FileNotFoundError:
             note('not_found_or_identity_changed')
-            return None
+            return self._local(body, note)
         except OSError:
             note('read_failed')
             logging.warning("RewardGuard could not read or validate a cache entry; reviewing again")
-            return None
+            return self._local(body, note)
         except (ValueError, KeyError, TypeError):
             note('malformed')
             logging.warning("RewardGuard could not read or validate a cache entry; reviewing again")
@@ -120,16 +227,21 @@ class ReviewCache:
         def note(reason):
             if diagnostic:
                 diagnostic(reason)
-        if self.root is None:
-            note('disabled')
+        identity = self.identity(body)
+        if identity not in self._rejected and self.root is not None and self.load(body) is not None:
+            note('immutable_existing')
             return
         created_at = _clock(diagnostic=note)
         if created_at is None:
             note('clock_unavailable')
             return
-        identity = self.identity(body)
+        self._memory[identity] = (created_at, deepcopy(data))
+        if self.root is None:
+            note('disabled')
+            self._rejected.discard(identity)
+            return
         payload = json.dumps(data, sort_keys=True)
-        record = {'payload': payload, 'created_at': created_at,
+        record = {'format': 3, 'payload': payload, 'created_at': created_at,
                   'signature': self._signature(identity, created_at, payload)}
         temporary = None
         try:
@@ -138,6 +250,7 @@ class ReviewCache:
                 temporary = stream.name
                 json.dump(record, stream)
             os.replace(temporary, self.root / (identity + '.json'))
+            self._rejected.discard(identity)
             note('saved')
         except OSError:
             note('write_failed')

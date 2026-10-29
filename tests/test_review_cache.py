@@ -15,13 +15,13 @@ def test_clean_review_is_reused_across_clients(tmp_path, monkeypatch):
     assert len(api.calls) == 2
 
 
-def test_findings_are_not_cached(tmp_path, monkeypatch):
+def test_validated_findings_are_cached(tmp_path, monkeypatch):
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
     cfg = config.parse('run_tests = false\n')
     api = FakeJev(rules={('q', 'evidence'): .9})
     for _ in range(2):
         assert judge.JevClient(cfg, api_key='key', opener=api).ask('evidence', {'q': 'rule'}) == {'q': .9}
-    assert len(api.calls) == 2
+    assert len(api.calls) == 1
 
 
 def test_tampered_cache_and_changed_key_are_not_trusted(tmp_path, monkeypatch):
@@ -270,3 +270,20 @@ def test_overflowing_cache_timestamp_reports_invalidation(tmp_path, monkeypatch)
     events = []
     assert cache.load(b'body', diagnostic=events.append) is None
     assert events == ['invalid_timestamp']
+
+
+@pytest.mark.parametrize(('contents', 'message'), [
+    ('null', 'malformed cache entry'),
+    (json.dumps({'format': 2}), 'incompatible format'),
+])
+def test_invalid_checkpoint_cache_without_report_callback_is_logged(tmp_path, monkeypatch, caplog, contents, message):
+    import logging
+    from rewardguard import review_cache
+
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    cache = review_cache.ReviewCache('key', 'endpoint')
+    cache.save(b'body', {'ok': True})
+    next(tmp_path.glob('*.json')).write_text(contents)
+    with caplog.at_level(logging.WARNING):
+        assert cache.load(b'body') is None
+    assert any(message in record.message for record in caplog.records)
