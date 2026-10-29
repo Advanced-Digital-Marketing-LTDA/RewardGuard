@@ -357,6 +357,13 @@ def key_block_notes(chunks: list[Chunk]) -> list[str]:
             for path, n in hidden.items()]
 
 
+class Answers(dict):
+    """Per-request cache provenance; equal to an ordinary answer mapping."""
+    def __init__(self, values, *, reused=False):
+        super().__init__(values)
+        self.reused = reused
+
+
 class JevClient:
     def __init__(self, cfg: Config, api_key: str | None = None, opener=None, usage=None, phase="code", cache_namespace=None, repository=None):
         self.cfg = cfg
@@ -408,7 +415,7 @@ class JevClient:
                 raise
             self.cache_hits += 1
             self.usage.cache_hit(self.phase, stage)
-            return answers
+            return Answers(answers, reused=True)
         delay = 2.0
         for attempt in range(4):
             try:
@@ -460,7 +467,7 @@ class JevClient:
             model = None
         self.cache.save(body, {"model": model, "answers": {k: {"type": "noul", "noul": p} for k, p in answers.items()}},
                         diagnostic=lambda reason: note('result_cache_write', reason))
-        return answers
+        return Answers(answers)
 
     def _validate(self, data: dict, questions: dict[str, str]) -> dict[str, float]:
         if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):
@@ -541,7 +548,8 @@ def _repo_state(chunks: list[Chunk], changed: list[gitops.ChangedFile], descript
 
 def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.ChangedFile],
             kinds: dict[str, str], description: str, client: JevClient, chunks: list[Chunk],
-            findings: list[Finding], notes: list[str]) -> tuple[list[Finding], list[Flagged]]:
+            findings: list[Finding], notes: list[str], errors: list[str] | None = None,
+            coverage: list[dict] | None = None) -> tuple[list[Finding], list[Flagged]]:
     """Grades static and test-run findings that aren't clear-cut with Jev. Each is replaced by a finding
     whose severity comes from Jev's probability, or dropped below 0.60."""
     by_chunk: dict[int, list[Finding]] = {}
@@ -579,8 +587,18 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
         answers = client.ask(state, {f"confirm_{i}": _confirm_statement(f) + EVIDENCE_NOTE for i, f in enumerate(fs)})
         return state, fs, answers, anchors
 
+    results = []
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
-        results = list(pool.map(ask, jobs))
+        futures = [pool.submit(ask, job) for job in jobs]
+        for future in futures:
+            try:
+                results.append(future.result())
+            except RewardGuardError as error:
+                if errors is None:
+                    raise
+                errors.append(f"Confirmation: {error}")
+                if coverage is not None:
+                    coverage.append({'stage': 'confirmation', 'status': 'error', 'reason': str(error)})
 
     out: list[Finding] = []
     flagged: list[Flagged] = []
@@ -588,6 +606,9 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
         kept, statements = [], {}
         for i, f in enumerate(fs):
             p = answers[f"confirm_{i}"]
+            if coverage is not None:
+                coverage.append({'stage': 'confirmation', 'rule': f.rule, 'file': f.file,
+                                 'status': 'evaluated', 'probability': p, 'reused': bool(getattr(answers, 'reused', False))})
             g = _finding(cfg, f.rule, p, f.message, file=f.file, line=f.line, evidence=f.evidence)
             if g is None:
                 continue
@@ -600,106 +621,157 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
     return out, flagged
 
 
+@dataclass
+class JudgeResult:
+    findings: list[Finding] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    coverage: list[dict] = field(default_factory=list)
+
+    def __iter__(self):
+        # Preserve the existing two-value public unpacking interface.
+        yield self.findings
+        yield self.notes
+
+
 def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, description: str,
         client: JevClient, explainer: HaikuExplainer, log=print,
         to_confirm: list[Finding] | None = None,
         task_context_complete: bool = True,
-        full_task_diff: bool = True) -> tuple[list[Finding], list[str]]:
-    """Returns (findings, notes). `to_confirm` holds static and test-run findings; clear-cut ones are
-    returned unchanged, the rest only if Jev confirms them."""
-    notes: list[str] = []
-    to_confirm = to_confirm or []
-    clear = [f for f in to_confirm if f.rule in CLEAR_CUT]
-    graded = [f for f in to_confirm if f.rule not in CLEAR_CUT]
-    chunks = build_chunks(repo, base, head, cfg, changed, kinds, description)
+        full_task_diff: bool = True) -> JudgeResult:
+    """Preserve every completed grade even when later review stages fail."""
+    result = JudgeResult(findings=[f for f in to_confirm or [] if f.rule in CLEAR_CUT])
+    findings, notes, errors, coverage = result.findings, result.notes, result.errors, result.coverage
+    graded = [f for f in to_confirm or [] if f.rule not in CLEAR_CUT]
+    # Independent questions and their chunk boundaries never depend on PR prose.
+    chunks = build_chunks(repo, base, head, cfg, changed, kinds, '')
     notes.extend(key_block_notes(chunks))
     log(f"  {len(chunks)} chunk(s) to judge, {len(graded)} finding(s) to confirm")
+    ready = task_context_complete and bool((description or '').strip())
     any_source_changed = any(k == SOURCE for k in kinds.values())
-    has_context = bool((description or "").strip())
-    intent_context_ready = task_context_complete and has_context
-    if not intent_context_ready:
-        notes.append("SCOPE_CREEP and DESCRIPTION_OVERCLAIM were not evaluated: complete PR task context "
-                     "for this review range is unavailable.")
-    elif not full_task_diff:
-        notes.append("DESCRIPTION_OVERCLAIM was not evaluated: the selected interval omits earlier PR work.")
+    flagged: list[Flagged] = []
 
-    def judge(chunk: Chunk):
+    def gap(rule, reason):
+        notes.append(f"{rule} was not evaluated: {reason}")
+        coverage.append({'rule': rule, 'status': 'not_evaluated', 'reason': reason})
+
+    if not ready and chunks:
+        gap('SPECULATIVE_TEST_HEDGING', 'complete PR task context for this review range is unavailable.')
+        gap('SCOPE_CREEP', 'complete PR task context for this review range is unavailable.')
+        gap('DESCRIPTION_OVERCLAIM', 'complete PR task context for this review range is unavailable.')
+    elif chunks and not full_task_diff:
+        gap('DESCRIPTION_OVERCLAIM', 'the selected interval omits earlier PR work.')
+
+    def ask(chunk):
         qs = _questions_for(chunk.kind)
-        if not intent_context_ready:
-            qs.pop("scope_creep", None)
-        answers = client.ask(chunk.text, {k: v[1] + EVIDENCE_NOTE for k, v in qs.items()})
-        return chunk, qs, answers
+        qs.pop('scope_creep', None)
+        qs.pop('test_hedging', None)
+        return chunk, qs, client.ask(chunk.text, {k: v[1] + EVIDENCE_NOTE for k, v in qs.items()})
+
+    def consume(chunk, qs, answers, state):
+        kept, statements = [], {}
+        for key, p in answers.items():
+            rule, statement = qs[key]
+            coverage.append({'stage': 'judge', 'file': chunk.path, 'line': chunk.first_line,
+                             'rule': rule, 'status': 'evaluated', 'probability': p,
+                             'reused': bool(getattr(answers, 'reused', False))})
+            f = _finding(cfg, rule, p, 'Jev: ' + SUMMARY[rule], file=chunk.path, line=chunk.first_line)
+            if f is None:
+                continue
+            # Save before justification; an unavailable suppressing condition cannot erase the grade.
+            findings.append(f)
+            if key == 'expected_changed' and any_source_changed:
+                try:
+                    just = client.ask(
+                        f"Quoted PR title and description:\n{_desc(description, _context_limit(cfg))}\n\n"
+                        f"Test file: {chunk.path}\nTest diff:\n{chunk.body}", {'justified': JUSTIFICATION})['justified']
+                    if grade(just) == FAIL:
+                        findings.remove(f)
+                        continue
+                    f.message += f"; supplied PR task context does not establish a matching requirement (p={just:.2f})"
+                except RewardGuardError as error:
+                    errors.append(f"Expected-value justification: {error}")
+            kept.append(f)
+            statements[rule] = statement
+        if kept:
+            flagged.append((state, kept, statements, chunk.anchors))
 
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
-        results = list(pool.map(judge, chunks))
+        futures = [(chunk, pool.submit(ask, chunk)) for chunk in chunks]
+        for chunk, future in futures:
+            try:
+                chunk, qs, answers = future.result()
+                consume(chunk, qs, answers, chunk.text)
+            except RewardGuardError as error:
+                errors.append(f"Code {chunk.path}: {error}")
+                coverage.append({'file': chunk.path, 'status': 'error', 'reason': str(error)})
 
-    findings: list[Finding] = list(clear)
-    flagged: list[Flagged] = []
-    for chunk, qs, answers in results:
-        chunk_findings, statements = [], {}
-        for key, p in answers.items():
-            if grade(p) is None:
-                continue
-            rule, statement = qs[key]
-            message = "Jev: " + SUMMARY[rule]
-            if key == "expected_changed" and any_source_changed:
-                just = client.ask(
-                    f"Quoted PR title and description:\n{_desc(description, _context_limit(cfg))}\n\n"
-                    f"Test file: {chunk.path}\nTest diff:\n{chunk.body}",
-                    {"justified": JUSTIFICATION},
-                )["justified"]
-                if grade(just) == FAIL:
+    if ready:
+        for chunk in chunks:
+            try:
+                if 'scope_creep' not in _questions_for(chunk.kind):
                     continue
-                message += (f"; supplied PR task context does not establish a matching requirement "
-                            f"(p={just:.2f})")
-            f = _finding(cfg, rule, p, message, file=chunk.path, line=chunk.first_line)
-            if f:
-                findings.append(f)
-                chunk_findings.append(f)
-                statements[rule] = statement
-        if chunk_findings:
-            flagged.append((chunk.text, chunk_findings, statements, chunk.anchors))
+                qs = {key: SOURCE_QUESTIONS[key] for key in ('scope_creep', 'test_hedging')}
+                state = f"Quoted PR task context:\n{_desc(description, _context_limit(cfg))}\n\n{chunk.text}"
+                if len(state) > cfg.max_state_chars:
+                    raise RewardGuardError('Complete scope context exceeds review state budget')
+                consume(chunk, qs, client.ask(state, {k: v[1] + EVIDENCE_NOTE for k, v in qs.items()}), state)
+            except RewardGuardError as error:
+                errors.append(f"Scope {chunk.path}: {error}")
+                coverage.append({'file': chunk.path, 'rule': 'SCOPE_CREEP', 'status': 'error', 'reason': str(error)})
 
-    desc = None
-    if intent_context_ready and full_task_diff and chunks:
-        # Ordinary code questions omit checker/workflow files. Whole-PR claims
-        # must also see those edits, or a real Action/config change can look absent.
-        overclaim_chunks = list(chunks)
-        complete_text = True
-        represented = {chunk.path for chunk in chunks}
-        for cf in changed:
-            if cf.path in represented:
-                continue
-            if kinds.get(cf.path) == CHECKER:
-                extra = _file_chunks(repo, base, head, cfg, cf, OTHER,
-                                     _desc(description, _context_limit(cfg)))
-                overclaim_chunks.extend(extra)
-                notes.extend(key_block_notes(extra))
-                complete_text = complete_text and bool(extra)
+    if ready and full_task_diff and chunks:
+        try:
+            overclaim_chunks = list(chunks)
+            complete = True
+            represented = {chunk.path for chunk in chunks}
+            for cf in changed:
+                if cf.path in represented:
+                    continue
+                if kinds.get(cf.path) == CHECKER:
+                    extra = _file_chunks(repo, base, head, cfg, cf, OTHER, '')
+                    overclaim_chunks.extend(extra)
+                    notes.extend(key_block_notes(extra))
+                    complete = complete and bool(extra)
+                else:
+                    complete = False
+            if complete:
+                before_notes = len(notes)
+                desc = _description_check(cfg, overclaim_chunks, description, client, notes)
+                coverage.append({'rule': 'DESCRIPTION_OVERCLAIM',
+                                 'status': 'not_evaluated' if len(notes) != before_notes else 'evaluated'})
+                if desc:
+                    findings.extend(desc[1])
+                    flagged.append(desc)
             else:
-                complete_text = False
-        if complete_text:
-            desc = _description_check(cfg, overclaim_chunks, description, client, notes)
-        else:
-            notes.append("DESCRIPTION_OVERCLAIM was not evaluated: not every changed file has supplied textual evidence.")
-    if desc:
-        findings.extend(desc[1])
-        flagged.append(desc)
+                gap('DESCRIPTION_OVERCLAIM', 'not every changed file has supplied textual evidence.')
+        except RewardGuardError as error:
+            errors.append(f"Description overclaim: {error}")
 
     if graded:
-        confirmed, confirmed_flagged = confirm(repo, base, head, cfg, changed, kinds, description, client,
-                                               chunks, graded, notes)
-        findings.extend(confirmed)
-        flagged.extend(confirmed_flagged)
+        try:
+            confirmed, jobs = confirm(repo, base, head, cfg, changed, kinds, description, client,
+                                      chunks, graded, notes, errors, coverage)
+            findings.extend(confirmed)
+            flagged.extend(jobs)
+        except RewardGuardError as error:
+            errors.append(f"Confirmation preparation: {error}")
 
     log(f"  {len(flagged)} flagged chunk(s) to explain")
-
-    def explain(item: Flagged):
-        state, chunk_findings, statements, anchors = item
+    def explain(item):
+        state, fs, statements, anchors = item
         details = explainer.explain(state, statements, anchors=anchors)
-        for f in chunk_findings:
+        for f in fs:
             f.details = details[f.rule]
-
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
-        list(pool.map(explain, flagged))
-    return findings, notes
+        futures = [(item, pool.submit(explain, item)) for item in flagged]
+        for item, future in futures:
+            try:
+                future.result()
+            except RewardGuardError as error:
+                errors.append(f"Explanation: {error}")
+                for f in item[1]:
+                    coverage.append({'file': f.file, 'rule': f.rule, 'status': 'evaluated',
+                                     'explanation_status': 'not_evaluated', 'reason': str(error),
+                                     'probability': f.probability})
+    return result

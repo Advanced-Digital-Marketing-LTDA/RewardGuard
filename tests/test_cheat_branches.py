@@ -357,7 +357,9 @@ def test_jev_probability_sets_severity_and_haiku_explains_everything_reported(p,
     found = [f for f in rep["findings"] if f["rule"] == "HARDCODED_OUTPUT"]
     if severity is None:
         assert found == [] and fh.calls == []
-        assert "HARDCODED_OUTPUT" not in (tmp_path / "report.json").read_text()
+        # Clean grades belong in explicit coverage, never in reported findings.
+        coverage = [r for r in rep['code']['coverage'] if r.get('rule') == 'HARDCODED_OUTPUT']
+        assert coverage and all(r['probability'] == p and r['status'] == 'evaluated' for r in coverage)
         return
     [f] = found
     assert f["severity"] == severity

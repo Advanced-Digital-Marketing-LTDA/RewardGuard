@@ -78,7 +78,7 @@ def test_two_job_workflow_keeps_secrets_away_from_branch_code():
     # check job holds the secrets and must still report when the tests job fails
     assert check_job["needs"] == ["rewardguard-base", "rewardguard-tests"]
     assert "!cancelled()" in check_job["if"]
-    assert check_job["permissions"] == {"contents": "read", "pull-requests": "write", "checks": "write"}
+    assert check_job["permissions"] == {"contents": "read", "pull-requests": "write", "checks": "write", "actions": "read"}
     assert _step(check_job, "actions/checkout")["with"]["ref"] == RESOLVED_HEAD
     assert _step(check_job, "actions/checkout")["with"]["persist-credentials"] is False
     guard = _guard(check_job)["with"]
@@ -115,6 +115,7 @@ def test_examples_resolve_immutable_commits_without_branch_code_or_secrets(rel):
     assert baseline["outputs"] == {
         "base": "${{ steps.resolve.outputs.ref }}",
         "head": "${{ steps.resolve.outputs.head }}",
+        "policy": "${{ steps.resolve.outputs.policy }}",
     }
 
 
@@ -172,13 +173,13 @@ def test_resolver_uses_actual_commit_for_explicit_refs_and_pr_push_events(rel, k
         "remote-ref": {"BASE_INPUT": "origin/main"},
         "pr-sha": {"EVENT_NAME": "pull_request", "PR_BASE_SHA": base},
         "pr-branch": {"EVENT_NAME": "pull_request", "BASE_REF": "main"},
-        "push-before": {"EVENT_NAME": "push", "PUSH_BEFORE": base},
+        "push-before": {"EVENT_NAME": "push", "PUSH_BEFORE": base, "DEFAULT_BRANCH": "main", "EVENT_REF": "refs/heads/feature"},
         "first-push": {"EVENT_NAME": "push", "BASE_INPUT": "0" * 40,
                        "PUSH_BEFORE": "0" * 40, "DEFAULT_BRANCH": "main", "EVENT_REF": "refs/heads/feature"},
     }
     result, values = _resolve(rel, repo, tmp_path, EXPECTED_HEAD=head, **choices[kind])
     assert result.returncode == 0, result.stdout + result.stderr
-    assert values == {"ref": base, "head": head}
+    assert values == {"ref": base, "head": head, "policy": base}
 
 
 @pytest.mark.parametrize("rel", RESOLVERS)
@@ -188,7 +189,7 @@ def test_first_push_to_default_branch_compares_parent_instead_of_empty_diff(rel,
     result, values = _resolve(rel, repo, tmp_path, EVENT_NAME="push", PUSH_BEFORE="0" * 40,
                               DEFAULT_BRANCH="main", EVENT_REF="refs/heads/main")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert values == {"ref": base, "head": head}
+    assert values == {"ref": base, "head": head, "policy": base}
 
 
 @pytest.mark.parametrize("rel", RESOLVERS)
@@ -217,7 +218,7 @@ def test_resolver_fetches_a_missing_ref_as_a_commit(rel, action_repo, tmp_path):
     _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
     result, values = _resolve(rel, repo, tmp_path, BASE_INPUT="refs/heads/main")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert values == {"ref": base, "head": head}
+    assert values == {"ref": base, "head": head, "policy": base}
 
 
 def test_action_uses_resolved_commits_for_both_test_and_check_commands(tmp_path):
@@ -233,7 +234,7 @@ def test_action_uses_resolved_commits_for_both_test_and_check_commands(tmp_path)
         step = next(s for s in steps if s.get("name") == name)
         result = subprocess.run(["bash", "-euo", "pipefail", "-c", step["run"]],
                                 env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}",
-                                     "BASE": "a" * 40, "REVIEW_HEAD": "b" * 40, "TESTS": "false",
+                                     "BASE": "a" * 40, "REVIEW_HEAD": "b" * 40, "POLICY_BASE": "c" * 40, "TESTS": "false",
                                      "RUNNER_TEMP": str(tmp_path), "GITHUB_OUTPUT": str(tmp_path / "output"),
                                      "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"), "CALL_LOG": str(log)},
                                 capture_output=True, text=True)
@@ -255,3 +256,49 @@ def test_rewardguard_workflow_does_not_run_on_feature_branch_pushes():
     workflow = yaml.load(text, Loader=yaml.BaseLoader)
     assert workflow['on']['push']['branches'] == ['main']
     assert 'pull_request' in workflow['on']
+
+
+@pytest.mark.parametrize('rel', RESOLVERS)
+def test_force_push_preserves_actual_before_and_trusted_policy(rel, action_repo, tmp_path):
+    repo, policy, before = action_repo
+    _git(repo, 'checkout', '-qB', 'replacement', policy)
+    (repo / 'file').write_text('replacement\n')
+    _git(repo, 'commit', '-qam', 'replacement')
+    head = _git(repo, 'rev-parse', 'HEAD')
+    result, values = _resolve(rel, repo, tmp_path, EVENT_NAME='push', PUSH_BEFORE=before,
+                              DEFAULT_BRANCH='main', EVENT_REF='refs/heads/feature', EXPECTED_HEAD=head)
+    assert result.returncode == 0, result.stderr
+    assert values == {'ref': before, 'head': head, 'policy': policy}
+
+
+@pytest.mark.parametrize('rel', RESOLVERS)
+def test_pr_compares_full_interval_even_if_caller_passes_incremental_base(rel, action_repo, tmp_path):
+    repo, policy, before = action_repo
+    (repo / 'file').write_text('later\n')
+    _git(repo, 'commit', '-qam', 'later')
+    head = _git(repo, 'rev-parse', 'HEAD')
+    result, values = _resolve(rel, repo, tmp_path, EVENT_NAME='pull_request', BASE_INPUT=before,
+                              PR_BASE_SHA=policy, EXPECTED_HEAD=head)
+    assert result.returncode == 0, result.stderr
+    assert values == {'ref': policy, 'head': head, 'policy': policy}
+
+
+def test_wiring_requires_pinned_tools_freshness_and_authenticated_test_transport():
+    import re
+    steps = _load('action.yml')['runs']['steps']
+    for step in steps:
+        if step.get('uses', '').startswith('actions/'):
+            assert re.fullmatch(r'actions/[a-z/-]+@[0-9a-f]{40}', step['uses'])
+    check = next(s for s in steps if s.get('id') == 'check')
+    assert "steps.freshness.outputs.state == 'current'" in check['if']
+    assert '--test-artifact' in check['run'] and '--run-results' not in check['run']
+    assert '--policy-base "$POLICY_BASE"' in check['run']
+    upload = next(s for s in steps if s.get('id') == 'review_upload')
+    assert "exit_code != ''" in upload['if']
+    assert upload['with']['name'] == 'rewardguard-review-${{ github.run_id }}-${{ github.run_attempt }}'
+    for rel in RESOLVERS[1:]:
+        wf = _load(rel)
+        assert wf['concurrency']['cancel-in-progress'] is True
+        assert 'default_branch' in wf['jobs']['rewardguard-base']['if']
+        assert 'edited' in _triggers(wf)['pull_request']['types']
+        assert _triggers(wf)['push']['branches'] == ['main']

@@ -30,6 +30,14 @@ inputs:
     description: Base commit/ref. Defaults to the PR base SHA or push before SHA; first pushes use the default branch or its parent.
     required: false
     default: ""
+  policy-base:
+    description: Immutable trusted policy commit supplied by the snapshot resolver.
+    required: false
+    default: ""
+  head:
+    description: Immutable reviewed head (must match checkout and event).
+    required: false
+    default: ""
   comment:
     description: Post or update the report as a PR comment ("true"/"false"). Check mode only.
     required: false
@@ -50,6 +58,15 @@ outputs:
   head:
     description: Resolved checked-out head commit.
     value: ${{ steps.base.outputs.head }}
+  policy-base:
+    description: Resolved trusted policy commit.
+    value: ${{ steps.base.outputs.policy }}
+  review-artifact-id:
+    description: Uploaded trusted report artifact ID; authenticate metadata before consuming.
+    value: ${{ steps.review_upload.outputs.artifact-id }}
+  review-artifact-digest:
+    description: Uploaded report archive digest; does not prove model correctness.
+    value: ${{ steps.review_upload.outputs.artifact-digest }}
   result:
     description: '"passed" or "failed" (check mode)'
     value: ${{ steps.final_result.outputs.result }}
@@ -73,7 +90,7 @@ runs:
           *) echo "::error::mode must be 'tests' or 'check'"; exit 2 ;;
         esac
 
-    - uses: actions/setup-python@v7
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
       with:
         python-version: "3.12"
 
@@ -104,7 +121,7 @@ runs:
         CACHE_OUTCOME: ${{ steps.jev_restore.outcome }}
         CACHE_DIR: ${{ runner.temp }}/rewardguard-jev-cache
       run: |
-        python - <<'PY'
+        python -I - <<'PY'
         import json, os, re
         requested = os.environ.get('CACHE_REQUESTED', '')
         prefix = os.environ.get('CACHE_PREFIX', '')
@@ -164,61 +181,76 @@ runs:
       shell: bash
       env:
         BASE_INPUT: ${{ inputs.base }}
+        POLICY_INPUT: ${{ inputs.policy-base }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         BASE_REF: ${{ github.base_ref }}
         PUSH_BEFORE: ${{ github.event.before }}
         EVENT_NAME: ${{ github.event_name }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         EVENT_REF: ${{ github.ref }}
-        EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        EXPECTED_HEAD: ${{ inputs.head || github.event.pull_request.head.sha || github.sha }}
       run: |
         set -euo pipefail
         fail() { echo "::error::$*" >&2; exit 2; }
-        head="$(git rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve the checked-out head commit."
+        git_safe() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
+        head="$(git_safe rev-parse --verify --quiet 'HEAD^{commit}')" || fail "Cannot resolve checked-out head."
         if [ -n "$EXPECTED_HEAD" ] && [ "$head" != "$EXPECTED_HEAD" ]; then
-          fail "Checkout does not match the event head; check out the PR head SHA or github.sha."
+          fail "Checkout does not match the event head; check out the exact reviewed SHA."
         fi
         resolve_ref() {
           local candidate="$1" resolved
-          if resolved="$(git rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
+          if resolved="$(git_safe rev-parse --verify --quiet --end-of-options "${candidate}^{commit}")"; then
             printf '%s\n' "$resolved"; return
           fi
-          if resolved="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
+          if resolved="$(git_safe rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${candidate}^{commit}")"; then
             printf '%s\n' "$resolved"; return
           fi
-          git fetch --no-tags --quiet -- origin "$candidate" || return 1
-          git rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
+          git_safe fetch --no-tags --quiet -- origin "$candidate" || return 1
+          git_safe rev-parse --verify --quiet 'FETCH_HEAD^{commit}'
         }
         base="${BASE_INPUT:-${PR_BASE_SHA:-${BASE_REF:-}}}"
-        if [ "$EVENT_NAME" = "push" ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
-        if [ -z "$base" ] && [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
-          base="$PUSH_BEFORE"
-        fi
-        if [ -n "$base" ]; then
-          base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref; set a valid base input."
-        elif [ "$EVENT_NAME" = "push" ]; then
-          # A new branch compares with the default branch. A first default-branch
-          # push compares with its parent, never silently with itself.
-          [ -n "$DEFAULT_BRANCH" ] || fail "No trusted baseline: the repository default branch is unknown; set base explicitly."
-          default_base="$(git rev-parse --verify --quiet --end-of-options "refs/remotes/origin/${DEFAULT_BRANCH}^{commit}")" || default_base=""
-          if [ -z "$default_base" ]; then
-            git fetch --no-tags --quiet -- origin "refs/heads/$DEFAULT_BRANCH" &&
-              default_base="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" || default_base=""
-          fi
-          if [ -n "$default_base" ] && { [ "$default_base" != "$head" ] || [ "$EVENT_REF" != "refs/heads/$DEFAULT_BRANCH" ]; }; then
-            base="$default_base"
-          elif [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
-            base="$(git rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
-              fail "No trusted baseline for the initial root commit; set base to an existing trusted commit."
-          else
-            fail "No trusted default-branch baseline for this first push; set base explicitly."
-          fi
+        policy="${POLICY_INPUT:-}"
+        if [[ "$EVENT_NAME" == pull_request* ]]; then
+          target="${PR_BASE_SHA:-${BASE_REF:-$base}}"
+          [ -n "$target" ] || fail "No trusted PR target snapshot."
+          target="$(resolve_ref "$target")" || fail "Cannot resolve PR target."
+          base="$(git_safe merge-base "$target" "$head")" || fail "PR target and head have no common history."
+          policy="$base"
         else
-          fail "No base commit/ref. Use a pull_request or push event, or set the base input."
+          if [ "$EVENT_NAME" = push ] && [[ "$base" =~ ^0+$ ]]; then base=""; fi
+          if [ -z "$base" ] && [ "$EVENT_NAME" = push ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            base="$PUSH_BEFORE"
+          fi
+          if [ -n "$base" ]; then
+            base="$(resolve_ref "$base")" || fail "Cannot resolve the selected base commit/ref."
+          fi
+          if [ "$EVENT_NAME" = push ] && [ -z "$policy" ]; then
+            [ -n "$DEFAULT_BRANCH" ] || fail "No trusted policy: default branch is unknown."
+            if [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+              policy="$(resolve_ref "$PUSH_BEFORE")" || fail "Cannot resolve trusted previous default tip."
+            else
+              default_base="$(resolve_ref "refs/remotes/origin/$DEFAULT_BRANCH")" || default_base=""
+              if [ -z "$default_base" ]; then
+                default_base="$(resolve_ref "refs/heads/$DEFAULT_BRANCH")" || default_base=""
+              fi
+              if [ "$default_base" = "$head" ] && [ "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" ]; then
+                default_base="$(git_safe rev-parse --verify --quiet 'HEAD^1^{commit}')" ||
+                  fail "No trusted baseline for the initial root commit; set a trusted policy explicitly."
+              fi
+              [ -n "$default_base" ] || fail "No trusted default-branch baseline."
+              policy="$default_base"
+              if [ -z "$base" ]; then
+                [ "$default_base" != "$head" ] || fail "A new branch cannot silently compare head with itself."
+                base="$default_base"
+              fi
+            fi
+          fi
+          [ -n "$base" ] || fail "No base commit/ref. Use a PR/push event or supply a trusted snapshot."
+          # Outside GitHub event resolution, the explicitly supplied base is the caller's trusted policy default.
+          policy="${policy:-$base}"
         fi
-        git merge-base "$base" "$head" >/dev/null ||
-          fail "The selected baseline and head have no common history; set a trusted base explicitly."
-        printf 'ref=%s\nhead=%s\n' "$base" "$head" >> "$GITHUB_OUTPUT"
+        policy="$(resolve_ref "$policy")" || fail "Cannot resolve trusted policy snapshot."
+        printf 'ref=%s\nhead=%s\npolicy=%s\n' "$base" "$head" "$policy" >> "$GITHUB_OUTPUT"
 
     # ---- tests mode: runs branch code, holds no secrets ----
     - name: Run test suites
@@ -226,14 +258,15 @@ runs:
       shell: bash
       env:
         BASE: ${{ steps.base.outputs.ref }}
+        POLICY_BASE: ${{ steps.base.outputs.policy }}
         REVIEW_HEAD: ${{ steps.base.outputs.head }}
-      run: python -I -m rewardguard.cli run-tests --base "$BASE" --head "$REVIEW_HEAD" --out "$RUNNER_TEMP/rewardguard-run.json"
+      run: python -I -m rewardguard.cli run-tests --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --out "$RUNNER_TEMP/rewardguard-run.json"
 
     - name: Upload run results
       if: inputs.mode == 'tests'
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
-        name: rewardguard-run
+        name: rewardguard-run-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/rewardguard-run.json
         if-no-files-found: error
 
@@ -243,15 +276,22 @@ runs:
       shell: bash
       run: npm install -g --silent @anthropic-ai/claude-code@2.1.308
 
-    - name: Download run results
-      if: inputs.mode == 'check' && inputs.tests == 'true'
-      uses: actions/download-artifact@v8
-      with:
-        name: rewardguard-run
-        path: ${{ runner.temp }}/rewardguard-run
+    - name: Preflight reviewed PR head
+      id: freshness
+      if: inputs.mode == 'check'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REVIEW_HEAD: ${{ steps.base.outputs.head }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        pr=()
+        if [ -n "$PR" ]; then pr=(--pr "$PR"); fi
+        python -I -m rewardguard.publisher --preflight --repo "$REPO" --head "$REVIEW_HEAD" "${pr[@]}"
 
     - name: Run rewardguard
-      if: inputs.mode == 'check'
+      if: inputs.mode == 'check' && steps.freshness.outputs.state == 'current'
       id: check
       shell: bash
       env:
@@ -261,6 +301,7 @@ runs:
         TYPESAFE_API_KEY: ${{ inputs.typesafe-api-key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
         BASE: ${{ steps.base.outputs.ref }}
+        POLICY_BASE: ${{ steps.base.outputs.policy }}
         GH_TOKEN: ${{ inputs.github-token }}
         REVIEW_HEAD: ${{ steps.base.outputs.head }}
         TESTS: ${{ inputs.tests }}
@@ -268,11 +309,11 @@ runs:
         # --no-local-tests: this job holds the secrets, so it never runs branch code
         results=()
         if [ "$TESTS" = "true" ]; then
-          results=(--run-results "$RUNNER_TEMP/rewardguard-run/rewardguard-run.json")
+          results=(--test-artifact)
         fi
         rm -f "$RUNNER_TEMP/rewardguard.md" "$RUNNER_TEMP/rewardguard.json"
         set +e
-        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --no-local-tests "${results[@]}" \
+        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --no-local-tests "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e
@@ -302,7 +343,7 @@ runs:
         CACHE_REQUESTED: rewardguard-jev-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
         CACHE_PREFIX: rewardguard-jev-v1-${{ runner.os }}-
       run: |
-        python - <<'PY'
+        python -I - <<'PY'
         import json, os, re
         outcome = os.environ.get('CACHE_OUTCOME', '')
         requested = os.environ.get('CACHE_REQUESTED', '')
@@ -317,33 +358,32 @@ runs:
                           'status': 'unavailable', 'restored_count': None}, separators=(',', ':'), sort_keys=True))
         PY
 
-    - name: Publish scoped content checks
-      if: always() && inputs.mode == 'check' && inputs.content-checks == 'true' && steps.check.outcome != 'skipped'
+    - name: Upload trusted review evidence
+      id: review_upload
+      if: always() && inputs.mode == 'check' && steps.check.outputs.exit_code != ''
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      with:
+        name: rewardguard-review-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/rewardguard.json
+        if-no-files-found: error
+
+    - name: Publish scoped content checks and stable PR report
+      if: always() && inputs.mode == 'check' && steps.check.outputs.exit_code != '' && (inputs.content-checks == 'true' || inputs.comment == 'true')
       id: content_checks
-      continue-on-error: true # Set result preserves the original judge exit before reporting publisher errors.
+      continue-on-error: true # Preserve the original judge exit if publication also fails.
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         REVIEW_HEAD: ${{ steps.base.outputs.head }}
         REPO: ${{ github.repository }}
-      run: python -I -m rewardguard.content_checks --report "$RUNNER_TEMP/rewardguard.json" --head "$REVIEW_HEAD" --repo "$REPO"
-
-    - name: Post PR comment
-      if: inputs.mode == 'check' && inputs.comment == 'true' && github.event_name == 'pull_request'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
         PR: ${{ github.event.pull_request.number }}
-        REPO: ${{ github.repository }}
+        CHECKS: ${{ inputs.content-checks }}
+        COMMENT: ${{ inputs.comment }}
       run: |
-        [ -f "$RUNNER_TEMP/rewardguard.md" ] || exit 0
-        id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-          --jq '.[] | select(.body | startswith("<!-- rewardguard-report -->")) | .id' | tail -n 1)
-        if [ -n "$id" ]; then
-          gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$RUNNER_TEMP/rewardguard.md" > /dev/null
-        else
-          gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@"$RUNNER_TEMP/rewardguard.md" > /dev/null
-        fi
+        pr=()
+        if [ -n "$PR" ]; then pr=(--pr "$PR"); fi
+        python -I -m rewardguard.publisher --report "$RUNNER_TEMP/rewardguard.json" --head "$REVIEW_HEAD" --repo "$REPO" --checks "$CHECKS" --comment "$COMMENT" "${pr[@]}"
 
     - name: Set result
       id: final_result
@@ -352,9 +392,16 @@ runs:
       env:
         JUDGE_EXIT: ${{ steps.check.outputs.exit_code }}
         PUBLISH_OUTCOME: ${{ steps.content_checks.outcome }}
-        PUBLISH_ENABLED: ${{ inputs.content-checks }}
+        PUBLISH_ENABLED: ${{ inputs.content-checks == 'true' || inputs.comment == 'true' }}
+        FRESHNESS: ${{ steps.freshness.outputs.state }}
+        EVIDENCE_OUTCOME: ${{ steps.review_upload.outcome }}
       run: |
         echo "result=failed" >> "$GITHUB_OUTPUT"
+        if [ "$FRESHNESS" = stale ]; then
+          echo "::notice::Superseded head: no providers or publication were run."
+          echo "result=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
         case "$JUDGE_EXIT" in
           0) ;;
           [1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]) exit "$JUDGE_EXIT" ;;
@@ -364,4 +411,8 @@ runs:
           true:success|false:skipped) ;;
           *) echo "::error::Scoped content checks could not be published completely."; exit 2 ;;
         esac
+        if [ "$EVIDENCE_OUTCOME" != success ]; then
+          echo "::error::Trusted machine report artifact was not uploaded."
+          exit 2
+        fi
         echo "result=passed" >> "$GITHUB_OUTPUT"

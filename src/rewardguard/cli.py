@@ -52,31 +52,22 @@ def _resolve(repo: str, args):
         raise RewardGuardError("Uncommitted changes in tracked files. Commit or stash them; "
                                "rewardguard checks committed history only.")
     head = gitops.rev_parse(repo, args.head)
-    base = gitops.merge_base(repo, gitops.rev_parse(repo, args.base), head)
-    return base, head, config.load_from_commit(repo, base)
+    selected = gitops.rev_parse(repo, args.base)
+    explicit = getattr(args, 'comparison_mode', 'merge-base') == 'explicit'
+    base = selected if explicit else gitops.merge_base(repo, selected, head)
+    policy = getattr(args, 'policy_base', None)
+    if explicit and not policy:
+        raise RewardGuardError("Explicit comparisons require --policy-base from a trusted branch snapshot")
+    args.config_base = gitops.rev_parse(repo, policy) if policy else base
+    return base, head, config.load_from_commit(repo, args.config_base)
 
 
 def _load_run_results(path: str, base: str, head: str) -> tuple[list[Finding], list[str]]:
-    """Reads the file written by `rewardguard run-tests`. It must be for the same base and head."""
+    from .run_artifacts import load_local
     try:
-        data = json.loads(Path(path).read_text())
-    except (OSError, json.JSONDecodeError) as e:
-        raise RewardGuardError(f"Cannot read run results {path}: {e}") from e
-    if not isinstance(data, dict) or (data.get("base"), data.get("head")) != (base, head):
-        raise RewardGuardError(f"Run results {path} are not for base {base[:12]} / head {head[:12]}")
-    findings, errors = data.get("findings"), data.get("errors")
-    if not isinstance(findings, list) or not isinstance(errors, list):
-        raise RewardGuardError(f"Run results {path} are malformed")
-    out = []
-    for d in findings:
-        try:
-            f = Finding(**d)
-        except TypeError as e:
-            raise RewardGuardError(f"Run results {path} hold a malformed finding: {d}") from e
-        if f.severity not in (FAIL, WARN) or f.source != "run":
-            raise RewardGuardError(f"Run results {path} hold an invalid finding: {d}")
-        out.append(f)
-    return out, [str(e) for e in errors]
+        return load_local(path, base, head)
+    except OSError as error:
+        raise RewardGuardError(f"Cannot read run results: {error}") from error
 
 
 def run_tests(args) -> int:
@@ -96,8 +87,9 @@ def run_tests(args) -> int:
             findings = runner.run(repo, base, head, cfg, log)
         except RewardGuardError as e:
             errors.append(f"Test run: {e}")
+    from .run_artifacts import identity
     Path(args.out).write_text(json.dumps({
-        "base": base, "head": head, "findings": [f.to_dict() for f in findings], "errors": errors,
+        **identity(base, head, args.config_base), "findings": [f.to_dict() for f in findings], "errors": errors,
     }, indent=2))
     log(f"rewardguard: run results written to {args.out}")
     return 0
@@ -127,8 +119,31 @@ def check(args) -> int:
         else:
             rep.notes.append(f"staged index against {base[:12]}; config read from trusted base {config_base[:12]}")
     else:
-        rep.notes.append(f"base {base[:12]} (merge-base with {args.base}), head {head[:12]}; config read from base")
+        rep.notes.append(f"comparison base {base[:12]}, head {head[:12]}; trusted policy {args.config_base[:12]}")
     changed = gitops.changed_files(repo, base, head)
+    if getattr(args, 'plan', False):
+        from . import content_publications
+        selected, excluded = [], []
+        for cf in changed:
+            kind = static_checks.classify(cf.path, cfg)
+            row = {'path': cf.path, 'status': cf.status, 'kind': kind}
+            (excluded if kind in {static_checks.OTHER, static_checks.CHECKER, static_checks.EXCLUDED} else selected).append(row)
+        kinds = {cf.path: static_checks.classify(cf.path, cfg) for cf in changed}
+        chunks = judge.build_chunks(repo, base, head, cfg, changed, kinds, '')
+        plan = {'schema_version': 1, 'status': 'planned', 'run_identity': rep.run_identity,
+                'content': content_publications.manifest(repo, base, head, cfg, changed),
+                'code': {'selected': selected, 'excluded': excluded,
+                         'units': [{'file': c.path, 'line': c.first_line, 'kind': c.kind,
+                                    'text': c.body, 'anchors': c.anchors} for c in chunks],
+                         'planned': ['static', 'independent code questions', 'context-dependent questions when available'],
+                         'context': 'not fetched', 'cache_hits': 'unknown until authenticated execution'},
+                'tests': 'required separately' if cfg.run_tests else 'disabled by trusted policy',
+                'limitations': ['Source observations do not establish runtime behavior or model verdicts.']}
+        payload = json.dumps(plan, indent=2)
+        print(payload)
+        if args.json:
+            Path(args.json).write_text(payload)
+        return 0
     if not changed:
         rep.notes.append("No changes between base and head.")
         rep.content = {"status": "skipped", "coverage": [], "reason": "No changes between base and head."}
@@ -168,9 +183,20 @@ def check(args) -> int:
             rep.notes.append("Test runs are off (no .rewardguard.toml on HEAD); built-in defaults run static checks, Jev and Haiku")
         else:
             rep.notes.append("Test runs are off (run_tests = false in .rewardguard.toml): static checks, Jev and Haiku only")
+    elif getattr(args, 'test_artifact', False):
+        from .run_artifacts import load_authenticated
+        try:
+            run_findings, run_errors = load_authenticated(base, head, args.config_base)
+            found.extend(run_findings)
+            rep.errors.extend(run_errors)
+            rep.notes.append('Test artifact origin/run/digest verified; provenance does not prove test honesty or effectiveness.')
+        except (OSError, ValueError, RewardGuardError) as error:
+            rep.errors.append(f'Test artifact unavailable or invalid: {error}')
     elif args.run_results:
         log(f"rewardguard: test results from {args.run_results}")
         try:
+            if args.no_local_tests and os.environ.get('GITHUB_ACTIONS') == 'true':
+                raise RewardGuardError('CI requires --test-artifact with authenticated origin, not a local result file')
             run_findings, run_errors = _load_run_results(args.run_results, base, head)
             found.extend(run_findings)
             rep.errors.extend(run_errors)
@@ -191,14 +217,19 @@ def check(args) -> int:
     # changed file, and Haiku explains everything Jev reports
     log("rewardguard: Jev judge, Haiku explainer")
     try:
-        client = judge.JevClient(cfg, usage=usage, phase="code")
-        haiku = explainer.HaikuExplainer(cfg)
-        judged, notes = judge.run(repo, base, head, cfg, changed, kinds, description, client, haiku, log,
+        from .review_cache import repository_identity
+        repository = repository_identity(repo)
+        client = judge.JevClient(cfg, usage=usage, phase="code", repository=repository)
+        haiku = explainer.HaikuExplainer(cfg, usage=usage, repository=repository)
+        result = judge.run(repo, base, head, cfg, changed, kinds, description, client, haiku, log,
                                   to_confirm=found, task_context_complete=task_context.scope_complete,
                                   full_task_diff=task_context.full_pr_diff)
+        judged, notes = result
         rep.findings.extend(judged)
         rep.notes.extend(notes)
-        rep.notes.append(f"Jev code: {client.cache_hits} unchanged clean request(s) reused without API calls.")
+        rep.errors.extend(getattr(result, 'errors', []))
+        rep.code = {'coverage': getattr(result, 'coverage', [])}
+        rep.notes.append(f"Jev code: {client.cache_hits} authenticated request result(s) reused without API calls.")
         if client.models_seen:
             rep.notes.append("Jev model: " + ", ".join(sorted(client.models_seen)))
     except RewardGuardError as e:
@@ -213,11 +244,23 @@ def _finish(rep: Report, args, usage=None) -> int:
     if usage is not None:
         rep.usage = usage.snapshot()
         rep.diagnostics = usage.diagnostics()
+    # One failed output must not suppress the other or erase the original review errors.
+    written = []
+    original_errors = len(rep.errors)
+    for filename, render in ((args.markdown, report.markdown), (args.json, report.as_json)):
+        if filename:
+            try:
+                Path(filename).write_text(render(rep))
+                written.append((filename, render))
+            except (OSError, ValueError) as error:
+                rep.errors.append(f"Report output {filename}: {error}")
+    if len(rep.errors) != original_errors:
+        for filename, render in written:
+            try:
+                Path(filename).write_text(render(rep))
+            except (OSError, ValueError) as error:
+                rep.errors.append(f"Report error reconciliation {filename}: {error}")
     print(report.terminal(rep))
-    if args.markdown:
-        Path(args.markdown).write_text(report.markdown(rep))
-    if args.json:
-        Path(args.json).write_text(report.as_json(rep))
     if rep.errors:
         return 2
     return 1 if rep.failed else 0
@@ -284,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--head", default="HEAD", help="Commit to check (default: HEAD)")
     c.add_argument("--repo", default=".", help="Repository path (default: .)")
     c.add_argument("--staged", action="store_true", help="Check the staged index against HEAD")
+    c.add_argument("--plan", action="store_true", help="Print a local provider-free review manifest")
     c.add_argument("--content-only", action="store_true",
                    help="Run only content review; non-content changes skip without model credentials")
     c.add_argument("--title", help="PR title or task summary; combined with the description as review context")
@@ -293,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--json", help="Write a JSON report here")
     c.add_argument("--allow-dirty", action="store_true",
                    help="Run even with uncommitted changes (they are NOT checked)")
+    c.add_argument("--test-artifact", action="store_true", help="Verify same-run GitHub test artifact (actions:read)")
     c.add_argument("--run-results",
                    help="Use test results written by `rewardguard run-tests` instead of running the tests here")
     c.add_argument("--no-local-tests", action="store_true",
@@ -307,6 +352,9 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--allow-dirty", action="store_true",
                    help="Run even with uncommitted changes (they are NOT checked)")
     t.add_argument("--quiet", action="store_true")
+    for parser in (c, t):
+        parser.add_argument('--comparison-mode', choices=('merge-base', 'explicit'), default='merge-base')
+        parser.add_argument('--policy-base', help='Immutable trusted policy commit, required for explicit comparisons')
     sub.add_parser("codex-precommit", help="Run as a Codex PreToolUse hook for git commit commands")
     args = p.parse_args(argv)
     if args.cmd == "check":

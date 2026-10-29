@@ -48,7 +48,7 @@ _GAP_REASONS = {
 
 def evidence_diagnostics(content: dict) -> dict:
     """Summarize coverage and omitted units without retaining source text or paths."""
-    counts = dict.fromkeys(('eligible', 'evaluated', 'skipped', 'not_applicable', 'not_evaluated', 'unknown'), 0)
+    counts = dict.fromkeys(('eligible', 'evaluated', 'skipped', 'not_applicable', 'not_evaluated', 'unchanged', 'unknown'), 0)
     gaps = Counter()
     for row in content.get('coverage', []):
         status = row.get('status') if isinstance(row, dict) else None
@@ -78,6 +78,29 @@ def _loc(f) -> str:
     return f"{f.file}:{f.line}" if f.line else f.file
 
 
+def status(report: Report) -> str:
+    if report.errors:
+        return 'error'
+    rows = [*report.content.get('coverage', []), *report.code.get('coverage', [])]
+    if any(r.get('status') in {'not_evaluated', 'error'} or r.get('result_complete') is False
+           for r in rows):
+        return 'incomplete'
+    if report.failed:
+        return 'failed'
+    if not report.findings and not any(r.get('status') == 'evaluated' for r in rows):
+        return 'skipped'
+    return 'passed'
+
+
+def scope_counts(report: Report) -> dict:
+    rows = [*report.content.get('coverage', []), *report.code.get('coverage', [])]
+    known = {'evaluated', 'eligible', 'skipped', 'excluded', 'not_applicable', 'not_evaluated', 'unchanged', 'error'}
+    counts = Counter(r.get('status') if r.get('status') in known else 'unknown' for r in rows)
+    counts['reused'] = sum(r.get('reused') is True for r in rows)
+    counts['explanation_not_evaluated'] = sum(r.get('explanation_status') == 'not_evaluated' for r in rows)
+    return dict(counts)
+
+
 def terminal(report: Report) -> str:
     out = []
     if report.run_identity:
@@ -97,6 +120,8 @@ def terminal(report: Report) -> str:
     for n in report.notes:
         out.append(f"note   {n}")
     for phase, u in sorted(report.usage.items()):
+        if u.get('explanations'):
+            out.append('usage  ' + phase + ' explanations: ' + json.dumps(u['explanations'], sort_keys=True))
         out.append(f"usage  Jev {phase}: {u['requests']} responses, {u['input_tokens']} reported input tokens, "
                    f"{u['usage_missing']} without usage; {u['state_characters']} state characters, "
                    f"{u['question_characters']} question characters")
@@ -124,7 +149,10 @@ def terminal(report: Report) -> str:
                'only when explicitly returned per response; otherwise unavailable')
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
-    verdict = "FAILED" if report.failed else "PASSED"
+    out.append('scope  ' + json.dumps(scope_counts(report), sort_keys=True))
+    out.append('cache  completed content results=' + str(report.content.get('result_cache_hits', 0)) +
+               '; partial Jev checkpoints=' + str(report.content.get('grade_cache_hits', 0)))
+    verdict = status(report).upper()
     out.append(f"\nrewardguard {verdict}: {fails} fail, {warns} warn, {len(report.errors)} error")
     return "\n".join(out)
 
@@ -207,9 +235,15 @@ def _content_markdown(content: dict) -> list[str]:
 def markdown(report: Report) -> str:
     fails = sum(f.severity == FAIL for f in report.findings)
     warns = len(report.findings) - fails
-    head = "❌ **Failed**" if report.failed else "✅ **Passed**"
+    head = "**" + status(report).capitalize() + "**"
     lines = [MARKER, f"## rewardguard: {head}", "",
              f"{fails} fail · {warns} warn · {len(report.errors)} error", ""]
+    lines += ['**Reviewed snapshot:** ' + safe(json.dumps(report.run_identity, sort_keys=True)), '',
+              '**Scope:** ' + safe(json.dumps(scope_counts(report), sort_keys=True)), '',
+              'Authenticated content results reused: ' + str(report.content.get('result_cache_hits', 0)) +
+              '; partial Jev grade checkpoints: ' + str(report.content.get('grade_cache_hits', 0)) + '.', '',
+              'Unchanged scopes have no new work; missing explanations preserve the original grade. '
+              'Source observations do not prove runtime behavior.', '']
     lines += _content_markdown(report.content)
     if report.usage:
         lines += ["### Jev input usage", "", "| Phase | Responses | Reported input tokens | Missing usage | State characters | Question characters |",
@@ -229,6 +263,16 @@ def markdown(report: Report) -> str:
                 lines.append(f"| {safe(phase)} / {safe(stage)} | {s['attempts']} | {s['request_bytes']} | {s['requests']} | {s['input_tokens']} | {s['usage_missing']} | {s['cache_hits']} | {s['budget_denials']} |")
         lines += ["", "Attempts and request bytes include retries and failed calls; cache hits send no request. "
                   "Bytes are not tokens or billing. Reported tokens may be incomplete if responses lack usage or requests fail.", ""]
+    for phase, usage in sorted(report.usage.items()):
+        if usage.get('explanations'):
+            lines += ['**' + safe(phase) + ' explanations:** ' + safe(json.dumps(usage['explanations'], sort_keys=True)), '']
+    limitations = [r for r in [*report.content.get('coverage', []), *report.code.get('coverage', [])]
+                   if r.get('explanation_status') == 'not_evaluated' or r.get('result_complete') is False]
+    if limitations:
+        lines += ['**Preserved grades with unfinished work:**', '']
+        lines += ['- ' + safe(json.dumps({k: r[k] for k in ('file', 'rule', 'reason', 'explanation_status', 'result_complete', 'probability') if k in r}, sort_keys=True))
+                  for r in limitations[:30]]
+        lines += ['']
     if report.errors:
         lines += ["### Errors", ""] + [f"- {safe(e, 300)}" for e in report.errors] + [""]
     if report.findings:
@@ -252,11 +296,14 @@ def markdown(report: Report) -> str:
 
 def as_json(report: Report) -> str:
     return json.dumps({
+        "status": status(report),
+        "scope": scope_counts(report),
         "failed": report.failed,
         "errors": report.errors,
         "findings": [f.to_dict() for f in report.findings],
         "notes": report.notes,
         "content": report.content,
+        "code": report.code,
         "usage": report.usage,
         "run_identity": report.run_identity,
         "diagnostics": _diagnostics(report),

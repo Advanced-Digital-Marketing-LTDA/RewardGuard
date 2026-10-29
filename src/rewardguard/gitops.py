@@ -7,16 +7,24 @@ from dataclasses import dataclass, field
 from .models import RewardGuardError
 
 
+def git_command(repo: str, *args: str) -> list[str]:
+    """Repository content/config cannot select executable helpers during object reads."""
+    options = ["git", "-C", repo, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
+    if args and args[0] in {"diff", "show"}:
+        args = (args[0], "--no-ext-diff", "--no-textconv", *args[1:])
+    return [*options, *args]
+
+
 def git(repo: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     # errors="replace": binary or non-UTF-8 files (images, fixtures) must not crash the check
-    proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, errors="replace")
+    proc = subprocess.run(git_command(repo, *args), capture_output=True, text=True, errors="replace")
     if check and proc.returncode != 0:
         raise RewardGuardError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc
 
 
 def rev_parse(repo: str, rev: str) -> str:
-    return git(repo, "rev-parse", "--verify", f"{rev}^{{commit}}").stdout.strip()
+    return git(repo, "rev-parse", "--verify", "--end-of-options", f"{rev}^{{commit}}").stdout.strip()
 
 
 def merge_base(repo: str, a: str, b: str) -> str:
@@ -40,7 +48,7 @@ def default_base(repo: str, fallback: str) -> str:
 
 def _commit_tree(repo: str, tree: str, parent: str | None, message: str) -> str:
     command = [
-        "git", "-C", repo,
+        *git_command(repo),
         "-c", "user.name=RewardGuard",
         "-c", "user.email=rewardguard@localhost",
         "commit-tree", tree,
@@ -61,7 +69,7 @@ def staged_snapshot(repo: str) -> tuple[str, str]:
         base = head.stdout.strip()
     else:
         empty = subprocess.run(
-            ["git", "-C", repo, "mktree"],
+            git_command(repo, "mktree"),
             input="", capture_output=True, text=True, errors="replace",
         )
         if empty.returncode != 0:
@@ -86,7 +94,7 @@ def show_file(repo: str, commit: str, path: str) -> str | None:
 
 def show_bytes(repo: str, commit: str, path: str) -> bytes:
     """Exact file contents, for copying files into a worktree."""
-    proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
+    proc = subprocess.run(git_command(repo, "show", f"{commit}:{path}"), capture_output=True)
     if proc.returncode != 0:
         raise RewardGuardError(f"git show {commit[:12]}:{path} failed: {proc.stderr.decode(errors='replace').strip()}")
     return proc.stdout
