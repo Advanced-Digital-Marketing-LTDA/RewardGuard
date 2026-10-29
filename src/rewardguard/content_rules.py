@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 import json
+import hashlib
 import re
 
 from .models import RewardGuardError
@@ -23,6 +24,9 @@ class ContentRule:
     conditional: frozenset[str] = frozenset()  # codes the contract names that no evidence path requires
     source_evidence: str = ""  # bounded literal subtype eligible for an L evidence alternative
     applies_when: str = ""  # positive subject/mechanism boundary, independent of defect presence
+    scope: str = "public_enabled"
+    revision: str = ""
+    artifact_types: frozenset[str] = frozenset({"page", "article", "product", "component", "metadata"})
     source_when: str = ""  # positive literal representation boundary, independent of correctness
 
 
@@ -200,7 +204,7 @@ def _rubric(data: dict, pack: dict, rule: dict, paths: tuple[frozenset[str], ...
         f"Bounded specialist review: {rule['haiku_skill']}\n"
         f"Rule: {rule['id']}\n"
         f"Source: {rule['haiku_skill_source']}\n"
-        f"Registry revision: {data.get('date', 'unrecorded')}; schema {data['schema_version']}. "
+        f"Focused rule schema {data['schema_version']}. "
         "The original skill subsection/version is not recorded here; do not infer current platform behavior from its age.\n\n"
         f"Defect predicate: {rule['defect']}\n"
         f"Focused specialist criterion: {rule['haiku_excerpt_focus']}\n"
@@ -240,6 +244,9 @@ def all_rules() -> list[ContentRule]:
         for item in pack["rules"]:
             paths = _evidence_paths(item)
             result.append(ContentRule(
+                scope=website_scope(pack["key"], paths),
+                revision=hashlib.sha256(json.dumps(item, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+                artifact_types=artifact_types(pack['key']),
                 id=item["id"],
                 pack=pack["key"],
                 statement=item["defect"],
@@ -259,3 +266,31 @@ def all_rules() -> list[ContentRule]:
 def pack_routes() -> dict[str, str]:
     """Return the artifact applicability instruction for each focused pack."""
     return {pack["key"]: pack["route"] for pack in catalog()["packs"]}
+
+
+# An explicit website scope map, independent of whether a catalog pack exists.
+# These signatures remain available for catalog audits, never automatically enabled.
+OUTSIDE_WEBSITE = frozenset({'research', 'briefs', 'seo_research', 'ads', 'email', 'sms',
+                              'sponsorship', 'comms', 'sales', 'reports', 'listings'})
+
+
+def website_scope(pack, paths):
+    if pack in OUTSIDE_WEBSITE:
+        return 'outside_website'
+    return 'adopted_policy_only' if all('P' in path for path in paths) else 'public_enabled'
+
+
+def artifact_types(pack):
+    if pack in OUTSIDE_WEBSITE:
+        return frozenset()
+    if pack in {'commerce', 'pricing', 'offers', 'comparisons'}:
+        return frozenset({'page', 'product', 'component'})
+    if pack in {'publishing'}:
+        return frozenset({'page', 'article'})
+    return frozenset({'page', 'article', 'product', 'component', 'metadata'})
+
+
+def inventory():
+    """Versioned inventory retaining all 243 canonical IDs and their scope."""
+    return [{'id': r.id, 'pack': r.pack, 'scope': r.scope, 'revision': r.revision,
+             'artifact_types': sorted(r.artifact_types)} for r in all_rules()]

@@ -1,0 +1,123 @@
+"""Authenticated final unit/rule results, with relative anchors and strict replay checks.
+
+The immutable records are their own recoverable index. No commit, path, release
+version, or wall-clock TTL is part of semantic identity. Provider request caches
+remain authoritative when a final record is absent or an explanation input changes.
+"""
+import json
+import math
+import os
+
+from . import explainer
+from .models import Finding, grade
+from .review_cache import ReviewCache
+from .content_publications import digest
+
+
+class ContentResults:
+    def __init__(self, cfg, repository, client=None):
+        key = getattr(getattr(client, 'cache', None), 'key', None)
+        key = key.decode() if isinstance(key, bytes) else os.environ.get('TYPESAFE_API_KEY')
+        self.cache = ReviewCache(key, cfg.api_url, cfg.cache_epoch, cfg.cache_max_age_seconds,
+                                 repository=repository, namespace='content-unit-results') if key else None
+        self.cfg = cfg
+        self.reason = 'signing_credential_unavailable' if not key else 'not_checked'
+
+    def body(self, state, rule):
+        from .content_review import BOUNDARY, ROUTING_BOUNDARY, FIELDS
+        return json.dumps({'revision': 'content-final-1', 'state': state,
+            'rule': rule.id, 'rule_revision': rule.revision, 'statement': rule.statement,
+            'model': self.cfg.model, 'endpoint': self.cfg.api_url,
+            'boundary': BOUNDARY, 'routing_boundary': ROUTING_BOUNDARY,
+            'scope': rule.scope, 'fields': FIELDS.get(rule.id, ('',))}, sort_keys=True).encode()
+
+    def explanation_identity(self, rule):
+        return digest({'revision': 'content-explanation-1', 'model': self.cfg.explainer_model,
+            'effort': self.cfg.explainer_effort, 'system': explainer.CONTENT_SYSTEM,
+            'instruction': explainer.CONTENT_INSTRUCTION, 'schema': explainer._schema(rule.id),
+            'rubric': rule.rubric, 'rule_revision': rule.revision})
+
+    def load(self, body, rule, unit, *, preserve_grade=False):
+        if self.cache is None:
+            return None
+        reasons = []
+        payload = self.cache.load(body, diagnostic=reasons.append)
+        self.reason = reasons[-1] if reasons else 'record_absent'
+        if payload is None:
+            return None
+        if not self._valid(payload, rule, unit):
+            self.cache.reject(body)
+            self.reason = 'invalid_completed_unit_result'
+            return None
+        if payload['findings'] and payload['explanation_identity'] != self.explanation_identity(rule):
+            self.reason = 'explanation_inputs_changed'
+            if preserve_grade:
+                # A changed explainer never clears a previously authenticated Jev grade.
+                # Cache-only scopes omit old details and disclose the explanation gap.
+                return {**payload, 'findings': [{**f, 'details': []} for f in payload['findings']],
+                        'explanation_stale': True}
+            return None
+        return payload
+
+    @staticmethod
+    def _valid(payload, rule, unit):
+        from .content_review import _ground_details
+        def probability(value):
+            return type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1
+        if (not isinstance(payload, dict) or set(payload) != {'coverage', 'findings', 'explanation_identity'}
+                or not isinstance(payload['coverage'], list) or not payload['coverage']
+                or not isinstance(payload['findings'], list)
+                or not isinstance(payload['explanation_identity'], str)):
+            return False
+        for row in payload['coverage']:
+            if (not isinstance(row, dict) or row.get('rule') != rule.id
+                    or not isinstance(row.get('status'), str) or row.get('status') not in {'evaluated', 'not_applicable', 'not_evaluated'}
+                    or any(k in row for k in ('file', 'line', 'unit'))):
+                return False
+            if row['status'] == 'evaluated' and not probability(row.get('probability')):
+                return False
+            if 'applicability' in row and not probability(row['applicability']):
+                return False
+        for finding in payload['findings']:
+            if (not isinstance(finding, dict) or set(finding) != {'rule', 'probability', 'message', 'details'}
+                    or finding['rule'] != rule.id or not probability(finding['probability'])
+                    or grade(finding['probability']) is None or not isinstance(finding['message'], str)
+                    or not isinstance(finding['details'], list)
+                    or not all(explainer._valid_detail(d) for d in finding['details'])):
+                return False
+            if _ground_details(finding['details'], unit['anchors']) != finding['details']:
+                return False
+            if not any(row['status'] == 'evaluated' and row['probability'] == finding['probability']
+                       for row in payload['coverage']):
+                return False
+        # A valid signed result must not silently lose a completed Jev warning/failure.
+        return sum(row['status'] == 'evaluated' and grade(row['probability']) is not None
+                   for row in payload['coverage']) == len(payload['findings'])
+
+    def save(self, body, rule, unit, coverage, findings):
+        if self.cache is None or not coverage:
+            return
+        def relative(detail):
+            return next(number for number, source in unit['line_map'].items()
+                        if source == detail['line'] and detail['code'].strip() in unit['anchors'][number].strip())
+        payload = {'coverage': [{k: v for k, v in row.items() if k not in {'file', 'line', 'unit'}} for row in coverage],
+            'findings': [{'rule': f.rule, 'probability': f.probability, 'message': f.message,
+                          'details': [{**d, 'line': relative(d)} for d in f.details or []]} for f in findings],
+            'explanation_identity': self.explanation_identity(rule)}
+        if self._valid(payload, rule, unit):
+            self.cache.save(body, payload)
+
+    @staticmethod
+    def restore(payload, result, path, unit):
+        result.result_cache_hits += 1
+        explanation = ({'explanation_status': 'not_evaluated', 'explanation_reused': False,
+                        'explanation_reason': 'Explanation inputs changed; authenticated Jev grade retained'}
+                       if payload.get('explanation_stale') else {})
+        if explanation:
+            result.notes.append('Content finding retained from authenticated Jev result; changed explanation inputs require a refreshed explanation.')
+        result.coverage.extend({**row, 'file': path, 'line': unit['line'], 'unit': unit['identity'], 'reused': True, **explanation}
+                               for row in payload['coverage'])
+        for f in payload['findings']:
+            details = [{**d, 'line': unit['line_map'][d['line']]} for d in f['details']]
+            result.findings.append(Finding(f['rule'], grade(f['probability']), f['message'], file=path,
+                line=details[0]['line'] if details else None, probability=f['probability'], source='content', details=details))

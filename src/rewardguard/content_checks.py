@@ -111,7 +111,7 @@ def build_checks(report: dict) -> list[dict]:
             raise ValueError(f"{field} must be an array of objects")
     for row in coverage:
         row_status = row.get("status")
-        if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable"}:
+        if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable", "unchanged"}:
             raise ValueError("unknown content coverage status")
         rule = row.get("rule")
         if rule is not None and (not isinstance(rule, str) or not RULE_ID.fullmatch(rule)):
@@ -147,6 +147,13 @@ def build_checks(report: dict) -> list[dict]:
                + "Coverage: " + (", ".join(f"{safe(k)}: {v}" for k, v in sorted(counts.items())) or "no coverage recorded")
                + ".\n\nClassification at p >= 0.60 enters review; it is not a defect score. "
                "Skipped and missing evidence scopes are unverified, never a clean content verdict.")
+    declarations = content.get('eligibility')
+    if isinstance(declarations, list):
+        summary = (f"Content status: {safe(status)}. Trusted publication eligibility: {len(declarations)} artifact(s).\n\n"
+                   "Eligibility is deterministic and has no model probability. "
+                   "Defects warn at 0.60 <= p < 0.80 and fail at p >= 0.80.\n\n"
+                   + "Coverage: " + (", ".join(f"{safe(k)}: {v}" for k, v in sorted(counts.items())) or "no coverage recorded")
+                   + ". Skipped and missing evidence scopes remain unverified.")
     for row in classifiers[:20]:
         summary += f"\n- {_scope(row)}; classification p={safe(row['probability'])}; {safe(row['status'])}"
     if len(classifiers) > 20:
@@ -159,7 +166,7 @@ def build_checks(report: dict) -> list[dict]:
     summary += f"\n\nSources: {source_summary(content.get('provenance', []))}"
     if content.get("omissions"):
         summary += f"\n\nCollection limits: {omission_summary(content['omissions'])}. Missing automatic discovery probes do not require repository setup."
-    for key in ("eligibility", "missing_sources", "reason"):
+    for key in ("missing_sources", "reason"):
         if key in content:
             summary += f"\n\n{safe(key)}: {safe(content[key])}"
     content_notes = [note for note in notes if "content" in note.lower()]

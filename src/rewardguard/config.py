@@ -99,9 +99,27 @@ def _default_content_context() -> dict[str, list[str]]:
     return {code: list(paths) for code, paths in DEFAULT_CONTENT_CONTEXT.items()}
 
 
+PUBLICATION_TYPES = frozenset({'page', 'article', 'product', 'component', 'metadata'})
+
+
+@dataclass(frozen=True)
+class Publication:
+    """Trusted declaration of a public artifact family; patterns never infer publication."""
+    id: str
+    sources: tuple[str, ...]
+    type: str
+    route: str
+    published: bool = True
+    drafts: bool = False
+    dependencies: tuple[str, ...] = ()
+    evidence: tuple[str, ...] = ()
+    fields: tuple[str, ...] = ()
+
+
 @dataclass
 class ContentConfig:
     enabled: bool = True
+    publications: list[Publication] = field(default_factory=list)
     include: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_INCLUDE))
     source_include: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_SOURCE_INCLUDE))
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_CONTENT_EXCLUDE))
@@ -182,10 +200,54 @@ def _optional_positive_int(section: dict, key: str) -> int | None:
     return value
 
 
+def _publications(raw: object) -> list[Publication]:
+    if not isinstance(raw, list):
+        raise RewardGuardError(f"{CONFIG_FILE}: content.publications must be an array of tables")
+    result = []
+    ids = set()
+    for item in raw:
+        if not isinstance(item, dict) or set(item) - set(Publication.__dataclass_fields__):
+            raise RewardGuardError(f"{CONFIG_FILE}: invalid content.publications fields")
+        identity, kind, route = (item.get(k) for k in ('id', 'type', 'route'))
+        if not isinstance(identity, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,80}', identity) or identity in ids:
+            raise RewardGuardError(f"{CONFIG_FILE}: content.publications needs unique stable id")
+        if not isinstance(kind, str) or kind not in PUBLICATION_TYPES:
+            raise RewardGuardError(f"{CONFIG_FILE}: invalid content.publications type")
+        if (not isinstance(route, str) or not route.startswith('/') or route.startswith('//')
+                or any(ord(c) < 32 for c in route) or re.search(r'[\\?#]|(?:^|/)\.\.(?:/|$)', route)
+                or '{' in route.replace('{stem}', '').replace('{path}', '')
+                or '}' in route.replace('{stem}', '').replace('{path}', '')):
+            raise RewardGuardError(f"{CONFIG_FILE}: content.publications route must be a local public route")
+        for flag in ('published', 'drafts'):
+            if flag in item and type(item[flag]) is not bool:
+                raise RewardGuardError(f"{CONFIG_FILE}: content.publications {flag} must be boolean")
+        values = {key: tuple(_content_list(item, key, [], scope='content.publications',
+                                         paths=key == 'sources'))
+                  for key in ('sources', 'dependencies', 'evidence', 'fields')}
+        if not values['sources'] or set(values['evidence']) - set(DEFAULT_CONTENT_CONTEXT):
+            raise RewardGuardError(f"{CONFIG_FILE}: content.publications requires sources and valid evidence codes")
+        if any(not re.fullmatch(r'[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@*-]+)*', field)
+               for field in values['fields']):
+            raise RewardGuardError(f"{CONFIG_FILE}: content.publications fields must be dotted JSON field paths")
+        result.append(Publication(identity, values.pop('sources'), kind, route,
+                                  item.get('published', True), item.get('drafts', False), **values))
+        ids.add(identity)
+    if any(set(p.dependencies) - ids for p in result):
+        raise RewardGuardError(f"{CONFIG_FILE}: unknown content.publications dependency")
+    def visit(identity, ancestors):
+        if identity in ancestors:
+            raise RewardGuardError(f"{CONFIG_FILE}: cyclic content.publications dependency")
+        for dep in next(p for p in result if p.id == identity).dependencies:
+            visit(dep, ancestors | {identity})
+    for p in result:
+        visit(p.id, set())
+    return result
+
+
 def _parse_content(section: object) -> ContentConfig:
     if not isinstance(section, dict):
         raise RewardGuardError(f"{CONFIG_FILE}: [content] must be a table")
-    allowed = {"enabled", "include", "source_include", "exclude", "evidence_exclude", "context", "packs"}
+    allowed = {"enabled", "include", "source_include", "exclude", "evidence_exclude", "context", "packs", "publications"}
     unknown = set(section) - allowed
     if unknown:
         raise RewardGuardError(f"{CONFIG_FILE}: unknown content setting '{min(unknown)}'")
@@ -204,6 +266,7 @@ def _parse_content(section: object) -> ContentConfig:
 
     return ContentConfig(
         enabled=enabled,
+        publications=_publications(section.get("publications", [])),
         include=_content_list(section, "include", DEFAULT_CONTENT_INCLUDE),
         source_include=_content_list(section, "source_include", DEFAULT_CONTENT_SOURCE_INCLUDE),
         exclude=_content_list(section, "exclude", DEFAULT_CONTENT_EXCLUDE),

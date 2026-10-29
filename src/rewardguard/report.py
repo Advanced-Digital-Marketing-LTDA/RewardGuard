@@ -145,6 +145,10 @@ def _content_markdown(content: dict) -> list[str]:
              f"{sum(r.get('status') == 'skipped' for r in classified)} skipped. "
              "Exactly **0.60** enters review. Defects warn at **0.60 ≤ p < 0.80** and fail at **p ≥ 0.80**.",
              "Skipped scopes and missing evidence are unverified; they do not claim a clean content review.", ""]
+    if isinstance(content.get('eligibility'), list):
+        lines[3] = (f"Trusted publication eligibility: {len(content['eligibility'])} artifact(s); "
+                    "determined locally without a probability. "
+                    "Defects warn at **0.60 ≤ p < 0.80** and fail at **p ≥ 0.80**.")
     packs = defaultdict(Counter)
     for row in coverage:
         if row.get("rule") and row.get("status") in ("evaluated", "not_evaluated"):

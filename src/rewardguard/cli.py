@@ -151,6 +151,7 @@ def check(args) -> int:
         rep.findings.extend(content.findings)
         rep.notes.extend(content.notes)
         rep.content = content.to_dict()
+        rep.errors.extend(content.errors)
     except RewardGuardError as e:
         rep.errors.append(f"Content review: {e}")
         rep.content = {"status": "error", "coverage": []}

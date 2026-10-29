@@ -19,7 +19,7 @@ def test_invalid_budgets_fail_config_validation(setting, value):
 
 def test_global_budget_spans_content_and_code_and_counts_cache_hits(tmp_path, monkeypatch):
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
-    cfg = config.parse('run_tests = false\n[judge]\nmax_attempts = 1\n')
+    cfg = config.parse('run_tests = false\n[judge]\nmax_attempts = 1\n[[content.publications]]\nid="page"\nsources=["page.md"]\ntype="page"\nroute="/"\n')
     usage, api = UsageTracker(), FakeJev()
     content = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='content', cache_namespace='shared-test')
     code = judge.JevClient(cfg, api_key='key', opener=api, usage=usage, phase='code', cache_namespace='shared-test')
@@ -138,7 +138,7 @@ def test_budget_exhaustion_fails_the_content_check(tmp_path, monkeypatch):
     git('init', '-q', '-b', 'main')
     git('config', 'user.name', 'Test')
     git('config', 'user.email', 'test@example.test')
-    (tmp_path / '.rewardguard.toml').write_text('run_tests = false\n[judge]\nmax_attempts = 1\n')
+    (tmp_path / '.rewardguard.toml').write_text('run_tests = false\n[judge]\nmax_attempts = 1\n[[content.publications]]\nid="page"\nsources=["page.md"]\ntype="page"\nroute="/"\n')
     (tmp_path / 'page.md').write_text('# Product\nOld promise.\n')
     git('add', '.')
     git('commit', '-qm', 'base')
