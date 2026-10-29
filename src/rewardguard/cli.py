@@ -13,6 +13,7 @@ from .models import CLEAR_CUT, FAIL, WARN, Finding, Report, RewardGuardError
 
 def _run_identity(args, *, base=None, head=None, policy=None, cfg=None) -> dict:
     """Record only fixed event labels, resolved object IDs and versioned model IDs."""
+    # Scope labels describe the report; they never decide which review paths run.
     events = {'pull_request', 'pull_request_target', 'push', 'workflow_dispatch',
               'workflow_call', 'schedule', 'merge_group', 'repository_dispatch'}
     actions = {'opened', 'synchronize', 'reopened', 'edited', 'closed', 'ready_for_review',

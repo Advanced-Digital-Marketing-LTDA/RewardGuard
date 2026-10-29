@@ -122,15 +122,27 @@ def test_publication_does_not_use_model_task_gate(repo):
     assert result.eligibility and all('probability' not in row for row in result.eligibility)
 
 
+def test_supported_publication_eligibility_does_not_depend_on_obsolete_classifier(repo):
+    changed = commit(repo, 'page.md', '# Produto\nÉ simples.\n')
+    client, haiku = Jev(content=.599), Haiku()
+    result = run(repo, changed, client, haiku)
+    assert result.status == 'reviewed'
+    assert client.calls and all('content_task' not in questions for _, questions in client.calls)
+    assert len(haiku.calls) == len(result.findings)
+
+
 def test_missing_context_is_not_evaluated(repo):
     changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
     client = Jev(pack='proof')
     result = run(repo, changed, client, Haiku(), ['proof'])
     rows = [c for c in result.coverage if c.get('rule') == 'CG_PRODUCT_FACT_CONFLICT']
-    assert [(row['line'], row['status']) for row in rows] == [(1, 'unchanged'), (2, 'not_evaluated')]
-    row = rows[1]
+    row = next(row for row in rows if row['line'] == 2)
+    assert row['status'] == 'not_evaluated'
     assert row['reason'] == 'Relevant check lacks explicitly bound supporting evidence'
     assert row['requires'] == [['B', 'D']] and row['available'] == ['D']
+    unchanged = next(row for row in rows if row['line'] == 1)
+    assert unchanged['status'] == 'unchanged'
+    assert len(rows) == 2
     assert result.findings == []
     assert not any('CG_PRODUCT_FACT_CONFLICT' in qs for _, qs in client.calls)
 
@@ -165,6 +177,18 @@ def test_unsupported_metadata_source_is_explicitly_not_evaluated(repo):
          'reason': 'No supported static public reader units'}]
 
 
+def test_supported_frontmatter_metadata_change_reaches_rule_applicability(repo):
+    changed = commit(repo, 'page.md', '---\ntitle: New product title\n---\n# Product\nBody text.\n')
+    cfg = public_config()
+    cfg.content.packs = ['metadata']
+    client = Jev()
+    engine().review(str(repo), git(repo, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD'),
+                    cfg, changed, client=client, haiku=Haiku(), log=lambda _: None)
+    assert client.calls
+    assert any('New product title' in state for state, _ in client.calls)
+    assert all('content_task' not in questions for _, questions in client.calls)
+
+
 def test_staged_snapshot_excludes_unstaged_copy(repo):
     (repo / 'page.md').write_text('# Product\nSTAGED public copy.\n')
     git(repo, 'add', 'page.md')
@@ -180,6 +204,7 @@ def test_staged_snapshot_excludes_unstaged_copy(repo):
 
 
 def test_malformed_probability_fails_closed(repo):
+    import argparse
     changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
     client, haiku = Jev(probability=float('nan')), Haiku()
     result = run(repo, changed, client, haiku)
@@ -187,6 +212,11 @@ def test_malformed_probability_fails_closed(repo):
     assert result.errors == ['Content judge returned an invalid probability for CG_INTERNAL_CONTRADICTION']
     assert result.findings == [] and haiku.calls == []
     assert not any(row.get('rule') == 'CG_INTERNAL_CONTRADICTION' and row['status'] == 'evaluated' for row in result.coverage)
+    from rewardguard import report, cli
+    from rewardguard.models import Report
+    rep = Report(content=result.to_dict(), findings=result.findings, errors=result.errors)
+    assert report.status(rep) == 'error'
+    assert cli._finish(rep, argparse.Namespace(require_complete=False, json=None, markdown=None)) == 2
 
 
 def test_content_only_cli_allows_code_only_commit_without_credentials(repo, tmp_path, monkeypatch):
@@ -283,9 +313,10 @@ def test_oversize_changed_line_is_incomplete_and_fails_required_ci(repo, tmp_pat
     ('src/page.tsx', 'export default () => <p>Continue</p>;\n'),
     ('public/page.html', '<meta name=robots content=noindex>\n'),
 ])
-def test_short_and_non_ascii_content_reaches_applicability(repo, path, text):
+@pytest.mark.parametrize('obsolete_probability', [.01, .599, .99])
+def test_short_and_non_ascii_content_reaches_applicability(repo, path, text, obsolete_probability):
     changed = commit(repo, path, text)
-    client = Jev(content=.1)
+    client = Jev(content=obsolete_probability)
     run(repo, changed, client, Haiku())
     assert client.calls
     assert set(client.calls[0][1]) == {'applies_CG_AMBIGUOUS_MEANING'}
