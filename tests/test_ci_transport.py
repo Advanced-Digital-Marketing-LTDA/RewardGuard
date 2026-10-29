@@ -160,3 +160,34 @@ def test_incomplete_low_probability_scope_cannot_publish_success():
         {'rule':'CG_TEST', 'file':'page.md', 'status':'evaluated', 'probability':.1, 'result_complete':False}]},
         'findings':[], 'notes':[]})
     assert next(c for c in checks if c['name'] == 'contentguard / CG_TEST')['conclusion'] == 'neutral'
+
+
+@pytest.mark.parametrize('advance_after', [0, 1])
+@pytest.mark.parametrize('checks', ['true', 'false'])
+def test_publisher_exposes_stale_state_after_fresh_preflight(tmp_path, monkeypatch, advance_after, checks):
+    from rewardguard import publisher
+    head = 'a'*40
+    output = tmp_path/'output'
+    target = tmp_path/'report.json'
+    target.write_text(json.dumps({'run_identity':{'head':head}, 'findings':[],
+        'content':{'status':'skipped','coverage':[]}, 'notes':[], 'errors':[]}))
+    class Client:
+        stale = False
+        writes = []
+        def get(self, path): return {'head':{'sha':'b'*40 if self.stale else head}}
+        def pages(self, *a): return []
+        def write(self, *args):
+            self.writes.append(args)
+            if len(self.writes) >= advance_after: self.stale = True
+    client = Client()
+    monkeypatch.setattr(publisher, 'Client', lambda repo: client)
+    monkeypatch.setenv('GITHUB_OUTPUT', str(output))
+    monkeypatch.setenv('RUNNER_TEMP', str(tmp_path))
+    arguments = ['--repo','o/r','--head',head,'--pr','29']
+    assert publisher.main([*arguments,'--preflight']) == 0
+    assert output.read_text() == 'state=current\n'
+    output.write_text('')
+    if advance_after == 0: client.stale = True
+    assert publisher.main([*arguments,'--report',str(target),'--checks',checks,'--comment','true']) == 0
+    assert output.read_text() == 'state=stale\n'
+    assert len(client.writes) == advance_after

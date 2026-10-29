@@ -299,3 +299,37 @@ def test_later_completed_grade_survives_checkpoint_and_move(setup, monkeypatch):
     assert [(r['instance'], r['probability']) for r in restored] == [('amount', .2), ('currency', .95)]
     assert all(r['result_complete'] is False for r in restored)
     assert restored[1]['explanation_status'] == 'not_evaluated'
+
+
+@pytest.mark.parametrize('probability,expected_exit', [(.1, 0), (.65, 3), (.85, 3)])
+def test_changed_explainer_cache_replay_has_truthful_required_ci_status(setup, tmp_path, probability, expected_exit):
+    import argparse
+    from rewardguard import cli, report, content_checks
+    from rewardguard.models import Report
+    repo, cfg, rules, api, calls, review = setup
+    for rule in rules:
+        api.rules[(rule.id, '')] = probability
+    review()
+    before = len(api.calls), len(calls)
+    base = git(repo, 'rev-parse', 'HEAD')
+    git(repo, 'mv', 'page.md', 'moved.md'); git(repo, 'commit', '-qm', 'move-only')
+    cfg.explainer_model = 'changed-explainer'
+    client = judge.JevClient(cfg, api_key='signing-key', opener=api, repository='test/repo', phase='content')
+    result = content_review.review(str(repo), base, 'HEAD', cfg,
+        gitops.changed_files(str(repo), base, 'HEAD'), client=client)
+    assert (len(api.calls), len(calls)) == before
+    rep = Report(findings=result.findings, errors=result.errors, content=result.to_dict())
+    target = tmp_path / 'report.json'
+    assert cli._finish(rep, argparse.Namespace(require_complete=True, json=str(target), markdown=None)) == expected_exit
+    data = json.loads(target.read_text())
+    assert data['errors'] == []
+    if probability >= .6:
+        assert data['status'] == 'incomplete'
+        assert len(data['findings']) == 4
+        assert all(f['probability'] == probability and not f['details'] for f in data['findings'])
+        assert all(r['explanation_status'] == 'not_evaluated' for r in data['content']['coverage'] if r['status'] == 'evaluated')
+        assert 'INCOMPLETE' in report.terminal(rep)
+        checks = content_checks.build_checks(data)
+        assert all('2 incomplete result(s)' in c['output']['summary'] for c in checks if c['name'].endswith(tuple(r.id for r in rules)))
+    else:
+        assert data['status'] == 'passed' and data['findings'] == []

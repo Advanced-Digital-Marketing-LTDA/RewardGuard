@@ -83,6 +83,7 @@ def status(report: Report) -> str:
         return 'error'
     rows = [*report.content.get('coverage', []), *report.code.get('coverage', [])]
     if any(r.get('status') in {'not_evaluated', 'error'} or r.get('result_complete') is False
+           or r.get('explanation_status') == 'not_evaluated'
            for r in rows):
         return 'incomplete'
     if report.failed:

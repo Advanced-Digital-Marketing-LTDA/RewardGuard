@@ -652,6 +652,8 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
     flagged: list[Flagged] = []
 
     def gap(rule, reason):
+        if cfg.severity(rule, 'warn') == 'off':
+            return
         notes.append(f"{rule} was not evaluated: {reason}")
         coverage.append({'rule': rule, 'status': 'not_evaluated', 'reason': reason})
 
@@ -718,7 +720,10 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
             try:
                 if 'scope_creep' not in _questions_for(chunk.kind):
                     continue
-                qs = {key: SOURCE_QUESTIONS[key] for key in ('scope_creep', 'test_hedging', 'limit_raised')}
+                qs = {key: SOURCE_QUESTIONS[key] for key in ('scope_creep', 'test_hedging', 'limit_raised')
+                      if cfg.severity(SOURCE_QUESTIONS[key][0], 'warn') != 'off'}
+                if not qs:
+                    continue
                 state = f"Quoted PR task context:\n{_desc(description, _context_limit(cfg))}\n\n{chunk.text}"
                 if len(state) > cfg.max_state_chars:
                     raise RewardGuardError('Complete scope context exceeds review state budget')
@@ -727,7 +732,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
                 errors.append(f"Scope {chunk.path}: {error}")
                 coverage.append({'file': chunk.path, 'rule': 'SCOPE_CREEP', 'status': 'error', 'reason': str(error)})
 
-    if ready and full_task_diff and chunks:
+    if ready and full_task_diff and chunks and cfg.severity('DESCRIPTION_OVERCLAIM', 'warn') != 'off':
         try:
             overclaim_chunks = list(chunks)
             complete = True

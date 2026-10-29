@@ -199,7 +199,8 @@ def build_checks(report: dict) -> list[dict]:
         # Every evaluated/finding score was validated before any presentation limits.
         scores = [float(row["probability"]) for row in evaluated + content_findings[rule]]
         peak = max(scores) if scores else None
-        incomplete = [r for r in rows if r.get('result_complete') is False]
+        incomplete = [r for r in rows if r.get('result_complete') is False
+                      or r.get('explanation_status') == 'not_evaluated']
         uncertain = bool(gaps or incomplete)
         conclusion = "neutral"
         if peak is not None and peak >= .8:

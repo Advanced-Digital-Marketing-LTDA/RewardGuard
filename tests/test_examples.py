@@ -329,3 +329,18 @@ def test_canary_evidence_outputs_expose_independent_failure_outcomes():
     for step in ('content_checks', 'review_upload'):
         assert 'always()' in steps[step]['if']
         assert steps[step]['continue-on-error'] is True
+
+
+@pytest.mark.parametrize('judge_exit,publication_state,expected_exit,expected_result', [
+    ('0','stale',3,'incomplete'), ('1','stale',1,'failed'), ('2','stale',2,'failed'),
+    ('3','stale',3,'incomplete'), ('0','published',0,'passed'), ('0','',2,'failed')])
+def test_action_requires_complete_publication_after_fresh_preflight(tmp_path, judge_exit, publication_state, expected_exit, expected_result):
+    final = next(s for s in _load('action.yml')['runs']['steps'] if s.get('id') == 'final_result')
+    output = tmp_path/'output'
+    outcome = subprocess.run(['bash','-euo','pipefail','-c',final['run']], capture_output=True, text=True,
+        env={**os.environ, 'GITHUB_OUTPUT':str(output), 'JUDGE_EXIT':judge_exit, 'FRESHNESS':'current',
+             'PUBLISH_ENABLED':'true', 'PUBLISH_OUTCOME':'success', 'PUBLISH_STATE':publication_state,
+             'EVIDENCE_OUTCOME':'success'})
+    assert outcome.returncode == expected_exit
+    assert output.read_text().splitlines()[-1] == 'result=' + expected_result
+    assert final['env']['PUBLISH_STATE'] == '${{ steps.content_checks.outputs.state }}'

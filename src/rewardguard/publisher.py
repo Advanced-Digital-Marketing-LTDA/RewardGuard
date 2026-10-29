@@ -77,7 +77,8 @@ def publish(client, data, head, *, pr=None, checks=True, comment=False):
                              {'body': 'Superseded RewardGuard report; see the current bot report in this PR.'}, 'PATCH')
         else:
             client.write(f'issues/{pr}/comments', {'body': body})
-    return 'published'
+    # Detect head movement during the final write as well as between writes.
+    return 'published' if current(client, head, pr) else 'stale'
 
 
 def main(argv=None):
@@ -96,12 +97,12 @@ def main(argv=None):
         client = Client(args.repo)
         if args.preflight:
             state = 'current' if current(client, args.head, args.pr) else 'stale'
-            if os.environ.get('GITHUB_OUTPUT'):
-                with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-                    output.write(f'state={state}\n')
         else:
             state = publish(client, content_checks.load_report(args.report), args.head, pr=args.pr,
                             checks=args.checks == 'true', comment=args.comment == 'true')
+        if os.environ.get('GITHUB_OUTPUT'):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                output.write(f'state={state}\n')
         print('RewardGuard publication: ' + state)
         return 0
     except (OSError, ValueError, TypeError, KeyError, RewardGuardError) as error:

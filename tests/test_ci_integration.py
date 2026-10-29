@@ -298,3 +298,34 @@ def test_limit_raised_requires_complete_task_context(history, description, compl
     else:
         assert dependent == []
         assert any(r['rule'] == 'LIMIT_RAISED' and r['status'] == 'not_evaluated' for r in result.coverage)
+
+
+@pytest.mark.parametrize('description,complete,full', [('', True, True), ('partial', False, True), ('task', True, False), ('task', True, True)])
+def test_disabled_intent_rules_do_not_create_required_gaps_or_requests(history, description, complete, full):
+    repo, base, _, head = history
+    disabled = ('SCOPE_CREEP', 'SPECULATIVE_TEST_HEDGING', 'DESCRIPTION_OVERCLAIM', 'LIMIT_RAISED')
+    cfg = config.parse('run_tests=false\n[rules]\n' + '\n'.join(f'{rule}="off"' for rule in disabled))
+    calls = []
+    class Jev:
+        def ask(self, state, questions):
+            calls.append(questions)
+            return {k:.1 for k in questions}
+    class Haiku:
+        def explain(self, *a, **kw): raise AssertionError('clean independent code')
+    result = judge.run(str(repo), base, head, cfg, gitops.changed_files(str(repo), base, head),
+        {'a.py':'source'}, description, Jev(), Haiku(), task_context_complete=complete, full_task_diff=full)
+    assert result.errors == [] and result.findings == []
+    assert not any(r.get('rule') in disabled for r in result.coverage)
+    assert not any(set(q) & {'scope_creep','test_hedging','overclaim','limit_raised'} for q in calls)
+    assert calls and report.status(Report(code={'coverage':result.coverage})) == 'passed'
+
+
+def test_one_enabled_intent_rule_keeps_its_missing_context_gap(history):
+    repo, base, _, head = history
+    cfg = config.parse('run_tests=false\n[rules]\nSCOPE_CREEP="off"\nSPECULATIVE_TEST_HEDGING="off"\nDESCRIPTION_OVERCLAIM="off"')
+    class Jev:
+        def ask(self, state, questions): return {k:.1 for k in questions}
+    result = judge.run(str(repo), base, head, cfg, gitops.changed_files(str(repo), base, head),
+        {'a.py':'source'}, '', Jev(), object())
+    assert [r['rule'] for r in result.coverage if r['status'] == 'not_evaluated'] == ['LIMIT_RAISED']
+    assert report.status(Report(code={'coverage':result.coverage})) == 'incomplete'
