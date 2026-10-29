@@ -129,6 +129,11 @@ class _HTML(HTMLParser):
             self.units.append(unit)
 
     def handle_starttag(self, tag, attrs):
+        raw = self.get_starttag_text()
+        spelling = re.match(r'<\s*([^\s/>]+)', raw)
+        if self.template and spelling and spelling.group(1)[:1].isupper():
+            self.limits.append(_limit(self.getpos()[0], 'Custom component requires resolved output'))
+            return
         if tag in _BLOCK_TAGS:
             self.flush()
         line = self.getpos()[0]
@@ -144,7 +149,6 @@ class _HTML(HTMLParser):
             self.script_type = attrs.get('type')
         if any(x in self.stack for x in ('style', 'script', 'noscript')):
             return
-        raw = self.get_starttag_text()
         if _DYNAMIC.search(raw) or tag[:1].isupper() or tag not in _HTML_TAGS:
             self.limits.append(_limit(line, 'Dynamic attributes or custom component require resolved output'))
         for name, value in attrs.items():

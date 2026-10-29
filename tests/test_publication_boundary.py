@@ -118,6 +118,25 @@ def test_h1_promise_rule_runs_on_heading_units(repo, monkeypatch):
                for state, questions in client.calls)
 
 
+def test_missing_required_fields_have_explicit_coverage(repo, monkeypatch):
+    from rewardguard import content_rules, content_evidence
+    page = repo / 'public/page.html'
+    page.parent.mkdir()
+    page.write_text('<title>Product</title><p>Body</p>')
+    git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'add title')
+    base = git(repo, 'rev-parse', 'HEAD')
+    page.write_text('<p>Body</p>')
+    git(repo, 'commit', '-qam', 'remove title')
+    ids = {'CG_META_EFFECTIVE_TITLE', 'CG_CANONICAL_REQUIRED_PRESENCE'}
+    rules = [r for r in content_rules.all_rules() if r.id in ids]
+    monkeypatch.setattr(content_rules, 'all_rules', lambda: rules)
+    monkeypatch.setattr(content_evidence, 'collect', lambda *a, **k: content_evidence.EvidenceBundle(available={'P'}))
+    result = content_review.review(str(repo), base, 'HEAD', cfg(), gitops.changed_files(str(repo), base, 'HEAD'),
+                                  client=object(), log=lambda _: None)
+    assert {r['rule'] for r in result.coverage if r['status'] == 'not_evaluated'} == ids
+    assert result.status == 'not_evaluated'
+
+
 def test_explicit_mapping_never_overrides_required_denials_or_symlinks(repo):
     from rewardguard.content_publications import manifest
     for path in ('README.md', 'Docs/private.md', 'public/.env', 'public/Tests/a.md', 'src/a.test.ts'):
@@ -139,6 +158,13 @@ def test_static_templates_exclude_implementation_and_dynamic_content(repo):
     assert 'Hello reader' in str(a['units']) and 'Useful image' in str(a['units'])
     assert 'internal words' not in str(a['units'])
     assert any(x['status'] == 'not_evaluated' for x in a['limitations'])
+
+
+def test_jsx_native_named_component_is_unresolved():
+    from rewardguard.content_publications import extract
+    p = config.Publication('page', ('page.tsx',), 'page', '/')
+    _, limits = extract('page.tsx', 'export default () => <Link href="/one">Reader copy</Link>;', p)
+    assert any('Custom component' in limit['reason'] for limit in limits)
 
 
 @pytest.mark.parametrize('fragment', ['id=""', 'type="email"', 'route="https://foreign.test"',

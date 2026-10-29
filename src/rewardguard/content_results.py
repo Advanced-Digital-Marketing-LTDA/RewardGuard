@@ -106,7 +106,7 @@ class ContentResults:
             'explanation_identity': self.explanation_identity(rule)}
 
     def save(self, body, rule, unit, coverage, findings):
-        if self.cache is None or not coverage:
+        if self.cache is None or not coverage or any(row.get('explanation_status') == 'not_evaluated' for row in coverage):
             return
         payload = self._payload(rule, unit, coverage, findings)
         if self._valid(payload, rule, unit):

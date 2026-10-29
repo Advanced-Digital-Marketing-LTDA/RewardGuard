@@ -219,6 +219,23 @@ def test_malformed_probability_fails_closed(repo):
     assert cli._finish(rep, argparse.Namespace(require_complete=False, json=None, markdown=None)) == 2
 
 
+def test_ungrounded_explanation_remains_incomplete(repo):
+    import argparse
+    from rewardguard import cli, report
+    from rewardguard.models import Report
+    class Ungrounded:
+        def explain_content(self, *args, **kwargs):
+            return []
+    changed = commit(repo, 'page.md', '# Product\nNew public copy.\n')
+    result = run(repo, changed, Jev(probability=.65), Ungrounded())
+    assert result.findings and all(not f.details for f in result.findings)
+    assert all(row['explanation_status'] == 'not_evaluated' for row in result.coverage
+               if row.get('probability') == .65)
+    rep = Report(content=result.to_dict(), findings=result.findings, errors=result.errors)
+    assert report.status(rep) == 'incomplete'
+    assert cli._finish(rep, argparse.Namespace(require_complete=True, json=None, markdown=None)) == 3
+
+
 def test_content_only_cli_allows_code_only_commit_without_credentials(repo, tmp_path, monkeypatch):
     from rewardguard import cli
     commit(repo, 'src/math.ts', 'export const value = 42;\n')

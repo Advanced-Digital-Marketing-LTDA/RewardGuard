@@ -341,6 +341,14 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
         if not artifact['units']:
             result.coverage.append({'file': cf.path, 'status': 'not_evaluated',
                                     'reason': 'No supported static public reader units'})
+        for rule in rules:
+            if rule.id not in {'CG_META_EFFECTIVE_TITLE', 'CG_CANONICAL_REQUIRED_PRESENCE'} or artifact['type'] not in rule.artifact_types:
+                continue
+            kinds = RULE_KINDS.get(rule.id, KIND_PACKS.get(rule.pack))
+            if not any(unit['kind'] in kinds for unit in artifact['units']):
+                status = 'not_applicable' if rule.scope == 'adopted_policy_only' and 'P' not in bundle.available else 'not_evaluated'
+                result.coverage.append({**_rule_row(rule, cf), 'status': status,
+                    'reason': 'No applicable field was extracted; required presence is unverified'})
         for unit in artifact['units']:
             for rule in rules:
                 if artifact['type'] not in rule.artifact_types:
@@ -456,8 +464,9 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                                                   anchors=unit['anchors']), unit['anchors'])
                         finding.details = [{**detail, 'line': unit['line_map'][detail['line']]} for detail in details]
                         finding.line = finding.details[0]['line'] if finding.details else None
-                        result.coverage[-1]['explanation_status'] = 'completed'
-                        result.coverage[-1].pop('explanation_reason', None)
+                        if details:
+                            result.coverage[-1]['explanation_status'] = 'completed'
+                            result.coverage[-1].pop('explanation_reason', None)
                         completed.checkpoint(cache_body, rule, unit, result.coverage[coverage_start:], result.findings[findings_start:])
                 except RewardGuardError as exc:
                     result.errors.append(str(exc))
