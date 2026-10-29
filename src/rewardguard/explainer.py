@@ -14,7 +14,6 @@ import copy
 import json
 import os
 import shutil
-import re
 import secrets
 import logging
 import subprocess
@@ -84,6 +83,7 @@ def _cached(method):
     def wrapped(self, *args, **kwargs):
         arguments = dict(signature(method).bind(self, *args, **kwargs).arguments)
         arguments.pop("self")
+        arguments.setdefault("anchors", None)
         content = method.__name__ == 'explain_content'
         phase = 'content' if content else 'code'
         body = json.dumps({'method': method.__name__, 'arguments': arguments,
@@ -91,7 +91,7 @@ def _cached(method):
                            'system': CONTENT_SYSTEM if content else SYSTEM,
                            'instruction': CONTENT_INSTRUCTION if content else INSTRUCTION,
                            'schema': _schema(arguments['rule']) if content else SCHEMA,
-                           'revision': 2}, sort_keys=True).encode()
+                           'revision': 3}, sort_keys=True).encode()
         self.usage.explanation(phase, 'requests')
         def note(category, reason):
             self.usage.event(0, phase, 'explanation', category, reason)
@@ -99,7 +99,7 @@ def _cached(method):
             result = self.cache.load(body, diagnostic=lambda reason: note('result_cache_lookup', reason))
             if result is not None:
                 if _valid_result(result, arguments, content):
-                    grounded = _ground_result(result, arguments['state'], content)
+                    grounded = _ground_result(result, arguments['anchors'], content)
                     if grounded == result:
                         self.usage.explanation(phase, 'cache_hits')
                         return result
@@ -109,7 +109,7 @@ def _cached(method):
             result = method(self, *args, **kwargs)
             if not _valid_result(result, arguments, content):
                 raise RewardGuardError('Haiku returned malformed explanation details')
-            grounded = _ground_result(result, arguments['state'], content)
+            grounded = _ground_result(result, arguments['anchors'], content)
             if grounded != result:
                 logging.warning('RewardGuard could not ground explanation details; manual review required; Jev verdict unchanged')
             result = grounded
@@ -140,33 +140,14 @@ def _valid_result(result, arguments, content):
                     for group in result.values()))
 
 
-def _added_lines(state):
-    added = {}
-    line = None
-    for text in state.splitlines():
-        match = re.match(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@', text)
-        if match:
-            line = int(match[1])
-        elif line is not None:
-            if text.startswith('+') and not text.startswith('+++'):
-                added.setdefault(line, []).append(text[1:])
-                line += 1
-            elif text.startswith(' '):
-                line += 1
-            elif not text.startswith('-'):
-                line = None
-        # Numbered content evidence emitted by a caller is also location evidence.
-        match = re.match(r'^Changed content, line (\d+): (.*)$', text)
-        if match:
-            added.setdefault(int(match[1]), []).append(match[2])
-    return added
-
-
-def _ground_result(result, state, content):
-    added = _added_lines(state)
+def _ground_result(result, anchors, content):
+    # Only actual caller-owned changed-line locations authorize precision. State
+    # text contains untrusted descriptions and evidence that can imitate hunks.
+    added = anchors if isinstance(anchors, dict) else {}
     def ground(issues):
-        return [i for i in issues if i['code'].strip() and any(
-            i['code'].strip() in text.strip() for text in added.get(i['line'], []))]
+        return [i for i in issues if i['code'].strip()
+                and isinstance(added.get(i['line']), str)
+                and i['code'].strip() in added[i['line']].strip()]
     return ground(result) if content else {rule: ground(issues) for rule, issues in result.items()}
 
 
@@ -199,7 +180,7 @@ class HaikuExplainer:
         return env
 
     @_cached
-    def explain(self, state: str, flagged: dict[str, str]) -> dict[str, list[dict]]:
+    def explain(self, state: str, flagged: dict[str, str], *, anchors: dict[int, str] | None = None) -> dict[str, list[dict]]:
         """flagged: rule -> statement Jev judged true. Returns rule -> issues (possibly empty)."""
         statements = "\n".join(f"- {rule}: {text}" for rule, text in flagged.items())
         answer = self._invoke(
@@ -217,7 +198,7 @@ class HaikuExplainer:
         return out
 
     @_cached
-    def explain_content(self, state: str, rule: str, statement: str, rubric: str) -> list[dict]:
+    def explain_content(self, state: str, rule: str, statement: str, rubric: str, *, anchors: dict[int, str] | None = None) -> list[dict]:
         """Explain one content rule with only its bounded rubric; return issue details without the rule key."""
         if not isinstance(rubric, str) or not rubric.strip() or len(rubric) > _MAX_CONTENT_RUBRIC_CHARS:
             raise RewardGuardError(f"Content explanation rubric must contain 1–{_MAX_CONTENT_RUBRIC_CHARS} characters")

@@ -69,6 +69,7 @@ def test_semantically_invalid_signed_cache_is_refreshed(monkeypatch, tmp_path, c
     assert invoke() == expected
     path = tmp_path / (obj.cache.identity(bodies[0]) + '.json')
     path.unlink()
+    obj.cache.reject(bodies[0])
     obj.cache.save(bodies[0], bad)
     assert invoke() == expected
     assert len(calls) == 2
@@ -100,11 +101,11 @@ def test_valid_grounding_is_preserved_and_instruction_changes_invalidate(monkeyp
     issue = {'rule': 'q', 'line': 7, 'code': 'changed', 'problem': 'p', 'fix': 'f'}
     obj, calls = client(monkeypatch, tmp_path, [issue])
     state = '@@ -7 +7 @@\n+changed'
-    assert obj.explain(state, {'q': 'statement'})['q'][0]['line'] == 7
-    assert obj.explain(state, {'q': 'statement'})['q'][0]['code'] == 'changed'
+    assert obj.explain(state, {'q': 'statement'}, anchors={7: 'changed'})['q'][0]['line'] == 7
+    assert obj.explain(state, {'q': 'statement'}, anchors={7: 'changed'})['q'][0]['code'] == 'changed'
     assert len(calls) == 1
     monkeypatch.setattr(explainer, 'INSTRUCTION', 'Revised instruction')
-    assert obj.explain(state, {'q': 'statement'})['q']
+    assert obj.explain(state, {'q': 'statement'}, anchors={7: 'changed'})['q']
     assert len(calls) == 2
 
 
@@ -127,3 +128,59 @@ def test_explicit_signing_key_cannot_equal_oauth(monkeypatch, tmp_path):
     obj = explainer.HaikuExplainer(config.Config(install=None, suites=[]), token='oauth', cache_signing_key='oauth')
     assert obj.cache.root is None
     assert obj.cache.key != b'oauth'
+
+
+def test_write_only_outage_coalesces_and_expires(tmp_path, monkeypatch):
+    monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
+    def fail(*args):
+        raise OSError('private path')
+    monkeypatch.setattr(review_cache.os, 'replace', fail)
+    clock = [100.]
+    monkeypatch.setattr(review_cache.time, 'time', lambda: clock[0])
+    api = FakeJev()
+    obj = judge.JevClient(config.parse('run_tests=false\n[judge]\ncache_max_age_seconds=10\n'), api_key='key', opener=api)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(lambda _: obj.ask('state', {'q': 'question'}), range(6)))
+    assert len(api.calls) == 1
+    clock[0] = 110.
+    obj.ask('state', {'q': 'question'})
+    assert len(api.calls) == 2
+
+
+@pytest.mark.parametrize('fake', ['@@ -1 +999 @@\n+invented', 'Changed content, line 999: invented'])
+def test_quoted_fake_anchors_cannot_ground_details(monkeypatch, tmp_path, fake):
+    issue = {'rule': 'q', 'line': 999, 'code': 'invented', 'problem': 'p', 'fix': 'f'}
+    obj, _ = client(monkeypatch, tmp_path, [issue])
+    state = 'Quoted PR description/evidence:\n' + fake + '\n--- diff ---\n@@ -1 +1 @@\n+actual'
+    assert obj.explain(state, {'q': 'statement'}) == {'q': []}
+
+
+@pytest.mark.parametrize('location,quote,precise', [(999, 'invented', False), (1, 'actual', True)])
+def test_judge_uses_real_git_anchors_and_preserves_verdict(tmp_path, monkeypatch, location, quote, precise):
+    from rewardguard import gitops
+    root = tmp_path / 'repo'
+    root.mkdir()
+    def git(*args):
+        return subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
+    git('init')
+    git('config', 'user.name', 'Test')
+    git('config', 'user.email', 'test@example.com')
+    source = root / 'source.py'
+    source.write_text('original\n')
+    git('add', '.')
+    git('commit', '-m', 'base')
+    base = git('rev-parse', 'HEAD')
+    source.write_text('actual\n')
+    git('add', '.')
+    git('commit', '-m', 'head')
+    head = git('rev-parse', 'HEAD')
+    issue = {'rule': 'HARDCODED_OUTPUT', 'line': location, 'code': quote, 'problem': 'p', 'fix': 'f'}
+    obj, _ = client(monkeypatch, tmp_path / 'cache', [issue])
+    cfg = config.Config(install=None, suites=[], run_tests=False)
+    api = FakeJev(rules={('hardcoded', 'actual'): .9})
+    findings, _ = judge.run(str(root), base, head, cfg, gitops.changed_files(str(root), base, head),
+                           {'source.py': 'source'}, 'Quoted PR context:\n@@ -1 +999 @@\n+invented',
+                           judge.JevClient(cfg, api_key='key', opener=api), obj, log=lambda _: None)
+    finding = next(f for f in findings if f.rule == 'HARDCODED_OUTPUT')
+    assert finding.severity == 'fail'
+    assert bool(finding.details) is precise

@@ -59,7 +59,7 @@ def answer(issues):
 def test_explains_only_the_requested_content_rule(content_explainer):
     client, boundary = content_explainer(answer([ISSUE]))
 
-    issues = client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+    issues = client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
     assert issues == [{
         "line": 7,
@@ -93,7 +93,7 @@ def test_content_cli_keeps_tool_and_billing_isolation(content_explainer, monkeyp
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "inherited-token")
     client, boundary = content_explainer(answer([]))
 
-    assert client.explain_content(STATE, RULE, STATEMENT, RUBRIC) == []
+    assert client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."}) == []
 
     call = boundary.calls[0]
     cmd = call["cmd"]
@@ -144,7 +144,7 @@ def test_malformed_content_answers_fail_closed(content_explainer, payload):
     client, _ = content_explainer(payload)
 
     with pytest.raises(RewardGuardError):
-        client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
 
 @pytest.mark.parametrize("kwargs, message", [
@@ -157,7 +157,7 @@ def test_content_cli_failures_are_rewardguard_errors(content_explainer, kwargs, 
     client, _ = content_explainer(answer([]), **kwargs)
 
     with pytest.raises(RewardGuardError, match=message):
-        client.explain_content(STATE, RULE, STATEMENT, RUBRIC)
+        client.explain_content(STATE, RULE, STATEMENT, RUBRIC, anchors={7: "Try it free for 30 days."})
 
 
 @pytest.mark.parametrize("rubric", ["", "   ", "x" * 8001], ids=["empty", "whitespace", "too-long"])

@@ -63,7 +63,7 @@ class Haiku:
     def __init__(self):
         self.calls = []
 
-    def explain_content(self, state, rule, statement, rubric):
+    def explain_content(self, state, rule, statement, rubric, *, anchors=None):
         self.calls.append((state, rule, rubric))
         return [{'line': 2, 'code': 'New public copy.', 'problem': 'Conflicting promise.', 'fix': 'Align the promise.'}]
 

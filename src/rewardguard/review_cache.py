@@ -200,7 +200,7 @@ class ReviewCache:
             return result
         except FileNotFoundError:
             note('not_found_or_identity_changed')
-            return None
+            return self._local(body, note)
         except OSError:
             note('read_failed')
             logging.warning("RewardGuard could not read or validate a cache entry; reviewing again")

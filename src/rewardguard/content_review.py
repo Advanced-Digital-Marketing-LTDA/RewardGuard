@@ -377,7 +377,7 @@ def review(repo: str, base: str, head: str, cfg: Config, changed, description=''
                     rubric = focused_rubric(rule, skill, instance, cat)
                     if m['source_only']:
                         rubric += '\nEvaluate only the literal source subtype: ' + rule.source_evidence
-                    details = _ground_details(haiku.explain_content(state, rule.id, statement, rubric), added)
+                    details = _ground_details(haiku.explain_content(state, rule.id, statement, rubric, anchors=added), added)
                     line = details[0]['line'] if details else None
                     finding = Finding(rule.id, severity, 'Jev: ' + rule.statement + (f' [{instance}]' if instance else ''),
                                       file=cf.path, line=line, source='content', probability=probability, details=details)

@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import gitops
 from .config import Config
@@ -212,6 +212,7 @@ class Chunk:
     first_line: int | None
     body: str = ""  # the diff part of text, without the header
     key_lines: int = 0  # lines hidden because they sit inside a private-key block
+    anchors: dict[int, str] = field(default_factory=dict)
 
 
 def _questions_for(kind: str) -> dict[str, tuple[str, str]]:
@@ -275,8 +276,15 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
     buf, first = "", None
     hunks = gitops.file_hunks(repo, base, head, cf.path, cfg.context_lines, cf.old_path)
     pieces: list[tuple[str, int, int]] = []  # (text, first line, key-block lines hidden)
+    actual_added = {}
     for h in hunks:
         lines, hidden = _redact_lines(h.lines)
+        new_line = h.new_start
+        for row in lines:
+            if row.startswith('+'):
+                actual_added[new_line] = row[1:]
+            if not row.startswith('-'):
+                new_line += 1
         text = "\n".join([h.header, *lines])
         if len(text) <= piece_budget:
             pieces.append((text, h.new_start, hidden))
@@ -300,6 +308,13 @@ def _file_chunks(repo: str, base: str, head: str, cfg: Config, cf: gitops.Change
         hidden_in_buf += hidden
     if buf:
         chunks.append(Chunk(cf.path, kind, header + buf, first, buf, hidden_in_buf))
+    for index, chunk in enumerate(chunks):
+        following = chunks[index + 1].first_line if index + 1 < len(chunks) else None
+        rows = set(chunk.body.splitlines())
+        chunk.anchors = {line: text for line, text in actual_added.items()
+                         if (chunk.first_line is None or line >= chunk.first_line)
+                         and (following is None or line < following)
+                         and '+' + text in rows}
     if any(len(chunk.text) > cfg.max_state_chars for chunk in chunks):
         raise RewardGuardError("An oversized complete diff line plus PR context exceeds the review state budget; "
                                "supply concise context or increase judge.max_state_chars.")
@@ -474,7 +489,7 @@ def _finding(cfg: Config, rule: str, p: float, message: str, **kw) -> Finding | 
 
 
 # (state, findings, rule -> statement): one Haiku call per entry
-Flagged = tuple[str, list[Finding], dict[str, str]]
+Flagged = tuple[str, list[Finding], dict[str, str], dict[int, str]]
 
 
 def _description_check(cfg: Config, chunks: list[Chunk], description: str, client: JevClient,
@@ -491,7 +506,7 @@ def _description_check(cfg: Config, chunks: list[Chunk], description: str, clien
         return None
     p = client.ask(state, {"overclaim": OVERCLAIM + EVIDENCE_NOTE})["overclaim"]
     f = _finding(cfg, "DESCRIPTION_OVERCLAIM", p, "Jev: " + SUMMARY["DESCRIPTION_OVERCLAIM"])
-    return (state, [f], {"DESCRIPTION_OVERCLAIM": OVERCLAIM}) if f else None
+    return (state, [f], {"DESCRIPTION_OVERCLAIM": OVERCLAIM}, {}) if f else None
 
 
 def _confirm_statement(f: Finding) -> str:
@@ -555,21 +570,21 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
             by_chunk[id(target)] = []
         by_chunk[id(target)].append(f)
 
-    jobs: list[tuple[str, list[Finding]]] = [(c.text, by_chunk[id(c)]) for c in chunk_list]
+    jobs = [(c.text, by_chunk[id(c)], c.anchors) for c in chunk_list]
     if repo_level:
-        jobs.append((_repo_state(chunks, changed, description, cfg.max_state_chars - 4000, notes), repo_level))
+        jobs.append((_repo_state(chunks, changed, description, cfg.max_state_chars - 4000, notes), repo_level, {}))
 
     def ask(job):
-        state, fs = job
+        state, fs, anchors = job
         answers = client.ask(state, {f"confirm_{i}": _confirm_statement(f) + EVIDENCE_NOTE for i, f in enumerate(fs)})
-        return state, fs, answers
+        return state, fs, answers, anchors
 
     with ThreadPoolExecutor(max_workers=max(1, cfg.concurrency)) as pool:
         results = list(pool.map(ask, jobs))
 
     out: list[Finding] = []
     flagged: list[Flagged] = []
-    for state, fs, answers in results:
+    for state, fs, answers, anchors in results:
         kept, statements = [], {}
         for i, f in enumerate(fs):
             p = answers[f"confirm_{i}"]
@@ -581,7 +596,7 @@ def confirm(repo: str, base: str, head: str, cfg: Config, changed: list[gitops.C
             statements.setdefault(f.rule, _confirm_statement(f))
         out.extend(kept)
         if kept:
-            flagged.append((state, kept, statements))
+            flagged.append((state, kept, statements, anchors))
     return out, flagged
 
 
@@ -643,7 +658,7 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
                 chunk_findings.append(f)
                 statements[rule] = statement
         if chunk_findings:
-            flagged.append((chunk.text, chunk_findings, statements))
+            flagged.append((chunk.text, chunk_findings, statements, chunk.anchors))
 
     desc = None
     if intent_context_ready and full_task_diff and chunks:
@@ -680,8 +695,8 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
     log(f"  {len(flagged)} flagged chunk(s) to explain")
 
     def explain(item: Flagged):
-        state, chunk_findings, statements = item
-        details = explainer.explain(state, statements)
+        state, chunk_findings, statements, anchors = item
+        details = explainer.explain(state, statements, anchors=anchors)
         for f in chunk_findings:
             f.details = details[f.rule]
 
