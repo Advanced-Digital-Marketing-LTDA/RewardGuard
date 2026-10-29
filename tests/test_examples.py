@@ -302,3 +302,16 @@ def test_wiring_requires_pinned_tools_freshness_and_authenticated_test_transport
         assert 'default_branch' in wf['jobs']['rewardguard-base']['if']
         assert 'edited' in _triggers(wf)['pull_request']['types']
         assert _triggers(wf)['push']['branches'] == ['main']
+
+
+def test_action_preserves_incomplete_outcome_and_fails_job(tmp_path):
+    steps = _load('action.yml')['runs']['steps']
+    check = next(s for s in steps if s.get('id') == 'check')
+    assert '--require-complete' in check['run']
+    final = next(s for s in steps if s.get('id') == 'final_result')
+    output = tmp_path/'output'
+    result = subprocess.run(['bash', '-euo', 'pipefail', '-c', final['run']], capture_output=True, text=True,
+        env={**os.environ, 'JUDGE_EXIT':'3', 'FRESHNESS':'current', 'PUBLISH_OUTCOME':'success',
+             'PUBLISH_ENABLED':'true', 'EVIDENCE_OUTCOME':'success', 'GITHUB_OUTPUT':str(output)})
+    assert result.returncode == 3
+    assert output.read_text().splitlines()[-1] == 'result=incomplete'

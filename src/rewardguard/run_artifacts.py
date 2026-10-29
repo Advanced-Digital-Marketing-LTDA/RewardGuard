@@ -40,7 +40,8 @@ def validate_results(data, expected):
         if not isinstance(f, dict) or not {'rule', 'severity', 'source', 'message'} <= set(f):
             raise RewardGuardError('Run results hold a malformed finding')
         if (not isinstance(f, dict) or set(f) - {'rule', 'severity', 'source', 'message', 'file', 'line', 'evidence'}
-                or f.get('rule') not in RUN_RULES or f.get('severity') not in {'warn', 'fail'} or f.get('source') != 'run'
+                or not isinstance(f.get('rule'), str) or f['rule'] not in RUN_RULES
+                or not isinstance(f.get('severity'), str) or f['severity'] not in {'warn', 'fail'} or f.get('source') != 'run'
                 or not isinstance(f.get('message'), str) or len(f['message']) > 100000):
             raise RewardGuardError('Run results hold an invalid finding schema/rule')
         for key in ('file', 'evidence'):

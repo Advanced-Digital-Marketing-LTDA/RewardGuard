@@ -156,7 +156,7 @@ def test_expected_justification_failure_retains_score(history, monkeypatch):
             return {key: .9 if key == 'expected_changed' else .1 for key in questions}
     class Haiku:
         def explain(self, state, statements, **kw): return {key: [] for key in statements}
-    result = judge.run(str(repo), base, head, cfg, [], {'a.test.js':'test', 'code.js':'source'}, '', Jev(), Haiku())
+    result = judge.run(str(repo), base, head, cfg, [], {'a.test.js':'test', 'code.js':'source'}, 'complete task', Jev(), Haiku())
     assert any(f.rule == 'EXPECTED_VALUE_CHANGED' and f.probability == .9 for f in result.findings)
     assert any('justification unavailable' in e for e in result.errors)
 
@@ -177,3 +177,58 @@ def test_completed_confirmation_survives_later_confirmation_failure(history, mon
                                            Finding('TYPE_ESCAPE', 'warn', 'later', file='later.js')], [], errors, coverage)
     assert len(findings) == 1 and findings[0].file == 'first.js' and findings[0].probability == .9
     assert errors and any(r['status'] == 'error' for r in coverage)
+
+
+def test_ci_required_completeness_returns_nonzero_with_no_fake_error(tmp_path):
+    rep = Report(content={'status': 'reviewed', 'coverage': [{'status': 'not_evaluated', 'reason': 'required source absent'}]})
+    args = argparse.Namespace(markdown=None, json=str(tmp_path/'report.json'), require_complete=True)
+    assert cli._finish(rep, args) == 3
+    data = json.loads((tmp_path/'report.json').read_text())
+    assert data['status'] == 'incomplete' and data['errors'] == []
+
+
+def test_incomplete_task_context_cannot_suppress_expected_value_grade(history, monkeypatch):
+    repo, base, _, head = history
+    cfg = config.parse('run_tests = false\n')
+    monkeypatch.setattr(judge, 'build_chunks', lambda *a: [judge.Chunk('a.test.js', 'test', 'test', 1, 'diff')])
+    calls = []
+    class Jev:
+        def ask(self, state, questions):
+            calls.append(questions)
+            return {key: .99 if key == 'justified' else .9 if key == 'expected_changed' else .1 for key in questions}
+    class Haiku:
+        def explain(self, state, statements, **kw): return {key: [] for key in statements}
+    result = judge.run(str(repo), base, head, cfg, [], {'a.test.js':'test', 'code.js':'source'},
+                       'partial task fragment', Jev(), Haiku(), task_context_complete=False)
+    assert any(f.rule == 'EXPECTED_VALUE_CHANGED' and f.probability == .9 for f in result.findings)
+    assert not any('justified' in q for q in calls)
+    assert any(r.get('stage') == 'justification' and r['status'] == 'not_evaluated' for r in result.coverage)
+
+
+def test_malformed_artifact_preserves_earlier_content_findings(history, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from rewardguard import content_review, run_artifacts
+    repo, base, _, head = history
+    cfg = config.parse('run_tests = false\n')
+    cfg.run_tests = True
+    def resolve(repo, args):
+        args.config_base = base
+        return base, head, cfg
+    monkeypatch.setattr(cli, '_resolve', resolve)
+    finding = Finding('CG_TEST', 'fail', 'completed content finding', source='content', probability=.9)
+    monkeypatch.setattr(content_review, 'review', lambda *a, **kw: SimpleNamespace(
+        findings=[finding], notes=[], errors=[], to_dict=lambda: {'status':'reviewed', 'coverage':[]}))
+    monkeypatch.setattr(cli.static_checks, 'run', lambda *a: ([], {}))
+    monkeypatch.setattr(cli.judge, 'JevClient', lambda *a, **kw: SimpleNamespace(cache_hits=0, models_seen=[]))
+    monkeypatch.setattr(cli.explainer, 'HaikuExplainer', lambda *a, **kw: object())
+    monkeypatch.setattr(cli.judge, 'run', lambda *a, **kw: judge.JudgeResult())
+    def invalid(*a):
+        return run_artifacts.validate_results({'findings': [{'rule': [], 'severity': 'fail', 'source':'run', 'message':'malformed'}], 'errors': []}, {})
+    monkeypatch.setattr(run_artifacts, 'load_authenticated', invalid)
+    target = tmp_path/'retained.json'
+    markdown = tmp_path/'retained.md'
+    assert cli.main(['check', '--repo', str(repo), '--test-artifact', '--json', str(target), '--markdown', str(markdown)]) == 2
+    data = json.loads(target.read_text())
+    assert data['findings'][0]['probability'] == .9
+    assert any('artifact' in e for e in data['errors'])
+    assert 'completed content finding' in markdown.read_text()

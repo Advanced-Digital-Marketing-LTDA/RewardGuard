@@ -68,7 +68,7 @@ outputs:
     description: Uploaded report archive digest; does not prove model correctness.
     value: ${{ steps.review_upload.outputs.artifact-digest }}
   result:
-    description: '"passed" or "failed" (check mode)'
+    description: '"passed", "failed", "incomplete" or "skipped" (check mode)'
     value: ${{ steps.final_result.outputs.result }}
 
 runs:
@@ -313,7 +313,7 @@ runs:
         fi
         rm -f "$RUNNER_TEMP/rewardguard.md" "$RUNNER_TEMP/rewardguard.json"
         set +e
-        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --no-local-tests "${results[@]}" \
+        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --no-local-tests --require-complete "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e
@@ -322,7 +322,11 @@ runs:
         else
           echo "::error::RewardGuard produced no Markdown report; inspect the judge error above."
         fi
-        if [ $code -eq 0 ]; then echo "result=passed" >> "$GITHUB_OUTPUT"; else echo "result=failed" >> "$GITHUB_OUTPUT"; fi
+        case "$code" in
+          0) echo "result=passed" >> "$GITHUB_OUTPUT" ;;
+          3) echo "result=incomplete" >> "$GITHUB_OUTPUT" ;;
+          *) echo "result=failed" >> "$GITHUB_OUTPUT" ;;
+        esac
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
     - name: Save authenticated Jev results
@@ -404,6 +408,7 @@ runs:
         fi
         case "$JUDGE_EXIT" in
           0) ;;
+          3) echo "result=incomplete" >> "$GITHUB_OUTPUT"; exit 3 ;;
           [1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]) exit "$JUDGE_EXIT" ;;
           *) echo "::error::RewardGuard judge did not produce a valid result."; exit 2 ;;
         esac

@@ -263,6 +263,8 @@ def _finish(rep: Report, args, usage=None) -> int:
     print(report.terminal(rep))
     if rep.errors:
         return 2
+    if getattr(args, 'require_complete', False) and report.status(rep) == 'incomplete':
+        return 3
     return 1 if rep.failed else 0
 
 
@@ -327,6 +329,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--head", default="HEAD", help="Commit to check (default: HEAD)")
     c.add_argument("--repo", default=".", help="Repository path (default: .)")
     c.add_argument("--staged", action="store_true", help="Check the staged index against HEAD")
+    c.add_argument("--require-complete", action="store_true",
+                   help="Exit 3 when required review evidence/context is incomplete (used by CI)")
     c.add_argument("--plan", action="store_true", help="Print a local provider-free review manifest")
     c.add_argument("--content-only", action="store_true",
                    help="Run only content review; non-content changes skip without model credentials")

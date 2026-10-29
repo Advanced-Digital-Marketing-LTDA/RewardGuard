@@ -680,7 +680,12 @@ def run(repo: str, base: str, head: str, cfg: Config, changed, kinds, descriptio
                 continue
             # Save before justification; an unavailable suppressing condition cannot erase the grade.
             findings.append(f)
-            if key == 'expected_changed' and any_source_changed:
+            if key == 'expected_changed' and any_source_changed and not ready:
+                reason = 'Complete PR task context is unavailable; the original expected-value grade is retained.'
+                notes.append(reason)
+                coverage.append({'file': chunk.path, 'rule': rule, 'stage': 'justification',
+                                 'status': 'not_evaluated', 'reason': reason})
+            elif key == 'expected_changed' and any_source_changed:
                 try:
                     just = client.ask(
                         f"Quoted PR title and description:\n{_desc(description, _context_limit(cfg))}\n\n"

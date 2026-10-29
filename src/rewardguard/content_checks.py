@@ -199,14 +199,16 @@ def build_checks(report: dict) -> list[dict]:
         # Every evaluated/finding score was validated before any presentation limits.
         scores = [float(row["probability"]) for row in evaluated + content_findings[rule]]
         peak = max(scores) if scores else None
-        uncertain = bool(gaps)
+        incomplete = [r for r in rows if r.get('result_complete') is False]
+        uncertain = bool(gaps or incomplete)
         conclusion = "neutral"
         if peak is not None and peak >= .8:
             conclusion = "failure"
         elif peak is not None and peak < .6 and evaluated and not uncertain:
             conclusion = "success"
         title = f"{rule}: " + (f"highest p={peak!r}" if peak is not None else "unverified")
-        summary = (f"{len(evaluated)} evaluated proposition(s); {len(gaps)} missing evidence scope(s). "
+        summary = (f"{len(evaluated)} evaluated proposition(s); {len(gaps)} missing evidence scope(s); "
+                   f"{len(incomplete)} incomplete result(s). "
                    f"Highest defect probability: {peak!r}.\n\n"
                    "p < 0.60 ignored; 0.60 <= p < 0.80 warning (neutral); p >= 0.80 failure. "
                    "A success covers only the evaluated scopes listed here. Missing evidence is unverified.")

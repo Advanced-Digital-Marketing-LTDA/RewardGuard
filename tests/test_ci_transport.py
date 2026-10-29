@@ -143,3 +143,20 @@ def test_authenticated_artifacts_bind_run_event_and_archive(monkeypatch, bad):
         def archive(self, *a): return raw
     with pytest.raises(RewardGuardError):
         load_authenticated('a'*40, 'b'*40, 'c'*40, Client())
+
+
+@pytest.mark.parametrize('field,value', [('rule', []), ('rule', {}), ('severity', []), ('severity', {})])
+def test_artifact_rejects_nonscalar_rule_and_severity_as_controlled_error(field, value):
+    from rewardguard.run_artifacts import validate_results
+    finding = {'rule':'NEW_FAILURES', 'severity':'fail', 'source':'run', 'message':'test result'}
+    finding[field] = value
+    with pytest.raises(RewardGuardError):
+        validate_results({'findings':[finding], 'errors':[]}, {})
+
+
+def test_incomplete_low_probability_scope_cannot_publish_success():
+    from rewardguard.content_checks import build_checks
+    checks = build_checks({'content': {'status':'reviewed', 'coverage':[
+        {'rule':'CG_TEST', 'file':'page.md', 'status':'evaluated', 'probability':.1, 'result_complete':False}]},
+        'findings':[], 'notes':[]})
+    assert next(c for c in checks if c['name'] == 'contentguard / CG_TEST')['conclusion'] == 'neutral'
