@@ -93,6 +93,8 @@ Dates/freshness are necessary only when material to the particular claim. Do not
 
 ## Focused review packs
 
+The following pack, variant and rule tables retain the broader catalog and its historical source-audit design record. They do not enable every cataloged pack or define the current execution sequence. The current website runtime uses the explicit publication/evidence contract and deterministic artifact/rule selection described above; nonwebsite packs and historical classifier/discovery designs are outside that contract. Consult `content_rules.inventory()` for retained rule revisions, scopes and artifact types.
+
 
 | Pack | Rules | Activate for | Source guidance |
 |---|---|---|---|
@@ -193,7 +195,7 @@ No universal dash/adverb/passive-voice bans, word/keyword quotas, mandatory FAQs
 
 ## Atomic rule catalog
 
-The predicate, evidence paths and inline exclusions below jointly define each selected signature. A missing-evidence coverage record is independent of the finding probability. The focused rubric attached to an instantiated rule includes only its relevant requirements and exclusions.
+The predicate, evidence paths and inline exclusions below retain each canonical signature from the catalog. Runtime admission still depends on the current supported website scope and explicit evidence contract. A missing-evidence coverage record is independent of the finding probability. The focused rubric attached to an instantiated rule includes only its relevant requirements and exclusions.
 
 
 <a id="writing"></a>
@@ -838,12 +840,12 @@ CI rollout requires publishing the RewardGuard/action changes and pinning consum
 
 Unavailable linked references are listed in the source audits and supplied no unseen criteria. Missing live crawl, analytics, platform-profile, visual or runtime evidence remains `not_evaluated`; the content reviewer does not manufacture it.
 
-## Automatic evidence and individual CI checks
+## Explicit evidence and individual CI checks
 
-RewardGuard discovers relevant guidance, product documentation, local skill sections, nearby source, imports, file inventories and Git history from repository Git objects. Product facts retain their source revision and remain repository assertions. Source-only rule alternatives cover bounded literal observations; source templates do not establish rendered behavior.
+Trusted-base publication declarations select the public sources, declared dependencies and bound `[content.context]` paths. The collector reads only those explicit evidence bindings; it does not discover guidance, product documentation, local skills, nearby source, imports, file inventories or Git history. Product facts retain their source revision and remain repository assertions. Source-only rule alternatives cover bounded literal observations; source templates do not establish rendered behavior. Mandatory exclusions apply before reads and cannot be bypassed by publication declarations or configured exclusion overrides.
 
-Jev selects applicable rules before deciding which evidence is needed. Unrelated rules are recorded as not applicable. Each applicable rule then receives a target-specific readiness check; a generic document or old observation cannot establish missing facts. Relevant evidence gaps identify the information actually needed for the changed instance. Full source provenance and bounded-collection omissions are included in JSON.
+The manifest and artifact/rule contract select supported scopes deterministically. Within those scopes, applicable rules can require proposition-specific applicability or evidence-readiness decisions; those decisions consume only the bounded declared inputs. A generic document or old observation cannot establish missing facts. Unadopted policy rules are locally not applicable; missing necessary supporting evidence is `not_evaluated`, with provenance and explicit omissions in JSON. Neither model routing nor a missing evidence source triggers automatic collection.
 
 In CI, `contentguard / eligibility` and individual `contentguard / CG_…` checks appear in GitHub Checks. Warnings and evidence gaps are neutral, failures use the existing 0.80 threshold, and successful rule checks cover only their stated evaluated scopes. The caller and judge need `checks: write` in addition to their existing permissions. See [explicit evidence bindings](content-evidence.md).
 
-Applicability uses authored positive descriptions of the changed subject or mechanism (`applies_when`), independently of whether an error exists. Source-only eligibility uses the representation descriptor (`source_when`); defect descriptions are scored only after those routing decisions. A content task for which no proposition can be evaluated is explicitly `not_evaluated`.
+Defect probabilities remain separate from applicability/readiness. The current content path has no broad Jev content-task classifier gate. A supported content scope for which a required proposition cannot be evaluated is explicitly incomplete; an unchanged semantic unit without a reusable completed result remains `unchanged`. The retained source-audit/catalog material above does not authorize the historical classifier or evidence-discovery pipeline.

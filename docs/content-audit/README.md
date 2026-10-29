@@ -1,5 +1,7 @@
 # ContentGuard skill audit
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Snapshot: 2026-10-23. The available cloud catalog contained **124 skills** over seven pages. The executor catalog contained **0 skills**. This audit read all **80 main guides** relevant to writing, SEO, landing pages, conversion, channel content, and adjacent content/research artifacts. The other 44 catalog entries are development workflows, infrastructure/account tools, non-content data operations, or unrelated specialties.
 
 ## Sources and coverage

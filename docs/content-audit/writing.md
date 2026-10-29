@@ -1,5 +1,7 @@
 # Writing skill audit for RewardGuard content review
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Date: 2026-10-23. Scope: the ten assigned writing, research, strategy, and sales skills. This is a source audit; none of their creation, retrieval, interview, posting, or publishing workflows was invoked.
 
 ## Discovery and coverage

@@ -1,5 +1,7 @@
 # OpenSEO skill audit for RewardGuard ContentGuard
 
+> Historical source-audit record (2026-10-23). The candidate contracts and routing/evidence proposals below document the broader catalog design, not the current website runtime. In particular, the old Jev task-classifier and automatic evidence-discovery proposals are not active. Current behavior requires explicit trusted-base publications and bound evidence, deterministic supported artifact/rule selection, and mandatory exclusions. See [current review flow](../content-checks.md#review-flow) and [the publication API](../shared-ci-public-content.md).
+
 Research date: 2026-10-23. Scope: all ten `openseo:*` skills. This is a research catalog, not an SEO audit, implementation, or live research run. No SEO APIs, credit-spending operations, remote writes, or tests were used.
 
 ## Reading record and source boundaries
