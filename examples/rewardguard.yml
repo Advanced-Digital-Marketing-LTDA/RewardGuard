@@ -129,8 +129,8 @@ jobs:
       # Only if a suite runs Playwright:
       # - run: npx playwright install --with-deps
 
-      # Requires a release containing commit-base support; update this tag on rollout.
-      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
+      # Pin reviewed immutable source; publish and verify the matching release before rollout.
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@da5b01faa3fcbaffa50cd4060c86ef7803fcbcff # tested integration candidate; publication pending
         with:
           mode: tests            # never pass secrets here
           base: ${{ needs.rewardguard-base.outputs.base }}
@@ -168,7 +168,7 @@ jobs:
         with:
           node-version: 22
 
-      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@v0.1.0
+      - uses: Advanced-Digital-Marketing-LTDA/RewardGuard@da5b01faa3fcbaffa50cd4060c86ef7803fcbcff # tested integration candidate; publication pending
         with:
           mode: check
           base: ${{ needs.rewardguard-base.outputs.base }}

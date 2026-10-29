@@ -2,7 +2,7 @@
 
 This branch adds content review to the existing RewardGuard check path. Release rollout is pending; live Jev/Haiku precision has not been verified. The commands and configuration below describe the integration for this change.
 
-The content path uses **243 canonical signatures in 37 focused packs**, derived from **80 inspected main skill guides**. A signature produces separate independently graded instances for distinct fields, terms, records, claims, or requirements. Source-audit candidates are research and are not additional enabled checks.
+The retained catalog contains **243 canonical signatures in 37 focused packs**, derived from **80 inspected main skill guides**. A signature produces separate independently graded instances for distinct fields, terms, records, claims, or requirements. Source-audit candidates are research and are not additional enabled checks.
 
 ## Run locally
 
@@ -21,91 +21,51 @@ The existing `rewardguard codex-precommit` hook calls the existing `check` path 
 
 ## Configure content review
 
-Commit configuration and evidence to the trusted base branch. Candidate changes to `.rewardguard.toml`, editorial policies, or product context cannot govern their own review.
+Commit configuration and evidence to the trusted policy base. Candidate edits cannot govern their own review. Empty `content.publications = []` is the default and selects no public content; code/test checks continue.
 
 ```toml
 [content]
 enabled = true
-packs = [] # All packs are eligible; Jev applicability and evidence still filter them.
+packs = [] # Website-supported rules only, filtered by artifact and evidence.
 
-# Optional path-list overrides; omit these to retain packaged defaults.
-# include = ["content/**", "src/pages/**", "public/robots.txt", "public/sitemap*.xml"]
-# source_include = ["src/**/*.astro", "src/**/*.svelte", "src/**/*.tsx"]
-# exclude = ["vendor/**", "generated/vendor/**"]
+[[content.publications]]
+id = "articles"
+sources = ["content/articles/**/*.md", "content/articles/**/*.mdx"]
+type = "article"
+route = "/articles/{stem}"
+published = true
+drafts = false
+dependencies = ["footer"]
+evidence = ["B", "P"]
+
+[[content.publications]]
+id = "footer"
+sources = ["src/Footer.svelte"]
+type = "component"
+route = "/_shared/footer"
 
 [content.context]
-# Use real, repository-relative paths present on the trusted base.
-# B = [".rewardguard/content-context.md"]
-# P = [".rewardguard/content-policy.md"]
-# I = [".rewardguard/content-inventory.json"]
-# S = [".rewardguard/content-sources.json"]
-# R = [".rewardguard/content-rendered.md"]
-# M = [".rewardguard/content-measurements.json"]
-# H = [".rewardguard/content-history.md"]
+B = [".rewardguard/content-context.md"]
+P = [".rewardguard/content-policy.md"]
 ```
 
+Declaration IDs are stable and unique. Types are `page`, `article`, `product`, `component`, `metadata`. Routes are local paths with optional `{stem}` / `{path}` substitutions. JSON declarations select dotted `fields`, such as `["title", "features.*.label"]`; unselected fields remain unknown. Overlapping mappings are excluded as ambiguous; invalid keys, cycles, unsafe routes and unknown dependencies fail configuration. `published=false` excludes a declaration; drafts require `drafts=true`.
 
-| Key | Meaning |
-|---|---|
-| `content.enabled` | Enable or disable the content path. |
-| `content.include` | Content-bearing path patterns considered by the deterministic gate. |
-| `content.source_include` | Source/template path patterns considered for user-facing copy or content controls. |
-| `content.exclude` | Paths omitted from content selection. |
-| `content.evidence_exclude` | Paths omitted from all repository evidence, including explicit context, discovery, imports and inventories. |
-| `content.packs` | Eligible pack keys. An empty list means all packs; selecting a pack does not force every rule to run. |
-| `content.context` | Evidence-code arrays of trusted-base file paths. These are file paths, not shell commands, network URLs, or branch-executed collectors. |
+`include` and `source_include` only narrow declared sources. `exclude` controls targets; `evidence_exclude` controls declared trusted evidence. Neither mappings nor context override mandatory private/credential, internal, generated, test, tooling, CI or backend path safety. See [path boundaries](content-path-review.md) and the [complete example](../examples/.rewardguard.toml).
 
-Omitted path lists retain packaged defaults; explicit lists are project overrides. Preserve the necessary editorial, source-copy, metadata/schema, and discovery-control paths when customizing them. A path match only makes a change eligible for classification; it is not a finding.
-
-### Internal documents are excluded from targets and evidence
-
-The default gate and evidence collector exclude agent instructions/skills,
-development documentation, plans/specifications/runbooks, tests and fixtures,
-tooling/examples, CI configuration, infrastructure/migrations and backend-only
-paths. Conventional project documents such as README, AGENTS, CLAUDE, LICENSE,
-CHANGELOG, CONTEXT and TESTING are excluded at any depth. Matching is
-case-insensitive. See the [path review](content-path-review.md) for the complete
-categories and boundaries.
-
-These filters apply before content-model calls and before evidence blob reads.
-Configured `[content.context]` references do not override
-`content.evidence_exclude`; filtered references are recorded as omissions.
-Automatic Markdown following, installed-skill discovery, related-source imports
-and Git file inventories use the same filter. Generic development guidance cannot
-become content policy merely because it mentions writing, content or SEO.
-
-Dedicated `.rewardguard/content-*` evidence files remain eligible as explicitly
-declared trusted context, while `.rewardguard/` stays excluded as a grading target.
-The implicit `.agents/product-marketing.md` context default is removed. Use the
-dedicated product/content evidence file when those facts are intentionally needed.
-
-Public pages, landing pages, blog/article sources, templates, copy/locales,
-SEO/schema metadata and robots/sitemap/publication controls remain eligible outside
-internal paths. Missing evidence remains `not_evaluated`, not a content defect or
-a claimed pass. Coding/integrity checks continue independently.
-
-Sites actually publishing from `docs/`, `examples/` or another excluded directory
-can deliberately replace both `content.exclude` and
-`content.evidence_exclude` in trusted-base configuration, removing only the
-published subtree from the exclusions while retaining internal/test/generated
-paths. Include/context lists alone do not undo exclusions. Candidate config changes
-cannot alter their own review. Private/credential path safety checks remain
-non-overridable.
-
-Context files supply evidence, not permission to run code. The reviewer does not crawl a site, query an account, execute a build, run candidate scripts, or fetch current competitor facts to fill a missing evidence slot. Supply relevant inspection records separately. Dates are required only when material to the claim, such as current price or a verified publication update.
-
-
-The [authoritative catalog JSON](content-checks.json) records the rule predicates, evidence paths, specialist source URIs, inline exclusions, aliases and artifact variants. The tables below are generated from that snapshot.
+Only explicitly bound evidence paths are supplied, with declared transitive dependencies. There is no automatic document/skill discovery, Markdown following, import following, repository inventory or Git history collection. The reviewer does not crawl a site, execute branch builds or scripts, query accounts, or invent missing external facts. Source observations never establish rendered output, live routes or measured behavior. Missing adopted P means policy-specific rules are locally not applicable; other necessary missing evidence is `not_evaluated`.
 
 ## Review flow
 
-1. A deterministic presence gate examines changed editorial copy, UI strings, source/templates, metadata, schema, and configured discovery/publication controls. No eligible content means an explicit content skip with no content-model calls. Metadata/schema/robots/canonical/sitemap-only changes remain eligible.
-2. Jev classifies an eligible change. A content-task probability **below 0.60** skips the content path. **Exactly 0.60 enters review**; classification is routing, not a warning or failure.
-3. Jev selects applicable packs, then evaluates separately instantiated, evidence-backed rules. Artifact type, changed feature, explicit contract and supplied evidence decide which predicates apply. A pack never gets an aggregate quality probability.
-4. Each individual finding is ignored below 0.60, warns at **0.60 through below 0.80**, and fails at **0.80 or higher**. Haiku receives only the matched bounded rubric, inline exclusions, relevant changed evidence and minimum trusted context. It explains the location, impact and supported correction; it cannot downgrade Jev.
-5. Deduplicate the same root cause by changed span, proposition or named field, conditions and evidence. Preserve supporting source IDs without reporting the same wrong trial term through several skills.
+1. Resolve trusted publication mappings, current and baseline reader units, transitive dependencies, selected JSON fields and explicit evidence. Record exclusions and extraction gaps.
+2. Select website-supported rules deterministically by artifact/scope; there is no Jev content-task classifier gate. Research, brief, advertising, email/SMS, sponsorship, communications, sales, report and listing packs remain outside this initial website runtime; all 243 canonical signatures remain cataloged below.
+3. Grade evidenced independent unit/rule propositions. Whole-artifact/order, route/reference and baseline/dependency data enters only checks that consume it. A pack never receives one quality score.
+4. Ignore findings below **0.60**, warn at **0.60 through below 0.80**, fail at **0.80 or higher**. Haiku explains supported source anchors and cannot clear a Jev grade.
+5. Reuse authenticated completed records including clean/warning/failure grades, coverage and explanations. Unchanged semantics use cache-only lookup; a miss is `unchanged`, never a clean verdict or a new provider evaluation. Changed explanation inputs retain grades and explicitly omit stale explanations. Reports preserve completed work and errors when later calls fail.
 
-The normal `rewardguard check` path includes content review. A content skip does not suppress coding checks or change other CI jobs. The content-only mode is for a content result without those coding/test-review layers. Existing provider errors remain errors once review is required.
+`evaluated`, `not_applicable`, `not_evaluated` and `unchanged` describe coverage; `reused: true` identifies completed records and `result_cache_hits` counts them separately from raw Jev hits. Extraction gaps remain explicit. Selected JSON fields or attributes cannot establish whole-record completeness. C evidence is contract-specific, restricted to the two authored-text completeness rules with complete reader extraction and declared dependencies. See [the API contract](shared-ci-public-content.md) for details.
+
+A content skip leaves code/test checks active. Local incomplete coverage retains legacy exit 0 without other failures/errors; the CI Action uses `--require-complete` and exit 3. Incomplete scoped checks never report success. Provider/configuration errors remain exit 2. [Release verification](shared-ci-release-verification.md) distinguishes local validation from publication, candidate execution and real-consumer acceptance.
 
 ## Evidence, trust and coverage
 
@@ -884,6 +844,6 @@ RewardGuard discovers relevant guidance, product documentation, local skill sect
 
 Jev selects applicable rules before deciding which evidence is needed. Unrelated rules are recorded as not applicable. Each applicable rule then receives a target-specific readiness check; a generic document or old observation cannot establish missing facts. Relevant evidence gaps identify the information actually needed for the changed instance. Full source provenance and bounded-collection omissions are included in JSON.
 
-In CI, `contentguard / eligibility` and individual `contentguard / CG_…` checks appear in GitHub Checks. Warnings and evidence gaps are neutral, failures use the existing 0.80 threshold, and successful rule checks cover only their stated evaluated scopes. The caller and judge need `checks: write` in addition to their existing permissions. See [automatic evidence collection](content-evidence.md).
+In CI, `contentguard / eligibility` and individual `contentguard / CG_…` checks appear in GitHub Checks. Warnings and evidence gaps are neutral, failures use the existing 0.80 threshold, and successful rule checks cover only their stated evaluated scopes. The caller and judge need `checks: write` in addition to their existing permissions. See [explicit evidence bindings](content-evidence.md).
 
 Applicability uses authored positive descriptions of the changed subject or mechanism (`applies_when`), independently of whether an error exists. Source-only eligibility uses the representation descriptor (`source_when`); defect descriptions are scored only after those routing decisions. A content task for which no proposition can be evaluated is explicitly `not_evaluated`.
