@@ -152,14 +152,17 @@ def test_later_chunk_failure_keeps_completed_raw_grade(history, monkeypatch):
 def test_expected_justification_failure_retains_score(history, monkeypatch):
     repo, base, _, head = history
     cfg = config.parse('run_tests = false\n')
-    monkeypatch.setattr(judge, 'build_chunks', lambda *a: [judge.Chunk('a.test.js', 'test', 'test', 1, 'diff')])
+    (repo/'a.test.js').write_text('expect(value).toBe(2);\n')
+    git(repo,'add','a.test.js'); git(repo,'commit','-qm','test expectation')
+    head = git(repo,'rev-parse','HEAD')
+    changed = gitops.changed_files(str(repo), base, head)
     class Jev:
         def ask(self, state, questions):
             if 'justified' in questions: raise RewardGuardError('justification unavailable')
             return {key: .9 if key == 'expected_changed' else .1 for key in questions}
     class Haiku:
         def explain(self, state, statements, **kw): return {key: [] for key in statements}
-    result = judge.run(str(repo), base, head, cfg, [], {'a.test.js':'test', 'code.js':'source'}, 'complete task', Jev(), Haiku())
+    result = judge.run(str(repo), base, head, cfg, changed, {'a.test.js':'test', 'a.py':'source'}, 'complete task', Jev(), Haiku())
     assert any(f.rule == 'EXPECTED_VALUE_CHANGED' and f.probability == .9 for f in result.findings)
     assert any('justification unavailable' in e for e in result.errors)
 
@@ -196,7 +199,10 @@ def test_ci_required_completeness_returns_nonzero_with_no_fake_error(tmp_path):
 def test_incomplete_task_context_cannot_suppress_expected_value_grade(history, monkeypatch):
     repo, base, _, head = history
     cfg = config.parse('run_tests = false\n')
-    monkeypatch.setattr(judge, 'build_chunks', lambda *a: [judge.Chunk('a.test.js', 'test', 'test', 1, 'diff')])
+    (repo/'a.test.js').write_text('expect(value).toBe(2);\n')
+    git(repo,'add','a.test.js'); git(repo,'commit','-qm','test expectation')
+    head = git(repo,'rev-parse','HEAD')
+    changed = gitops.changed_files(str(repo), base, head)
     calls = []
     class Jev:
         def ask(self, state, questions):
@@ -204,7 +210,7 @@ def test_incomplete_task_context_cannot_suppress_expected_value_grade(history, m
             return {key: .99 if key == 'justified' else .9 if key == 'expected_changed' else .1 for key in questions}
     class Haiku:
         def explain(self, state, statements, **kw): return {key: [] for key in statements}
-    result = judge.run(str(repo), base, head, cfg, [], {'a.test.js':'test', 'code.js':'source'},
+    result = judge.run(str(repo), base, head, cfg, changed, {'a.test.js':'test', 'a.py':'source'},
                        'partial task fragment', Jev(), Haiku(), task_context_complete=False)
     assert any(f.rule == 'EXPECTED_VALUE_CHANGED' and f.probability == .9 for f in result.findings)
     assert not any('justified' in q for q in calls)
@@ -215,12 +221,10 @@ def test_malformed_artifact_preserves_earlier_content_findings(history, monkeypa
     from types import SimpleNamespace
     from rewardguard import content_review, run_artifacts
     repo, base, _, head = history
-    cfg = config.parse('run_tests = false\n')
-    cfg.run_tests = True
-    def resolve(repo, args):
-        args.config_base = base
-        return base, head, cfg
-    monkeypatch.setattr(cli, '_resolve', resolve)
+    (repo/'.rewardguard.toml').write_text('run_tests=true\n[[suites]]\nname="unit"\ncommand="must-not-execute"\n')
+    git(repo,'commit','-qam','trusted test policy'); base = git(repo,'rev-parse','HEAD')
+    (repo/'a.py').write_text('value = 3\n')
+    git(repo,'commit','-qam','source change'); head = git(repo,'rev-parse','HEAD')
     finding = Finding('CG_TEST', 'fail', 'completed content finding', source='content', probability=.9)
     monkeypatch.setattr(content_review, 'review', lambda *a, **kw: SimpleNamespace(
         findings=[finding], notes=[], errors=[], to_dict=lambda: {'status':'reviewed', 'coverage':[]}))
@@ -268,7 +272,7 @@ def test_malformed_artifact_preserves_earlier_content_findings(history, monkeypa
     monkeypatch.setattr(github.urllib.request, 'build_opener', lambda *a: Opener())
     target = tmp_path/'retained.json'
     markdown = tmp_path/'retained.md'
-    assert cli.main(['check', '--repo', str(repo), '--test-artifact', '--json', str(target), '--markdown', str(markdown)]) == 2
+    assert cli.main(['check', '--repo', str(repo), '--base', base, '--head', head, '--test-artifact', '--json', str(target), '--markdown', str(markdown)]) == 2
     data = json.loads(target.read_text())
     assert any(f['probability'] == .9 and f['source'] == 'content' for f in data['findings'])
     assert any(f['probability'] == .91 and f['rule'] == 'HARDCODED_OUTPUT' for f in data['findings'])
@@ -329,3 +333,29 @@ def test_one_enabled_intent_rule_keeps_its_missing_context_gap(history):
         {'a.py':'source'}, '', Jev(), object())
     assert [r['rule'] for r in result.coverage if r['status'] == 'not_evaluated'] == ['LIMIT_RAISED']
     assert report.status(Report(code={'coverage':result.coverage})) == 'incomplete'
+
+
+@pytest.mark.parametrize('github_actions', ['', 'true'])
+@pytest.mark.parametrize('require_artifact', [False, True])
+def test_test_transport_policy_is_explicit_not_environment(history, monkeypatch, tmp_path, github_actions, require_artifact):
+    from types import SimpleNamespace
+    repo, _, _, _ = history
+    (repo/'.rewardguard.toml').write_text('run_tests=true\n[[suites]]\nname="unit"\ncommand="must-not-execute"\n')
+    git(repo,'commit','-qam','trusted test policy'); base = git(repo,'rev-parse','HEAD')
+    (repo/'a.py').write_text('value = 3\n')
+    git(repo,'commit','-qam','change'); head = git(repo,'rev-parse','HEAD')
+    monkeypatch.setenv('GITHUB_ACTIONS', github_actions)
+    class Jev:
+        cache_hits = 0
+        models_seen = []
+        def ask(self, state, questions): return {k:.1 for k in questions}
+    monkeypatch.setattr(judge,'JevClient',lambda *a,**kw:Jev())
+    monkeypatch.setattr(cli.explainer,'HaikuExplainer',lambda *a,**kw:SimpleNamespace())
+    local = tmp_path/'run.json'; local.write_text(json.dumps({'base':base,'head':head,'findings':[],'errors':[]}))
+    output = tmp_path/'result.json'
+    options = ['--require-test-artifact'] if require_artifact else []
+    code = cli.main(['check','--repo',str(repo),'--base',base,'--head',head,'--no-local-tests',
+                     '--run-results',str(local),'--json',str(output),*options])
+    data = json.loads(output.read_text())
+    assert code == (2 if require_artifact else 0)
+    assert data['errors'] == (['Test policy requires --test-artifact with authenticated origin'] if require_artifact else [])

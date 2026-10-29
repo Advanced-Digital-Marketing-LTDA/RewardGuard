@@ -115,6 +115,12 @@ def build_checks(report: dict) -> list[dict]:
         if not isinstance(row_status, str) or row_status not in {"eligible", "skipped", "evaluated", "not_evaluated", "not_applicable", "unchanged"}:
             raise ValueError("unknown content coverage status")
         rule = row.get("rule")
+        if row_status == "unchanged" and (
+                not isinstance(rule, str) or not RULE_ID.fullmatch(rule)
+                or not isinstance(row.get('unit'), str) or not re.fullmatch(r'[0-9a-f]{64}', row['unit'])
+                or type(row.get('line')) is not int or row['line'] < 1
+                or 'probability' in row or row.get('stage') == 'classification' or row.get('reused') is True):
+            raise ValueError('unchanged coverage requires a nonverdict public unit scope')
         if rule is not None and (not isinstance(rule, str) or not RULE_ID.fullmatch(rule)):
             raise ValueError("invalid content rule ID")
         if row_status in {"evaluated", "not_applicable"} and rule is None:

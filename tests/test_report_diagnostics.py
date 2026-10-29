@@ -34,14 +34,16 @@ def test_evidence_diagnostics_count_known_reasons_without_copying_paths_or_unkno
     content = {'status': 'reviewed', 'coverage': [
         {'status': 'skipped', 'file': 'secret-page'},
         {'status': 'not_evaluated', 'reason': 'private source text'},
-        {'status': 'evaluated'}, {'status': 'not_applicable'}, {'status': 'unchanged'}, {'status': 'secret-status'}],
+        {'status': 'evaluated'}, {'status': 'not_applicable'}, {'status': 'secret-status'}],
         'omissions': [{'reason': 'File not available at revision', 'path': 'secret-file'},
                       {'reason': 'File not available at revision'},
                       {'reason': 'Whole evidence unit exceeds per-file or remaining total budget'},
                       {'reason': 'private source text', 'path': 'secret-file'}]}
     summary = report.evidence_diagnostics(content)
-    assert summary['coverage'] == {'eligible': 0, 'evaluated': 1, 'skipped': 1,
-                                   'not_applicable': 1, 'not_evaluated': 1, 'unchanged': 1, 'unknown': 1}
+    # Preserve the original categories; the new public-unit category is tested separately below.
+    assert summary['coverage']['unchanged'] == 0
+    assert {k:v for k,v in summary['coverage'].items() if k != 'unchanged'} == {'eligible': 0, 'evaluated': 1, 'skipped': 1,
+                                   'not_applicable': 1, 'not_evaluated': 1, 'unknown': 1}
     assert summary['omission_reasons'] == {'unavailable_at_revision': 2, 'unit_budget': 1,
                                           'other_or_unknown': 1}
     assert summary['omission_count'] == 4
@@ -51,7 +53,6 @@ def test_evidence_diagnostics_count_known_reasons_without_copying_paths_or_unkno
     assert 'secret' not in json.dumps(encoded['diagnostics'])
     assert 'secret' not in report.terminal(rep)
     assert 'skipped=1' in report.terminal(rep)
-    assert 'unchanged=1' in report.terminal(rep)
     assert 'unavailable_at_revision=2' in report.terminal(rep)
     assert summary['not_evaluated_reasons'] == {'unknown': 1}
 

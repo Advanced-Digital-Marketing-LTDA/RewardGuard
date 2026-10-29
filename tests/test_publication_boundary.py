@@ -464,3 +464,47 @@ def test_actual_frontmatter_draft_still_excluded(repo, metadata):
     m = manifest(str(repo), 'HEAD~1', 'HEAD', cfg())
     assert m['artifacts'] == []
     assert any(x['reason'] == 'Draft metadata requires explicit opt-in' for x in m['exclusions'])
+
+
+def test_unbounded_mdx_omission_cannot_establish_complete_document_or_pass_ci(repo, monkeypatch, tmp_path):
+    import argparse, json
+    from rewardguard import cli, content_rules, report
+    from rewardguard.models import Report
+    (repo/'page.mdx').write_text('# Published\n\nVisible public claim.\n\nexport const unknown = {\nPRIVATE TAIL\n')
+    git(repo,'add','.'); git(repo,'commit','-qm','partial MDX')
+    c = cfg(); c.content.publications = [config.Publication('page',('page.mdx',),'page','/')]
+    c.content.packs = ['writing']
+    selected = [r for r in content_rules.all_rules() if r.id in {'CG_AMBIGUOUS_MEANING','CG_SECTION_PROMISE_MISMATCH'}]
+    monkeypatch.setattr(content_rules,'all_rules',lambda:selected)
+    calls=[]
+    class Client:
+        def ask(self,state,questions):
+            assert 'PRIVATE TAIL' not in state
+            calls.append((state,questions))
+            return {k:.9 if k.startswith('applies_') else .1 for k in questions}
+    result = content_review.review(str(repo),'HEAD~1','HEAD',c,gitops.changed_files(str(repo),'HEAD~1','HEAD'),client=Client())
+    omissions = [r for r in result.coverage if r.get('omitted_to_end')]
+    assert len(omissions) == 1 and omissions[0]['status'] == 'not_evaluated'
+    assert omissions[0]['line'] == 5 and omissions[0]['end_line'] == 6
+    assert any(r['status']=='evaluated' for r in result.coverage)
+    complete = [r for r in result.coverage if r.get('rule')=='CG_SECTION_PROMISE_MISMATCH']
+    assert complete and all(r['status']=='not_evaluated' and 'C' not in r['available'] for r in complete)
+    for state, questions in calls:
+        assert 'CG_SECTION_PROMISE_MISMATCH' not in questions
+        if 'applies_CG_SECTION_PROMISE_MISMATCH' in questions:
+            assert json.loads(state.split('\n',1)[1])['contract_C_available'] is False
+    rep=Report(content=result.to_dict(),findings=result.findings,errors=result.errors)
+    assert report.status(rep)=='incomplete'
+    assert cli._finish(rep,argparse.Namespace(require_complete=True,json=str(tmp_path/'partial.json'),markdown=None))==3
+
+
+def test_deep_valid_publication_dependencies_do_not_hit_python_recursion_limit(repo):
+    from rewardguard.content_publications import manifest
+    count=1100
+    c=cfg()
+    c.content.publications=[config.Publication(f'node{i}',('page.md',) if i==0 else (f'absent{i}.md',),
+        'page',f'/{i}',dependencies=(f'node{i+1}',) if i+1<count else ()) for i in range(count)]
+    artifact=manifest(str(repo),'HEAD','HEAD',c)['artifacts'][0]
+    expected=sorted(f'node{i}' for i in range(1,count))
+    assert artifact['resolved_dependencies']==expected
+    assert artifact['missing_dependencies']==expected

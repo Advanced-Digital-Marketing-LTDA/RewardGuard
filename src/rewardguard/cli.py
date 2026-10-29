@@ -192,11 +192,11 @@ def check(args) -> int:
             rep.notes.append('Test artifact origin/run/digest verified; provenance does not prove test honesty or effectiveness.')
         except (OSError, ValueError, RewardGuardError) as error:
             rep.errors.append(f'Test artifact unavailable or invalid: {error}')
+    elif getattr(args, 'require_test_artifact', False):
+        rep.errors.append('Test policy requires --test-artifact with authenticated origin')
     elif args.run_results:
         log(f"rewardguard: test results from {args.run_results}")
         try:
-            if args.no_local_tests and os.environ.get('GITHUB_ACTIONS') == 'true':
-                raise RewardGuardError('CI requires --test-artifact with authenticated origin, not a local result file')
             run_findings, run_errors = _load_run_results(args.run_results, base, head)
             found.extend(run_findings)
             rep.errors.extend(run_errors)
@@ -342,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--allow-dirty", action="store_true",
                    help="Run even with uncommitted changes (they are NOT checked)")
     c.add_argument("--test-artifact", action="store_true", help="Verify same-run GitHub test artifact (actions:read)")
+    c.add_argument("--require-test-artifact", action="store_true",
+                   help="Require authenticated artifacts when trusted policy enables tests; never run tests or accept local results")
     c.add_argument("--run-results",
                    help="Use test results written by `rewardguard run-tests` instead of running the tests here")
     c.add_argument("--no-local-tests", action="store_true",

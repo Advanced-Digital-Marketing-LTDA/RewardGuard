@@ -348,7 +348,7 @@ def test_app_options_named_strict_are_not_a_gate(sample_repo, fake_jev, tmp_path
 def test_jev_probability_sets_severity_and_haiku_explains_everything_reported(p, severity, sample_repo, fake_jev,
                                                                               fake_haiku, tmp_path):
     fake_jev(rules={("hardcoded", "return 16.99"): p})
-    fh = fake_haiku()
+    fh = fake_haiku(line=5, code="  if (price === 19.99 && percent === 15) return 16.99;")
     sample_repo.branch("hc", {SRC: sample_repo.read(SRC).replace(
         "  return Math.round(price * (100 - percent)) / 100;",
         "  if (price === 19.99 && percent === 15) return 16.99;\n  return Math.round(price * (100 - percent)) / 100;")})

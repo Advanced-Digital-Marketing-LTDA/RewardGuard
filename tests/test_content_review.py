@@ -361,3 +361,20 @@ def test_retired_content_classifier_cannot_change_publication_eligibility(repo, 
     assert result.status == 'reviewed' and result.errors == []
     assert [(f.rule, f.probability) for f in result.findings] == [('CG_INTERNAL_CONTRADICTION', .8)]
     assert client.calls and all('content_task' not in q for _, q in client.calls)
+
+
+def test_probability_boundary_still_raises_for_original_content_nan_input():
+    # Transport validation keeps the old fail-closed exception contract. Review
+    # catches it into ContentResult.errors so earlier grades are never discarded.
+    with pytest.raises(RewardGuardError,match='probability'):
+        engine()._ask(Jev(content=float('nan')),'source',{'content_task':'classification'})
+
+
+def test_missing_context_changed_scope_retains_single_original_gap(repo):
+    changed=commit(repo,'page.md','# Product\nNew public copy.\n')
+    result=run(repo,changed,Jev(pack='proof'),Haiku(),['proof'])
+    # The unchanged heading is separate scheduling evidence, not a second missing
+    # proof. Preserve the original changed-scope requirement independently.
+    rows=[r for r in result.coverage if r.get('rule')=='CG_PRODUCT_FACT_CONFLICT' and r.get('line')==2]
+    assert len(rows)==1 and rows[0]['status']=='not_evaluated'
+    assert rows[0]['requires']==[['B','D']] and rows[0]['available']==['D']

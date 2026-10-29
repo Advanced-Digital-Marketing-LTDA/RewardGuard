@@ -91,3 +91,22 @@ def test_cache_metadata_io_failure_is_visible_without_callback(monkeypatch, capl
         assert cache.load(b'{}') is None
     assert 'cache metadata unavailable' in caplog.text
     assert 'private-path-secret' not in caplog.text
+
+
+def test_legacy_publisher_redirect_cannot_forward_token(monkeypatch):
+    import urllib.request, urllib.error
+    monkeypatch.setenv('GH_TOKEN','private-token')
+    requests=[]
+    class RedirectingApi(urllib.request.HTTPSHandler):
+        def https_open(self, request):
+            requests.append(request)
+            return self.parent.error('http',request,io.BytesIO(b''),302,'redirect',
+                                     {'Location':'https://attacker.invalid/steal'})
+    real_build = urllib.request.build_opener
+    def build(*handlers):
+        assert any(isinstance(h,github.NoRedirect) for h in handlers)
+        return real_build(*handlers,RedirectingApi())
+    monkeypatch.setattr(github.urllib.request,'build_opener',build)
+    assert content_checks.main(['--preflight','--head','a'*40,'--repo','owner/repo','--pr','29'])==2
+    assert [r.full_url for r in requests]==['https://api.github.com/repos/owner/repo/pulls/29']
+    assert requests[0].get_header('Authorization')=='Bearer private-token'

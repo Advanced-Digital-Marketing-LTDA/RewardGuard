@@ -308,6 +308,7 @@ def test_action_preserves_incomplete_outcome_and_fails_job(tmp_path):
     steps = _load('action.yml')['runs']['steps']
     check = next(s for s in steps if s.get('id') == 'check')
     assert '--require-complete' in check['run']
+    assert '--require-test-artifact' in check['run']
     final = next(s for s in steps if s.get('id') == 'final_result')
     output = tmp_path/'output'
     result = subprocess.run(['bash', '-euo', 'pipefail', '-c', final['run']], capture_output=True, text=True,

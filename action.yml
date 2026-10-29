@@ -322,7 +322,7 @@ runs:
         fi
         rm -f "$RUNNER_TEMP/rewardguard.md" "$RUNNER_TEMP/rewardguard.json"
         set +e
-        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --no-local-tests --require-complete "${results[@]}" \
+        python -I -m rewardguard.cli check --base "$BASE" --head "$REVIEW_HEAD" --comparison-mode explicit --policy-base "$POLICY_BASE" --no-local-tests --require-test-artifact --require-complete "${results[@]}" \
           --markdown "$RUNNER_TEMP/rewardguard.md" --json "$RUNNER_TEMP/rewardguard.json"
         code=$?
         set -e

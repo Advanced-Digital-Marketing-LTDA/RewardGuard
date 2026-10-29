@@ -461,8 +461,14 @@ def manifest(repo, base, head, cfg, changed=None):
         affected_ids.update(new)
     declarations = {p.id: p for p in cfg.content.publications}
     def dependencies(identity):
-        direct = set(declarations[identity].dependencies)
-        return direct | {nested for dep in direct for nested in dependencies(dep)}
+        resolved, pending = set(), list(declarations[identity].dependencies)
+        while pending:
+            dependency = pending.pop()
+            if dependency in resolved:
+                continue
+            resolved.add(dependency)
+            pending.extend(declarations[dependency].dependencies)
+        return resolved
     for a in current:
         a['resolved_dependencies'] = sorted(dependencies(a['id']))
         a['missing_dependencies'] = sorted(set(a['resolved_dependencies']) - {item['id'] for item in current})

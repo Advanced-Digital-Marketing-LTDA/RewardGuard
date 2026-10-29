@@ -191,3 +191,15 @@ def test_publisher_exposes_stale_state_after_fresh_preflight(tmp_path, monkeypat
     assert publisher.main([*arguments,'--report',str(target),'--checks',checks,'--comment','true']) == 0
     assert output.read_text() == 'state=stale\n'
     assert len(client.writes) == advance_after
+
+
+@pytest.mark.parametrize('change', [{'rule':None}, {'unit':''}, {'unit':[]}, {'line':True}, {'line':0}, {'probability':.1}, {'stage':'classification'}, {'reused':True}])
+def test_unchanged_rows_require_a_nonverdict_public_unit_scope(change):
+    from rewardguard.content_checks import build_checks
+    row = {'status':'unchanged','rule':'CG_AMBIGUOUS_MEANING','file':'page.md',
+           'unit':'a'*64,'line':1,'reason':'No new reader content; unchanged unit has no reusable completed result'}
+    valid = {'content':{'status':'skipped','coverage':[row]},'findings':[],'notes':[]}
+    checks = build_checks(valid)
+    assert all(c['conclusion'] != 'success' for c in checks)
+    with pytest.raises(ValueError, match='unchanged'):
+        build_checks({**valid,'content':{'status':'skipped','coverage':[{**row,**change}]}})
