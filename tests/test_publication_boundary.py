@@ -331,6 +331,42 @@ def test_mdx_unsupported_regions_are_omitted_whole(implementation):
     assert limits and all(limit['status'] == 'not_evaluated' for limit in limits)
 
 
+@pytest.mark.parametrize('implementation', [
+    'export const internal =\n\n`PRIVATE IMPLEMENTATION STRING`;\n',
+    'export const internal = "PRIVATE PREFIX" +\n\n`PRIVATE CONTINUATION`;\n',
+    'export const first = "PRIVATE FIRST",\n\nsecond = "PRIVATE SECOND";\n',
+])
+def test_mdx_incomplete_esm_blank_lines_do_not_resume_reader_extraction(implementation):
+    from rewardguard.content_publications import extract
+    source = implementation + '\n# Public headline\n\nPUBLIC PARAGRAPH\n'
+    publication = config.Publication('page', ('src/**',), 'article', '/')
+    units, limits = extract('src/page.mdx', source, publication)
+    assert [u['text'] for u in units] == ['# Public headline', 'PUBLIC PARAGRAPH']
+    assert units[-1]['line'] == source.splitlines().index('PUBLIC PARAGRAPH') + 1
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
+def test_mdx_complete_esm_boundary_skips_nested_semicolons_and_keeps_markdown():
+    from rewardguard.content_publications import extract
+    source = ('export const internal = (() => {\n'
+              'const value = "PRIVATE; STRING";\n\nreturn value;\n})();\n\n'
+              '# Public headline\n\nPUBLIC PARAGRAPH\n')
+    units, limits = extract('page.mdx', source,
+                            config.Publication('page', ('page.mdx',), 'article', '/'))
+    assert [u['text'] for u in units] == ['# Public headline', 'PUBLIC PARAGRAPH']
+    assert units[-1]['line'] == source.splitlines().index('PUBLIC PARAGRAPH') + 1
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
+def test_mdx_without_established_esm_boundary_omits_remaining_region():
+    from rewardguard.content_publications import extract
+    source = 'export const internal =\n\n`PRIVATE IMPLEMENTATION STRING`\n\n# Possible Markdown\n'
+    units, limits = extract('page.mdx', source,
+                            config.Publication('page', ('page.mdx',), 'article', '/'))
+    assert not units
+    assert limits and all(row['status'] == 'not_evaluated' for row in limits)
+
+
 @pytest.mark.parametrize('source', [
     'export default () => <p>Public</p> + "<p>PRIVATE CONCATENATED</p>";',
     'const pattern = /return <p>PRIVATE REGEX/; export default () => <p>Public</p>;',

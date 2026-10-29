@@ -131,10 +131,16 @@ def jsx_expression(text):
 
 
 def _esm_end(text, start):
+    """Require an explicit statement terminator outside literals/comments/groups.
+
+    Whitespace never proves completion: assignments, operators and declarations
+    can continue after blank lines. Automatic semicolon insertion and declarations
+    without a terminator are deliberately unsupported here.
+    """
     i = start
     while i < len(text):
-        if text[i] == '\n' and re.match(r'\n[ \t]*\n', text[i:]):
-            return i
+        if text[i] == ';':
+            return i + 1
         end = _atom_end(text, i)
         if end != i:
             i = end
@@ -142,7 +148,7 @@ def _esm_end(text, start):
             i = group_end(text, i)
         else:
             i += 1
-    return i
+    raise UnsupportedSyntax('No explicit MDX ESM statement boundary')
 
 
 def omit_mdx_regions(text):
