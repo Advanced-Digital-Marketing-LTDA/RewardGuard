@@ -206,7 +206,7 @@ def _explainer(monkeypatch, fh):
 def test_haiku_cli_call(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "api-key")
     fh = FakeHaiku()
-    out = _explainer(monkeypatch, fh).explain("the diff", {"HARDCODED_OUTPUT": "Returns a literal."})
+    out = _explainer(monkeypatch, fh).explain("the diff\n@@ -3 +3 @@\n+x", {"HARDCODED_OUTPUT": "Returns a literal."})
     call = fh.calls[0]
     cmd = call["cmd"]
     assert cmd[:2] == ["/usr/bin/claude", "-p"]

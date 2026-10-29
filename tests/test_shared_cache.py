@@ -37,6 +37,7 @@ def test_explanations_reuse_validated_results(monkeypatch, tmp_path):
     import json
     import subprocess
     calls = []
+    monkeypatch.setenv('TYPESAFE_API_KEY', 'separate-signing-key')
     monkeypatch.setenv('REWARDGUARD_CACHE_DIR', str(tmp_path))
     monkeypatch.setattr(explainer, '_which', lambda _: '/usr/bin/claude')
     def run(cmd, **kwargs):

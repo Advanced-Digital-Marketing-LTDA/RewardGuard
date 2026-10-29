@@ -10,7 +10,7 @@ _REASONS = {'started', 'disabled', 'invalid_timestamp', 'integrity_failure', 'cl
             'clock_system_error', 'clock_invalid_value', 'clock_unexpected_error', 'clock_warning_write_failed',
             'malformed', 'invalid_response', 'saved', 'write_failed', 'cleanup_failed',
             'finding_not_cacheable', 'exhausted', 'response_received', 'retryable_http_error',
-            'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json', 'local_reuse', 'immutable_existing', 'format_changed', 'signing_key_changed', 'metadata_unavailable'}
+            'permanent_http_error', 'scheduled', 'transport_failure', 'invalid_json', 'local_reuse', 'immutable_existing', 'format_changed', 'signing_key_changed', 'metadata_unavailable', 'metadata_invalid'}
 _NUMBERS = {'state_characters', 'question_characters', 'question_count', 'request_bytes', 'attempt',
             'input_tokens_available', 'output_tokens_available', 'cached_input_tokens_available',
             'input_tokens', 'output_tokens', 'cached_input_tokens', 'http_status'}
@@ -41,7 +41,7 @@ class UsageTracker:
         # diagnostics. Never retain request contents, credentials or hashes.
         row = {'request_id': request_id if type(request_id) is int and request_id >= 0 else 0,
                'phase': phase if phase in ('code', 'content') else 'other',
-               'stage': stage if stage in ('classification', 'routing', 'applicability', 'evaluation') else 'other',
+               'stage': stage if stage in ('classification', 'routing', 'applicability', 'evaluation', 'explanation') else 'other',
                'category': category if isinstance(category, str) and category in _CATEGORIES else 'other',
                'reason': reason if isinstance(reason, str) and reason in _REASONS else 'other'}
         row.update({k: v for k, v in numbers.items() if k in _NUMBERS and type(v) is int and v >= 0})

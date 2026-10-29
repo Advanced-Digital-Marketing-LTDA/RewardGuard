@@ -132,8 +132,21 @@ class FakeHaiku:
             out = json.dumps(self.payload)
         else:
             flagged = re.findall(r"^- ([A-Z_]+):", input, re.M)
+            location, quote = 3, "x"
+            new_line = None
+            for row in (input or '').splitlines():
+                hunk = re.match(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@', row)
+                if hunk:
+                    new_line = int(hunk[1])
+                elif new_line is not None and row.startswith('+'):
+                    if row[1:].strip():
+                        location, quote = new_line, row[1:]
+                        break
+                    new_line += 1
+                elif new_line is not None and row.startswith(' '):
+                    new_line += 1
             out = json.dumps({"type": "result", "is_error": False, "result": "", "structured_output": {"issues": [
-                {"rule": r, "line": 3, "code": "x", "problem": f"{r} problem", "fix": "fix it"} for r in flagged
+                {"rule": r, "line": location, "code": quote, "problem": f"{r} problem", "fix": "fix it"} for r in flagged
             ]}})
         return subprocess.CompletedProcess(cmd, self.returncode, out, "cli failed" if self.returncode else "")
 
